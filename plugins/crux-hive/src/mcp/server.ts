@@ -5,6 +5,7 @@ import {
   CallToolRequestSchema,
   type CallToolResult,
   ListToolsRequestSchema,
+  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { type CreateOrchestratorArgs, createOrchestrator } from "./tools/create-orchestrator.js";
 import { type SendMessageArgs, sendMessage } from "./tools/send-message.js";
@@ -19,7 +20,7 @@ const TOOL_DEFINITIONS = [
     description:
       "Creates a git worktree and starts Claude Code in a new tmux window. Requires running inside a tmux session.",
     inputSchema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         branch: {
           type: "string",
@@ -54,7 +55,7 @@ const TOOL_DEFINITIONS = [
     description:
       "Creates a new orchestrator session for coordinating worker tasks. Returns an orchestrator_id to use with start_worktree_session.",
     inputSchema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         project_dir: {
           type: "string",
@@ -77,7 +78,7 @@ Call when:
 
 The orchestrator cannot see your work until you call this tool.`,
     inputSchema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         message_type: {
           type: "string",
@@ -106,7 +107,7 @@ The orchestrator cannot see your work until you call this tool.`,
       required: ["message_type", "content"],
     },
   },
-];
+] as const satisfies readonly Tool[];
 
 const server = new Server({ name: "crux", version: "4.0.0" }, { capabilities: { tools: {} } });
 
