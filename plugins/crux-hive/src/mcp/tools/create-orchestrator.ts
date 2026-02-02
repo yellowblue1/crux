@@ -7,15 +7,22 @@ export interface CreateOrchestratorArgs {
 }
 
 /**
+ * Get the plugin root directory using import.meta.
+ * This file is at: plugins/crux-hive/src/mcp/tools/create-orchestrator.ts
+ * Plugin root is at: plugins/crux-hive/
+ */
+function getPluginRoot(): string {
+  // import.meta.dir gives the directory of this file (src/mcp/tools)
+  // Navigate up 3 levels: tools -> mcp -> src -> crux-hive (plugin root)
+  return join(import.meta.dir, "..", "..", "..");
+}
+
+/**
  * Builds the poll command for the orchestrator notification watcher.
- * Uses CLAUDE_PLUGIN_ROOT to get the plugin directory path.
+ * Uses import.meta to determine the plugin directory path.
  */
 function buildPollCommand(orchestratorId: string): string {
-  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
-  if (!pluginRoot) {
-    // Fallback: this shouldn't happen in production but provides a useful error
-    return `echo "Error: CLAUDE_PLUGIN_ROOT not set" && exit 1`;
-  }
+  const pluginRoot = getPluginRoot();
   const scriptPath = join(pluginRoot, "scripts", "poll-notifications.ts");
   return `bun run ${scriptPath} ${orchestratorId}`;
 }
