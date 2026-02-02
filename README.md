@@ -17,6 +17,20 @@ claude plugin install crux-monitor
 claude plugin install crux-hive
 ```
 
+## Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/akirasosa/crux
+cd crux
+
+# Install dependencies
+bun install
+
+# Run tests
+cd plugins/crux-monitor && bun test
+```
+
 ## Available Plugins
 
 | Plugin | Description | Requirements |
