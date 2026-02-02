@@ -126,6 +126,17 @@ CREATE TABLE events (
 );
 ```
 
+## Migration from Existing Setup
+
+If you were using the scripts from dotfiles (`~/.claude/hooks/notification.sh`), remove the hook configuration from `~/.claude/settings.json` after installing this plugin to avoid duplicate notifications.
+
+**Database Migration**: If you have an existing database at `~/.local/share/claude-monitoring/events.db`, you can migrate it manually:
+
+```bash
+mkdir -p ~/.local/share/crux-monitor
+mv ~/.local/share/claude-monitoring/events.db ~/.local/share/crux-monitor/events.db
+```
+
 ## Development
 
 ### Running Tests
@@ -141,17 +152,6 @@ bun test --watch      # Watch mode
 ```bash
 cd plugins/crux-monitor/web
 bun run dev           # Start dev server with auto-reload
-```
-
-## Migration from Existing Setup
-
-If you were using the scripts from dotfiles (`~/.claude/hooks/notification.sh`), remove the hook configuration from `~/.claude/settings.json` after installing this plugin to avoid duplicate notifications.
-
-**Database Migration**: If you have an existing database at `~/.local/share/claude-monitoring/events.db`, you can migrate it manually:
-
-```bash
-mkdir -p ~/.local/share/crux-monitor
-mv ~/.local/share/claude-monitoring/events.db ~/.local/share/crux-monitor/events.db
 ```
 
 ## Uninstalling
