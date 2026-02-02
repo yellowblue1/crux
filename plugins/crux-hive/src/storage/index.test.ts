@@ -34,7 +34,8 @@ describe("file-based storage", () => {
       const session = createOrchestratorSession("/test/project");
       trackOrchestrator(session.id);
 
-      expect(session.id).toMatch(/^orch_[a-z0-9]{8}$/);
+      // New format: 12 hex characters (cryptographically secure)
+      expect(session.id).toMatch(/^orch_[a-f0-9]{12}$/);
       expect(session.project_dir).toBe("/test/project");
       expect(session.created_at).toBeDefined();
 
@@ -70,7 +71,8 @@ describe("file-based storage", () => {
     });
 
     it("should return null for non-existent session", () => {
-      const result = getOrchestratorSession("orch_nonexist");
+      // Use a valid format ID that doesn't exist
+      const result = getOrchestratorSession("orch_000000000000");
 
       expect(result).toBeNull();
     });
@@ -205,7 +207,8 @@ describe("ID generation", () => {
       rmSync(dir, { recursive: true, force: true });
     }
 
-    expect(session.id).toMatch(/^orch_[a-z0-9]{8}$/);
+    // New format: 12 hex characters (cryptographically secure)
+    expect(session.id).toMatch(/^orch_[a-f0-9]{12}$/);
   });
 });
 

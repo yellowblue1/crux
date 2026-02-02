@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -37,13 +38,27 @@ export interface Message {
 }
 
 // Helper functions
+
+/**
+ * Generates a cryptographically secure random ID.
+ * Uses crypto.randomBytes() instead of Math.random() for security.
+ */
 function generateId(prefix: string): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let id = "";
-  for (let i = 0; i < 8; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return `${prefix}_${id}`;
+  // Generate 6 random bytes = 48 bits of entropy
+  // Encode as hex (12 characters) for a total ID like "orch_a1b2c3d4e5f6"
+  const randomHex = randomBytes(6).toString("hex");
+  return `${prefix}_${randomHex}`;
+}
+
+/**
+ * Validates an orchestrator ID to prevent path traversal attacks.
+ * Supports both old (8-char alphanumeric) and new (12-char hex) formats
+ * for backward compatibility during the transition period.
+ */
+function isValidOrchestratorId(id: string): boolean {
+  // New format: orch_ + 12 hex characters
+  // Old format: orch_ + 8 alphanumeric characters (for backward compatibility)
+  return /^orch_[a-f0-9]{12}$/.test(id) || /^orch_[a-z0-9]{8}$/.test(id);
 }
 
 function generateUlid(): string {
@@ -54,6 +69,10 @@ function generateUlid(): string {
 }
 
 function getOrchestratorDir(orchestratorId: string): string {
+  // Validate ID format to prevent path traversal
+  if (!isValidOrchestratorId(orchestratorId)) {
+    throw new Error(`Invalid orchestrator ID format: ${orchestratorId}`);
+  }
   return join(tmpdir(), orchestratorId);
 }
 
