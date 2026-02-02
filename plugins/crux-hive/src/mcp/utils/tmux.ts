@@ -19,9 +19,11 @@ export function createWindow(name: string, dir: string): string {
 
 /**
  * Send keys to a tmux window
+ * Uses tmux's -l flag for literal key input to prevent shell interpretation
  */
 export function sendKeys(windowId: string, keys: string): void {
-  execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} ${keys} Enter`);
+  execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} -l ${shellEscape(keys)}`);
+  execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} Enter`);
 }
 
 /**

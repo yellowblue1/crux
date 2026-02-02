@@ -103,8 +103,24 @@ function startWatcher() {
 
 // Create Hono app with chain-style API
 const app = new Hono()
-  // CORS middleware
-  .use("/*", cors())
+  // CORS middleware - restrict to localhost origins only for security
+  // This prevents cross-origin attacks from malicious websites
+  .use(
+    "/*",
+    cors({
+      origin: (origin) => {
+        // Allow requests with no origin (same-origin, curl, etc.)
+        if (!origin) return origin;
+        // Only allow localhost origins (with any port)
+        const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+        if (localhostPattern.test(origin)) {
+          return origin;
+        }
+        // Reject other origins
+        return null;
+      },
+    }),
+  )
 
   // GET /api/events
   .get("/api/events", (c) => {

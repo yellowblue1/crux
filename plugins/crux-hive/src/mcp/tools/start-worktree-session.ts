@@ -15,6 +15,26 @@ export interface StartWorktreeSessionArgs {
 }
 
 /**
+ * Validates a git branch name or ref against safe characters.
+ * Allows alphanumeric, slashes, hyphens, underscores, and dots.
+ * This prevents command injection via shell metacharacters.
+ */
+function isValidGitRef(ref: string): boolean {
+  // Git ref names: alphanumeric, /, -, _, .
+  // Must not start with - or . to prevent flag injection
+  // Must not contain consecutive dots (..) or end with .lock
+  const safeRefPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
+  if (!safeRefPattern.test(ref)) {
+    return false;
+  }
+  // Additional git ref restrictions
+  if (ref.includes("..") || ref.endsWith(".lock") || ref.includes("@{")) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Writes orchestrator ID file to worktree's .claude directory
  * This file is read by hooks (defined in plugin.json) to determine if
  * this session is a worker spawned by an orchestrator.
@@ -39,6 +59,32 @@ export async function startWorktreeSession(
   if (!branch || typeof branch !== "string") {
     return {
       content: [{ type: "text", text: "Error: branch parameter is required" }],
+      isError: true,
+    };
+  }
+
+  // Validate branch name to prevent command injection
+  if (!isValidGitRef(branch)) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Error: Invalid branch name. Branch names must contain only alphanumeric characters, slashes, hyphens, underscores, and dots.",
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  // Validate fromRef if provided
+  if (fromRef && !isValidGitRef(fromRef)) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Error: Invalid fromRef. Ref names must contain only alphanumeric characters, slashes, hyphens, underscores, and dots.",
+        },
+      ],
       isError: true,
     };
   }
@@ -137,18 +183,21 @@ export async function startWorktreeSession(
   await waitForShellInit();
 
   // Build claude command
+  // Since sendKeys now uses tmux's -l flag for literal input,
+  // we send the command directly without complex shell escaping
   const pluginDirFlag = pluginDir ? `--plugin-dir ${shellEscape(pluginDir)}` : "";
   const planModeFlag = planMode ? "--permission-mode plan" : "";
 
   if (prompt) {
     // Use base64 encoding to safely transfer prompts with special characters
     const encoded = Buffer.from(prompt).toString("base64");
+    // The command is sent literally to tmux, then executed by the shell in the tmux pane
     sendKeys(
       windowId,
-      `"claude ${pluginDirFlag} ${planModeFlag} \\"\\$(echo '${encoded}' | base64 -d)\\""`,
+      `claude ${pluginDirFlag} ${planModeFlag} "$(echo '${encoded}' | base64 -d)"`,
     );
   } else {
-    sendKeys(windowId, `"claude ${pluginDirFlag} ${planModeFlag}"`);
+    sendKeys(windowId, `claude ${pluginDirFlag} ${planModeFlag}`);
   }
 
   return {
