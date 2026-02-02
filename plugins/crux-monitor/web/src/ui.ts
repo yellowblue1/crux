@@ -138,3 +138,26 @@ export async function copyToClipboard(text: string, label = "text"): Promise<voi
     showToast(`Failed to copy ${label}`, "error");
   }
 }
+
+/**
+ * Show the warning banner with a message
+ */
+export function showWarningBanner(message: string): void {
+  const banner = document.getElementById("warning-banner");
+  const messageEl = document.getElementById("warning-message");
+
+  if (!banner || !messageEl) return;
+
+  messageEl.innerHTML = message;
+  banner.classList.remove("hidden");
+}
+
+/**
+ * Hide the warning banner
+ */
+export function hideWarningBanner(): void {
+  const banner = document.getElementById("warning-banner");
+  if (banner) {
+    banner.classList.add("hidden");
+  }
+}

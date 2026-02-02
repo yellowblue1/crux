@@ -40,3 +40,9 @@ export interface PrunePreviewResponse {
 export interface PruneResponse {
   deleted_count: number;
 }
+
+export interface AuthStatusResponse {
+  gcloud_authenticated: boolean;
+  gcp_project_configured: boolean;
+  ai_summary_available: boolean;
+}

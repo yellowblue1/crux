@@ -3,13 +3,13 @@
 
 import "./styles/input.css";
 import "./components"; // Register Lit components
-import { getPrunePreview, performPrune } from "./api";
+import { checkAuthStatus, getPrunePreview, performPrune } from "./api";
 import type { EventRow } from "./components/event-row";
 import { requestNotificationPermission, showBrowserNotification } from "./notifications";
 import { connectSSE, getCurrentMode, setCurrentMode, setOnEventsCallback } from "./sse";
 import { getReadStatus, initDb } from "./storage";
 import type { EventResponse, FilterMode, PrunePreviewResponse } from "./types";
-import { hideElement, showElement, showToast } from "./ui";
+import { hideElement, hideWarningBanner, showElement, showToast, showWarningBanner } from "./ui";
 import { escapeHtml } from "./utils";
 
 /**
@@ -125,12 +125,41 @@ function hidePruneModal(): void {
 
 // Initialize application
 
+const AUTH_DISMISSED_KEY = "crux-auth-warning-dismissed";
+
 async function init(): Promise<void> {
   // Request notification permission early
   requestNotificationPermission();
 
   // Initialize IndexedDB
   await initDb();
+
+  // Check auth status for AI summary feature
+  const authDismissed = sessionStorage.getItem(AUTH_DISMISSED_KEY) === "true";
+  if (!authDismissed) {
+    const authStatus = await checkAuthStatus();
+    if (!authStatus.ai_summary_available) {
+      let message: string;
+      if (!authStatus.gcloud_authenticated) {
+        message = "AI summaries unavailable: Run <code>gcloud auth login</code> to enable.";
+      } else if (!authStatus.gcp_project_configured) {
+        message =
+          "AI summaries unavailable: Configure GCP project with <code>gcloud config set project PROJECT_ID</code>.";
+      } else {
+        message = "AI summaries unavailable: Check your GCloud configuration.";
+      }
+      showWarningBanner(message);
+
+      // Set up dismiss button handler
+      const dismissBtn = document.getElementById("warning-dismiss");
+      if (dismissBtn) {
+        dismissBtn.addEventListener("click", () => {
+          hideWarningBanner();
+          sessionStorage.setItem(AUTH_DISMISSED_KEY, "true");
+        });
+      }
+    }
+  }
 
   // Initialize filter mode from URL
   initModeFromUrl();

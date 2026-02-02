@@ -3,6 +3,7 @@
 
 // Re-export shared types for convenience
 export type {
+  AuthStatusResponse,
   EventResponse,
   EventsApiResponse,
   FilterMode,

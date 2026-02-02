@@ -1,6 +1,7 @@
 // API client functions
 
 import type {
+  AuthStatusResponse,
   EventsApiResponse,
   FilterMode,
   PrunePreviewResponse,
@@ -79,4 +80,23 @@ export async function fetchEvents(mode: FilterMode): Promise<EventsApiResponse |
     console.error("Failed to fetch events:", err);
   }
   return null;
+}
+
+/**
+ * Check authentication status for AI summary feature
+ */
+export async function checkAuthStatus(): Promise<AuthStatusResponse> {
+  try {
+    const response = await fetch("/api/auth/status");
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (err) {
+    console.error("Failed to check auth status:", err);
+  }
+  return {
+    gcloud_authenticated: false,
+    gcp_project_configured: false,
+    ai_summary_available: false,
+  };
 }
