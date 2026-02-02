@@ -2,13 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  createOrchestratorSession,
-  getNotificationCount,
-  getOrchestratorSession,
-  pollNotifications,
-  writeNotification,
-} from "./index.js";
+import { createOrchestratorSession, getOrchestratorSession, writeNotification } from "./index.js";
 
 describe("file-based storage", () => {
   const testOrchestratorIds: string[] = [];
@@ -44,7 +38,6 @@ describe("file-based storage", () => {
       expect(existsSync(orchestratorDir)).toBe(true);
       expect(existsSync(join(orchestratorDir, "session.json"))).toBe(true);
       expect(existsSync(join(orchestratorDir, "notifications"))).toBe(true);
-      expect(existsSync(join(orchestratorDir, "notifications_read"))).toBe(true);
     });
 
     it("should create unique IDs for each session", () => {
@@ -112,88 +105,6 @@ describe("file-based storage", () => {
       });
 
       expect(message.worker_id).toBeNull();
-    });
-  });
-
-  describe("pollNotifications", () => {
-    it("should return and mark messages as read", () => {
-      const session = createOrchestratorSession("/test/project");
-      trackOrchestrator(session.id);
-
-      // Write some notifications
-      writeNotification(session.id, "worker-1", "task_complete", { summary: "Task 1 done" });
-      writeNotification(session.id, "worker-2", "task_complete", { summary: "Task 2 done" });
-
-      // Poll for messages
-      const messages = pollNotifications(session.id);
-
-      expect(messages.length).toBe(2);
-
-      // Verify messages moved to read directory
-      const notificationsDir = join(tmpdir(), session.id, "notifications");
-      const readDir = join(tmpdir(), session.id, "notifications_read");
-
-      expect(readdirSync(notificationsDir).length).toBe(0);
-      expect(readdirSync(readDir).length).toBe(2);
-    });
-
-    it("should return empty array when no unread messages", () => {
-      const session = createOrchestratorSession("/test/project");
-      trackOrchestrator(session.id);
-
-      const messages = pollNotifications(session.id);
-
-      expect(messages).toEqual([]);
-    });
-
-    it("should return messages in chronological order", async () => {
-      const session = createOrchestratorSession("/test/project");
-      trackOrchestrator(session.id);
-
-      writeNotification(session.id, "worker-1", "task_complete", { summary: "First" });
-      // Small delay to ensure different timestamps
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      writeNotification(session.id, "worker-2", "task_complete", { summary: "Second" });
-
-      const messages = pollNotifications(session.id);
-
-      expect(messages[0].content.summary).toBe("First");
-      expect(messages[1].content.summary).toBe("Second");
-    });
-  });
-
-  describe("getNotificationCount", () => {
-    it("should return correct unread and total counts", () => {
-      const session = createOrchestratorSession("/test/project");
-      trackOrchestrator(session.id);
-
-      // Write notifications
-      writeNotification(session.id, "worker-1", "task_complete", { summary: "Task 1" });
-      writeNotification(session.id, "worker-2", "task_complete", { summary: "Task 2" });
-      writeNotification(session.id, "worker-3", "task_complete", { summary: "Task 3" });
-
-      // Check counts before polling
-      let counts = getNotificationCount(session.id);
-      expect(counts.unread).toBe(3);
-      expect(counts.total).toBe(3);
-
-      // Poll to mark as read
-      pollNotifications(session.id);
-
-      // Check counts after polling
-      counts = getNotificationCount(session.id);
-      expect(counts.unread).toBe(0);
-      expect(counts.total).toBe(3);
-    });
-
-    it("should return zero counts for new session", () => {
-      const session = createOrchestratorSession("/test/project");
-      trackOrchestrator(session.id);
-
-      const counts = getNotificationCount(session.id);
-
-      expect(counts.unread).toBe(0);
-      expect(counts.total).toBe(0);
     });
   });
 });

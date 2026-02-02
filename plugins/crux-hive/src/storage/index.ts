@@ -1,12 +1,5 @@
 import { randomBytes } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -84,10 +77,6 @@ function getNotificationsDir(orchestratorId: string): string {
   return join(getOrchestratorDir(orchestratorId), "notifications");
 }
 
-function getNotificationsReadDir(orchestratorId: string): string {
-  return join(getOrchestratorDir(orchestratorId), "notifications_read");
-}
-
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
@@ -111,7 +100,6 @@ export function createOrchestratorSession(projectDir: string): OrchestratorSessi
   const orchestratorDir = getOrchestratorDir(id);
   ensureDir(orchestratorDir);
   ensureDir(getNotificationsDir(id));
-  ensureDir(getNotificationsReadDir(id));
 
   writeFileSync(getSessionFile(id), JSON.stringify(session, null, 2));
 
@@ -163,60 +151,4 @@ export function writeNotification(
   writeFileSync(messageFile, JSON.stringify(message, null, 2));
 
   return message;
-}
-
-/**
- * Polls for unread notifications and marks them as read by moving to notifications_read
- */
-export function pollNotifications(orchestratorId: string): Message[] {
-  const notificationsDir = getNotificationsDir(orchestratorId);
-  const readDir = getNotificationsReadDir(orchestratorId);
-
-  if (!existsSync(notificationsDir)) {
-    return [];
-  }
-
-  ensureDir(readDir);
-
-  const files = readdirSync(notificationsDir)
-    .filter((f) => f.endsWith(".json"))
-    .sort(); // ULID-based names sort chronologically
-
-  const messages: Message[] = [];
-
-  for (const file of files) {
-    const filePath = join(notificationsDir, file);
-    try {
-      const content = readFileSync(filePath, "utf-8");
-      const message = JSON.parse(content) as Message;
-      messages.push(message);
-
-      // Move to read directory
-      const readPath = join(readDir, file);
-      renameSync(filePath, readPath);
-    } catch {}
-  }
-
-  return messages;
-}
-
-/**
- * Gets the count of unread notifications
- */
-export function getNotificationCount(orchestratorId: string): { unread: number; total: number } {
-  const notificationsDir = getNotificationsDir(orchestratorId);
-  const readDir = getNotificationsReadDir(orchestratorId);
-
-  let unread = 0;
-  let read = 0;
-
-  if (existsSync(notificationsDir)) {
-    unread = readdirSync(notificationsDir).filter((f) => f.endsWith(".json")).length;
-  }
-
-  if (existsSync(readDir)) {
-    read = readdirSync(readDir).filter((f) => f.endsWith(".json")).length;
-  }
-
-  return { unread, total: unread + read };
 }
