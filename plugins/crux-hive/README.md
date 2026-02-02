@@ -4,7 +4,7 @@ Git worktree workflow with tmux integration for parallel Claude Code sessions.
 
 ## Overview
 
-Delegate tasks to parallel Claude Code sessions running in separate git worktrees. When a worker completes a task, the orchestrator is notified via the Stop hook.
+Delegate tasks to parallel Claude Code sessions running in separate git worktrees. When a worker completes a task, the orchestrator is notified via the `send_message` tool.
 
 ## Prerequisites
 
@@ -52,7 +52,7 @@ You (human)
             └─► Completes task (creates PR, etc.)
                     │
                     ▼
-                Stop hook reminds → Claude calls send_message
+                SessionStart hook injects instructions → Claude calls send_message
 ```
 
 ## Note
