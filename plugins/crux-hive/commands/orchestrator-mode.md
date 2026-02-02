@@ -233,6 +233,11 @@ After merging, clean up the worktree (this also deletes the local branch):
    git gtr rm <branch> --yes
    ```
 
+3. **Delete remote branch**
+   ```bash
+   git push origin --delete <branch>
+   ```
+
 ### Handling Uncommitted Changes
 
 If `git gtr clean --merged -n` shows `[!] Skipping <branch> (has uncommitted changes)`:
@@ -268,6 +273,7 @@ This automatically cleans up the tmux window via the preRemove hook.
 | List merged worktrees | `git gtr clean --merged -n` |
 | Run command in worktree | `git gtr run <branch> <cmd>` |
 | Remove worktree | `git gtr rm <branch> --yes` |
+| Delete remote branch | `git push origin --delete <branch>` |
 
 ## Important Notes
 
