@@ -83,29 +83,29 @@ The Bash watcher polls this directory every 2 seconds, reads and deletes files a
 mcp__plugin_crux-hive_crux__create_orchestrator_session({})
 ```
 
-This returns an `orchestrator_id` (e.g., `orch_abc12345`). **Save this ID** for use with all worker sessions.
+This returns:
+- `orchestrator_id` (e.g., `orch_abc12345`) - **Save this ID** for use with all worker sessions
+- `poll_command` - A ready-to-use command for the notification watcher
 
 ### Step 2: Start Background Notification Watcher
 
-Start a background Bash task to monitor for worker notifications.
-
-**Before calling Task**: Replace `<ORCHESTRATOR_ID>` below with the actual ID from Step 1 (e.g., `orch_abc12345`).
+Start a background Bash task using the `poll_command` from Step 1.
 
 ```
 Task({
   subagent_type: "Bash",
   description: "Wait for worker notifications",
   run_in_background: true,
-  prompt: `Run: timeout 600 bash -c 'NOTIF_DIR="$(node -e "console.log(require(\\\"os\\\").tmpdir())")/<ORCHESTRATOR_ID>/notifications"; mkdir -p "$NOTIF_DIR"; while [ -z "$(ls "$NOTIF_DIR" 2>/dev/null)" ]; do sleep 2; done && for f in "$NOTIF_DIR"/*.json; do echo "=== Notification ===" && cat "$f" && rm "$f"; done'
+  prompt: `Run: <poll_command from create_orchestrator_session>
 
 After completion, always include:
 "→ Watcher exited. Please restart immediately."`
 })
 ```
 
-Note: Replace `<ORCHESTRATOR_ID>` with the full ID including prefix (e.g., `orch_abc12345`). The tmpdir is detected dynamically (e.g., `/tmp` on Linux, `/var/folders/.../T` on macOS).
+Example: If `poll_command` is `bun run /path/to/scripts/poll-notifications.ts orch_abc12345`, use that exact command.
 
-**Why 10-minute timeout?** Claude Code background tasks have a maximum timeout of 600 seconds. The watcher must exit periodically. Files persist on disk, so notifications sent during restart are not lost.
+**Why 10-minute timeout?** The poll script has a default 600-second timeout. Claude Code background tasks must exit periodically. Files persist on disk, so notifications sent during restart are not lost.
 
 **When the background task exits**:
 
@@ -116,7 +116,7 @@ Note: Replace `<ORCHESTRATOR_ID>` with the full ID including prefix (e.g., `orch
 
 2. **Process** if notification received (review PR, answer question, etc.)
 
-3. **Restart the watcher immediately** (repeat the Task command above)
+3. **Restart the watcher immediately** (use the same `poll_command`)
 
 **Always keep the watcher running.** Restart it every time it exits, regardless of the exit reason.
 

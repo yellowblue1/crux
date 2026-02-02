@@ -29,23 +29,34 @@ interface HookInput {
 }
 
 /**
- * Validates that the command matches the exact expected notification watcher pattern.
- * Uses a strict regex to prevent bypass attacks that embed malicious code
- * while matching the required substrings.
+ * Validates that the command matches the expected notification watcher pattern.
+ * Uses strict regex to prevent bypass attacks that embed malicious code.
  *
- * The expected command format is:
- * NOTIF_DIR="/path/to/tmpdir/orch_xxxxxxxx/notifications"; <watcher logic>
+ * Supported command formats:
+ *
+ * 1. New format (bun run script):
+ *    bun run /path/to/scripts/poll-notifications.ts orch_<id>
+ *
+ * 2. Legacy format (bash with NOTIF_DIR):
+ *    NOTIF_DIR="/path/to/tmpdir/orch_xxxxxxxx/notifications"; <watcher logic>
  *
  * Security considerations:
- * - orch_id must be exactly 8 lowercase alphanumeric characters after "orch_"
+ * - orch_id must be exactly 8 lowercase alphanumeric or 12 hex characters after "orch_"
  * - Path must not contain shell metacharacters or command separators
- * - Only allows the specific watcher pattern, not arbitrary commands
+ * - Only allows the specific watcher patterns, not arbitrary commands
  */
 function isWatcherCommand(command: string): boolean {
-  // Strict pattern for the NOTIF_DIR assignment
-  // Matches: NOTIF_DIR="/safe/path/orch_[id]/notifications"
+  // New format: bun run <path>/scripts/poll-notifications.ts orch_<id>
+  // Path allows safe directory characters, orchestrator ID is validated strictly
+  const bunRunPattern =
+    /^bun run ([\w./-]+)\/scripts\/poll-notifications\.ts (orch_([a-z0-9]{8}|[a-f0-9]{12}))$/;
+
+  if (bunRunPattern.test(command)) {
+    return true;
+  }
+
+  // Legacy format: NOTIF_DIR="/safe/path/orch_[id]/notifications"
   // Supports both old format (8 alphanumeric) and new format (12 hex chars)
-  // The path component allows only safe directory characters
   const notifDirPattern =
     /^NOTIF_DIR="(\/[\w./-]+\/orch_([a-z0-9]{8}|[a-f0-9]{12})\/notifications)"/;
 
