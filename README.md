@@ -13,18 +13,20 @@ A collection of plugins for Claude Code.
 claude plugin marketplace add https://github.com/akirasosa/crux
 
 # Install plugins
-claude plugin install crux-monitor
 claude plugin install crux-hive
+
+# Optional: Install companion monitoring plugin
+claude plugin install crux-monitor
 ```
 
 ## Available Plugins
 
 | Plugin | Description | Requirements |
 |--------|-------------|--------------|
-| [crux-monitor](./plugins/crux-monitor/) | Event monitoring with desktop notifications and DB logging | - |
 | [crux-hive](./plugins/crux-hive/) | Git worktree workflow with tmux integration | tmux, [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) |
+| [crux-monitor](./plugins/crux-monitor/) | (Optional) Event monitoring with desktop notifications and DB logging | - |
 
-## Web UI (Optional)
+## Crux Monitor Web UI (Optional)
 
 ```bash
 git clone https://github.com/akirasosa/crux
@@ -41,6 +43,7 @@ Or download pre-built binary from [Releases](https://github.com/akirasosa/crux/r
 ## Uninstalling
 
 ```bash
-claude plugin uninstall crux-monitor
+claude plugin uninstall crux-hive
+claude plugin uninstall crux-monitor  # if installed
 claude plugin marketplace remove crux
 ```
