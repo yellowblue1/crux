@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { getMcpServersFromProject, updateClaudeConfig } from "../utils/claude-config.js";
-import { exec, execOrThrow } from "../utils/exec.js";
+import { exec, execOrThrow, shellEscape } from "../utils/exec.js";
 import { createWindow, isTmuxAvailable, sendKeys, waitForShellInit } from "../utils/tmux.js";
 
 export interface StartWorktreeSessionArgs {
@@ -11,6 +11,7 @@ export interface StartWorktreeSessionArgs {
   planMode?: boolean;
   prompt?: string;
   orchestratorId?: string;
+  pluginDir?: string;
 }
 
 /**
@@ -32,7 +33,7 @@ function writeOrchestratorIdFile(worktreePath: string, orchestratorId: string): 
 export async function startWorktreeSession(
   args: StartWorktreeSessionArgs,
 ): Promise<CallToolResult> {
-  const { branch, fromRef, planMode, prompt, orchestratorId } = args;
+  const { branch, fromRef, planMode, prompt, orchestratorId, pluginDir } = args;
 
   // Validate branch parameter
   if (!branch || typeof branch !== "string") {
@@ -40,6 +41,16 @@ export async function startWorktreeSession(
       content: [{ type: "text", text: "Error: branch parameter is required" }],
       isError: true,
     };
+  }
+
+  // Validate pluginDir if provided
+  if (pluginDir !== undefined) {
+    if (typeof pluginDir !== "string" || pluginDir.length === 0) {
+      return {
+        content: [{ type: "text", text: "Error: pluginDir must be a non-empty string" }],
+        isError: true,
+      };
+    }
   }
 
   // Check if running inside a tmux session
@@ -126,14 +137,18 @@ export async function startWorktreeSession(
   await waitForShellInit();
 
   // Build claude command
+  const pluginDirFlag = pluginDir ? `--plugin-dir ${shellEscape(pluginDir)}` : "";
   const planModeFlag = planMode ? "--permission-mode plan" : "";
 
   if (prompt) {
     // Use base64 encoding to safely transfer prompts with special characters
     const encoded = Buffer.from(prompt).toString("base64");
-    sendKeys(windowId, `"claude ${planModeFlag} \\"\\$(echo '${encoded}' | base64 -d)\\""`);
+    sendKeys(
+      windowId,
+      `"claude ${pluginDirFlag} ${planModeFlag} \\"\\$(echo '${encoded}' | base64 -d)\\""`,
+    );
   } else {
-    sendKeys(windowId, `"claude ${planModeFlag}"`);
+    sendKeys(windowId, `"claude ${pluginDirFlag} ${planModeFlag}"`);
   }
 
   return {

@@ -46,6 +46,10 @@ const TOOL_DEFINITIONS = [
           type: "string",
           description: "Optional orchestrator session ID for worker->orchestrator messaging",
         },
+        pluginDir: {
+          type: "string",
+          description: "Optional plugin directory path for --plugin-dir flag (development/testing)",
+        },
       },
       required: ["branch"],
     },
