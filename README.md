@@ -2,6 +2,8 @@
 
 Orchestrate multiple Claude Code sessions in parallel.
 
+[![asciicast](https://asciinema.org/a/lZ2Wrmw8wzsI4wyj.svg)](https://asciinema.org/a/lZ2Wrmw8wzsI4wyj)
+
 ## What You Can Do
 
 CRUX enables a powerful orchestrator-worker pattern for Claude Code:
