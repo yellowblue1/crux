@@ -40,11 +40,49 @@ claude --plugin-dir /path/to/crux-monitor
 | `SessionStart` | No | Session started |
 | `SessionEnd` | No | Session ended |
 
+## Web UI
+
+Start the monitoring dashboard:
+
+```bash
+cd plugins/crux-monitor/web
+bun run start
+```
+
+The server runs on port 3847 by default (auto-selects next available port if busy).
+
+### Features
+
+- **Real-time updates**: Automatically refreshes via Server-Sent Events (SSE)
+- **Browser notifications**: Native notifications for Stop and Notification events
+- **Session pruning**: Delete sessions where the Claude process is no longer running
+- **Tmux integration**: Click to jump to tmux sessions
+
+For development setup and API details, see [web/README.md](./web/README.md).
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `init` | Initialize database (run migrations) |
+| `migrate` | Run pending database migrations |
+| `migrate:check` | Check for pending migrations (exit 1 if pending) |
+| `cleanup` | Delete old records based on retention policy |
+| `help` | Show usage information |
+
+Example:
+```bash
+bun run plugins/crux-monitor/src/cli.ts init
+bun run plugins/crux-monitor/src/cli.ts cleanup
+```
+
+> **Note**: `event-log` and `notification` commands are used internally by plugin hooks.
+
 ## Configuration
 
 ### GCP Project (for Gemini API summaries)
 
-Summary generation uses Gemini API via Google Cloud. Configure in one of two ways:
+Summary generation uses Gemini API via Google Cloud (using the `gemini-2.5-flash` model). Configure in one of two ways:
 
 **Option 1: Environment variable**
 ```bash
@@ -97,6 +135,23 @@ If you were using the scripts from dotfiles (`~/.claude/hooks/notification.sh`),
 ```bash
 mkdir -p ~/.local/share/crux-monitor
 mv ~/.local/share/claude-monitoring/events.db ~/.local/share/crux-monitor/events.db
+```
+
+## Development
+
+### Running Tests
+
+```bash
+cd plugins/crux-monitor
+bun test              # Run all tests
+bun test --watch      # Watch mode
+```
+
+### Web UI Development
+
+```bash
+cd plugins/crux-monitor/web
+bun run dev           # Start dev server with auto-reload
 ```
 
 ## Uninstalling
