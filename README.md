@@ -2,7 +2,7 @@
 
 Orchestrate multiple Claude Code sessions in parallel.
 
-[![asciicast](https://asciinema.org/a/lZ2Wrmw8wzsI4wyj.svg)](https://asciinema.org/a/lZ2Wrmw8wzsI4wyj)
+[![asciicast](https://asciinema.org/a/wkgEfTf5N1a1sblC.svg)](https://asciinema.org/a/wkgEfTf5N1a1sblC)
 
 ## What You Can Do
 
