@@ -308,58 +308,82 @@ describe("Hono API endpoints", () => {
 });
 
 describe("CORS behavior", () => {
+  // CORS headers are reliably set during preflight (OPTIONS) requests
   describe("with restrictCors: true (default)", () => {
-    it("allows localhost origin", async () => {
+    it("allows localhost origin on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
       const res = await app.request("/api/events", {
-        headers: { Origin: "http://localhost:3847" },
+        method: "OPTIONS",
+        headers: {
+          Origin: "http://localhost:3847",
+          "Access-Control-Request-Method": "GET",
+        },
       });
 
+      expect(res.status).toBe(204);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3847");
     });
 
-    it("allows 127.0.0.1 origin", async () => {
+    it("allows 127.0.0.1 origin on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
       const res = await app.request("/api/events", {
-        headers: { Origin: "http://127.0.0.1:8080" },
+        method: "OPTIONS",
+        headers: {
+          Origin: "http://127.0.0.1:8080",
+          "Access-Control-Request-Method": "GET",
+        },
       });
 
+      expect(res.status).toBe(204);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://127.0.0.1:8080");
     });
 
-    it("allows https localhost origin", async () => {
+    it("allows https localhost origin on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
       const res = await app.request("/api/events", {
-        headers: { Origin: "https://localhost:3000" },
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://localhost:3000",
+          "Access-Control-Request-Method": "GET",
+        },
       });
 
+      expect(res.status).toBe(204);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://localhost:3000");
     });
 
-    it("rejects external origin", async () => {
+    it("rejects external origin on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
       const res = await app.request("/api/events", {
-        headers: { Origin: "https://evil.com" },
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://evil.com",
+          "Access-Control-Request-Method": "GET",
+        },
       });
 
       // CORS middleware returns null origin for rejected requests
       expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
     });
 
-    it("rejects origin with localhost in subdomain", async () => {
+    it("rejects origin with localhost in subdomain on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
       const res = await app.request("/api/events", {
-        headers: { Origin: "https://localhost.evil.com" },
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://localhost.evil.com",
+          "Access-Control-Request-Method": "GET",
+        },
       });
 
       expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
@@ -377,15 +401,20 @@ describe("CORS behavior", () => {
   });
 
   describe("with restrictCors: false (compiled binary)", () => {
-    it("allows any origin", async () => {
+    it("allows any origin on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: false });
 
       const res = await app.request("/api/events", {
-        headers: { Origin: "https://any-origin.com" },
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://any-origin.com",
+          "Access-Control-Request-Method": "GET",
+        },
       });
 
       // Default CORS allows all origins
+      expect(res.status).toBe(204);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
     });
   });
