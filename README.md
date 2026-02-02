@@ -28,7 +28,17 @@ claude plugin install crux-hive
 claude plugin install crux-monitor
 ```
 
-Then in any Claude Code session, use the `/orchestrator-mode` command to start delegating tasks to parallel workers.
+## Usage
+
+1. **Start Claude Code** in your project directory
+2. **Enter orchestrator mode** by running:
+   ```
+   /orchestrator-mode
+   ```
+3. **Describe your tasks** - the orchestrator will delegate them to parallel worker sessions
+4. **Workers create PRs** when their tasks complete, and the orchestrator reviews and merges them
+
+Example: "Add a login page and also fix the header layout bug" → The orchestrator spins up two workers, each handling one task in parallel.
 
 ## Available Plugins
 
