@@ -120,6 +120,84 @@ Note: Replace `<ORCHESTRATOR_ID>` with the full ID including prefix (e.g., `orch
 
 **Always keep the watcher running.** Restart it every time it exits, regardless of the exit reason.
 
+### Alternative: On-Demand Polling with MCP Tools
+
+Instead of running a background Bash watcher, you can use the `poll_messages` and `get_orchestrator_status` MCP tools for on-demand notification polling.
+
+**When to use this approach:**
+
+- **Simpler setup**: No background task management or timeout handling
+- **Message history preservation**: Messages are moved to `notifications_read/` (not deleted)
+- **Cross-platform**: Works identically on all platforms without shell dependencies
+- **Debugging**: Preserved messages help troubleshoot notification issues
+
+**When to use the Bash watcher:**
+
+- **Real-time notifications**: Immediate awareness when workers complete
+- **Passive monitoring**: No need to actively check for messages
+
+#### Check Notification Status
+
+Use `get_orchestrator_status` to see if there are unread messages:
+
+```
+mcp__plugin_crux-hive_crux__get_orchestrator_status({
+  orchestrator_id: "orch_abc12345"
+})
+```
+
+Returns:
+
+```json
+{
+  "orchestrator_id": "orch_abc12345",
+  "notifications": {
+    "unread": 2,
+    "total": 5
+  }
+}
+```
+
+#### Poll and Read Messages
+
+Use `poll_messages` to retrieve unread messages:
+
+```
+mcp__plugin_crux-hive_crux__poll_messages({
+  orchestrator_id: "orch_abc12345"
+})
+```
+
+Returns:
+
+```json
+{
+  "success": true,
+  "orchestrator_id": "orch_abc12345",
+  "message_count": 2,
+  "messages": [
+    {
+      "id": "msg_01arz3ndektsv4rrffq69g5fav",
+      "worker_id": "feat/add-auth",
+      "message_type": "task_complete",
+      "content": {
+        "summary": "PR created",
+        "pr_url": "https://github.com/owner/repo/pull/123"
+      },
+      "created_at": "2026-01-31T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Important**: Calling `poll_messages` marks messages as read (moves them to `notifications_read/`). Subsequent calls return only new messages.
+
+#### Recommended Workflow
+
+1. After delegating tasks, periodically call `get_orchestrator_status` to check for notifications
+2. When `unread > 0`, call `poll_messages` to retrieve and process them
+3. Repeat as needed while working on other tasks
+
 ## Phase 1: Task Delegation
 
 When the user describes what they want to accomplish:
@@ -260,6 +338,8 @@ This automatically cleans up the tmux window via the preRemove hook.
 |--------|--------------|
 | Create orchestrator session | `mcp__plugin_crux-hive_crux__create_orchestrator_session` |
 | Create worktree | `mcp__plugin_crux-hive_crux__start_worktree_session` |
+| Check notification status | `mcp__plugin_crux-hive_crux__get_orchestrator_status` |
+| Poll unread messages | `mcp__plugin_crux-hive_crux__poll_messages` |
 | Notification directory | `$TMPDIR/<orchestrator_id>/notifications/` |
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
