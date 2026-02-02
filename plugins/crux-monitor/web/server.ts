@@ -1,7 +1,5 @@
 import { type FSWatcher, watch } from "node:fs";
-import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
-import { cors } from "hono/cors";
 import {
   dbExists,
   deleteSession,
@@ -16,6 +14,7 @@ import {
 } from "../src/db";
 import { getGcpProject } from "../src/notification/config";
 import { getAccessToken } from "../src/notification/gemini";
+import { type AppType, createApp, type SseClient } from "./server-app";
 
 // In dev mode (PORT=3848), Vite handles static files
 // In production (PORT=3847 or default), serve from dist/
@@ -23,11 +22,7 @@ const DEFAULT_PORT = 3847;
 const PORT = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : DEFAULT_PORT;
 
 // SSE clients
-interface SSEClient {
-  controller: ReadableStreamDefaultController;
-  mode: FilterMode;
-}
-const clients: Set<SSEClient> = new Set();
+const clients: Set<SseClient> = new Set();
 let watcher: FSWatcher | null = null;
 let debounceTimer: Timer | null = null;
 
@@ -57,7 +52,7 @@ function serializeEventsData(mode: FilterMode): string {
 
 function broadcastUpdate() {
   // Group clients by mode
-  const clientsByMode = new Map<FilterMode, SSEClient[]>();
+  const clientsByMode = new Map<FilterMode, SseClient[]>();
   for (const client of clients) {
     const modeClients = clientsByMode.get(client.mode) || [];
     modeClients.push(client);
@@ -101,112 +96,46 @@ function startWatcher() {
   }
 }
 
-// Create Hono app with chain-style API
-const app = new Hono()
-  // CORS middleware - restrict to localhost origins only for security
-  // This prevents cross-origin attacks from malicious websites
-  .use(
-    "/*",
-    cors({
-      origin: (origin) => {
-        // Allow requests with no origin (same-origin, curl, etc.)
-        if (!origin) return origin;
-        // Only allow localhost origins (with any port)
-        const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
-        if (localhostPattern.test(origin)) {
-          return origin;
-        }
-        // Reject other origins
-        return null;
-      },
-    }),
-  )
+// Create Hono app with dependencies
+const app = createApp(
+  {
+    getActiveEvents,
+    getDbLastModified,
+    deleteSession: (sessionId) => {
+      const success = deleteSession(sessionId);
+      if (success) {
+        setTimeout(() => broadcastUpdate(), 50);
+      }
+      return success;
+    },
+    getSessionStatus,
+    getPruneCandidates,
+    pruneDeadSessions: () => {
+      const result = pruneDeadSessions();
+      if (result.deleted_count > 0) {
+        setTimeout(() => broadcastUpdate(), 50);
+      }
+      return result;
+    },
+    getAccessToken,
+    getGcpProject,
+    onSseConnect: (client) => {
+      startWatcher();
+      clients.add(client);
+    },
+    onSseDisconnect: (client) => {
+      clients.delete(client);
+    },
+    serializeEventsData,
+  },
+  { restrictCors: true },
+);
 
-  // GET /api/events
-  .get("/api/events", (c) => {
-    const mode = (c.req.query("mode") || "waiting") as FilterMode;
-    return c.json({
-      events: getActiveEvents(mode),
-      last_modified: getDbLastModified(),
-    });
-  })
-
-  // DELETE /api/sessions/:id
-  .delete("/api/sessions/:id", (c) => {
-    const sessionId = c.req.param("id");
-    const success = deleteSession(sessionId);
-    if (success) {
-      setTimeout(() => broadcastUpdate(), 50);
-      return c.json({ success: true });
-    }
-    return c.json({ success: false, error: "Failed to delete session" }, 500);
-  })
-
-  // GET /api/sessions/:id/status
-  .get("/api/sessions/:id/status", (c) => {
-    const sessionId = c.req.param("id");
-    return c.json(getSessionStatus(sessionId));
-  })
-
-  // GET /api/prune/preview
-  .get("/api/prune/preview", (c) => {
-    const candidates = getPruneCandidates();
-    return c.json({ count: candidates.length, sessions: candidates });
-  })
-
-  // POST /api/prune
-  .post("/api/prune", (c) => {
-    const result = pruneDeadSessions();
-    if (result.deleted_count > 0) {
-      setTimeout(() => broadcastUpdate(), 50);
-    }
-    return c.json(result);
-  })
-
-  // GET /api/auth/status
-  .get("/api/auth/status", (c) => {
-    const gcloudAuthenticated = getAccessToken() !== null;
-    const gcpProjectConfigured = getGcpProject() !== null;
-    const aiSummaryAvailable = gcloudAuthenticated && gcpProjectConfigured;
-
-    return c.json({
-      gcloud_authenticated: gcloudAuthenticated,
-      gcp_project_configured: gcpProjectConfigured,
-      ai_summary_available: aiSummaryAvailable,
-    });
-  })
-
-  // SSE endpoint - keep manual ReadableStream (works well with broadcast pattern)
-  .get("/api/events/stream", (c) => {
-    startWatcher();
-    const mode = (c.req.query("mode") || "waiting") as FilterMode;
-    let client: SSEClient;
-
-    const stream = new ReadableStream({
-      start(controller) {
-        client = { controller, mode };
-        clients.add(client);
-        controller.enqueue(new TextEncoder().encode(`data: ${serializeEventsData(mode)}\n\n`));
-      },
-      cancel() {
-        clients.delete(client);
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-  })
-
-  // Static files (Hono's serveStatic handles MIME types automatically)
-  .use("/*", serveStatic({ root: "./dist" }));
+// Add static file serving (Hono's serveStatic handles MIME types automatically)
+const appWithStatic = app.use("/*", serveStatic({ root: "./dist" }));
 
 // Export type for future RPC client
-export type AppType = typeof app;
+export type { AppType };
 
 // Main startup
 async function main() {
@@ -228,7 +157,7 @@ async function main() {
   try {
     server = Bun.serve({
       port: PORT,
-      fetch: app.fetch,
+      fetch: appWithStatic.fetch,
       idleTimeout: 255, // Max value for SSE connections
     });
   } catch (err: unknown) {
@@ -237,7 +166,7 @@ async function main() {
       console.error(`Port ${PORT} is in use by another application`);
       server = Bun.serve({
         port: 0,
-        fetch: app.fetch,
+        fetch: appWithStatic.fetch,
         idleTimeout: 255,
       });
     } else {
