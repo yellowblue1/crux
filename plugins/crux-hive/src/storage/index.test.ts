@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createOrchestratorSession, getOrchestratorSession, writeNotification } from "./index.js";
+import {
+  createOrchestratorSession,
+  getOrchestratorSession,
+  readNotifications,
+  writeNotification,
+} from "./index.js";
 
 describe("file-based storage", () => {
   const testOrchestratorIds: string[] = [];
@@ -105,6 +110,71 @@ describe("file-based storage", () => {
       });
 
       expect(message.worker_id).toBeNull();
+    });
+  });
+
+  describe("readNotifications", () => {
+    it("should read all notification files", () => {
+      const session = createOrchestratorSession("/test/project");
+      trackOrchestrator(session.id);
+
+      // Write multiple notifications
+      writeNotification(session.id, "worker-1", "task_complete", { summary: "First" });
+      writeNotification(session.id, "worker-2", "task_complete", { summary: "Second" });
+
+      const notifications = readNotifications(session.id, false);
+
+      expect(notifications.length).toBe(2);
+      // Check both summaries exist (order may vary if written in same millisecond)
+      const summaries = notifications.map((n) => n.content.summary);
+      expect(summaries).toContain("First");
+      expect(summaries).toContain("Second");
+    });
+
+    it("should delete files when cleanup is true", () => {
+      const session = createOrchestratorSession("/test/project");
+      trackOrchestrator(session.id);
+
+      writeNotification(session.id, "worker-1", "task_complete", { summary: "Test" });
+
+      const notificationsDir = join(tmpdir(), session.id, "notifications");
+      expect(readdirSync(notificationsDir).length).toBe(1);
+
+      readNotifications(session.id, true);
+
+      expect(readdirSync(notificationsDir).length).toBe(0);
+    });
+
+    it("should keep files when cleanup is false", () => {
+      const session = createOrchestratorSession("/test/project");
+      trackOrchestrator(session.id);
+
+      writeNotification(session.id, "worker-1", "task_complete", { summary: "Test" });
+      readNotifications(session.id, false);
+
+      const notificationsDir = join(tmpdir(), session.id, "notifications");
+      expect(readdirSync(notificationsDir).length).toBe(1);
+    });
+
+    it("should return empty array for non-existent directory", () => {
+      // Use a valid format ID that doesn't exist
+      const notifications = readNotifications("orch_000000000000", true);
+      expect(notifications).toEqual([]);
+    });
+
+    it("should default to cleanup=true", () => {
+      const session = createOrchestratorSession("/test/project");
+      trackOrchestrator(session.id);
+
+      writeNotification(session.id, "worker-1", "task_complete", { summary: "Test" });
+
+      const notificationsDir = join(tmpdir(), session.id, "notifications");
+      expect(readdirSync(notificationsDir).length).toBe(1);
+
+      // Call without cleanup parameter (should default to true)
+      readNotifications(session.id);
+
+      expect(readdirSync(notificationsDir).length).toBe(0);
     });
   });
 });

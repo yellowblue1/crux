@@ -1,5 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -151,4 +158,40 @@ export function writeNotification(
   writeFileSync(messageFile, JSON.stringify(message, null, 2));
 
   return message;
+}
+
+/**
+ * Reads all notifications from the orchestrator's notifications directory.
+ * Optionally deletes files after reading (cleanup).
+ * Returns notifications sorted chronologically (ULID-based filenames ensure order).
+ */
+export function readNotifications(orchestratorId: string, cleanup = true): Message[] {
+  const notificationsDir = getNotificationsDir(orchestratorId);
+
+  if (!existsSync(notificationsDir)) {
+    return [];
+  }
+
+  const files = readdirSync(notificationsDir)
+    .filter((f) => f.endsWith(".json"))
+    .sort(); // ULID-based names sort chronologically
+
+  const messages: Message[] = [];
+
+  for (const file of files) {
+    const filePath = join(notificationsDir, file);
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const message = JSON.parse(content) as Message;
+      messages.push(message);
+
+      if (cleanup) {
+        unlinkSync(filePath);
+      }
+    } catch {
+      // Skip malformed files
+    }
+  }
+
+  return messages;
 }

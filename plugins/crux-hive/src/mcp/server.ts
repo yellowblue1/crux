@@ -8,6 +8,11 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { type CreateOrchestratorArgs, createOrchestrator } from "./tools/create-orchestrator.js";
+import {
+  type GetOrchestratorStatusArgs,
+  getOrchestratorStatus,
+} from "./tools/get-orchestrator-status.js";
+import { type PollNotificationsArgs, pollNotifications } from "./tools/poll-notifications.js";
 import { type SendMessageArgs, sendMessage } from "./tools/send-message.js";
 import {
   type StartWorktreeSessionArgs,
@@ -107,6 +112,39 @@ The orchestrator cannot see your work until you call this tool.`,
       required: ["message_type", "content"],
     },
   },
+  {
+    name: "poll_notifications",
+    description:
+      "Polls for unread messages from workers and marks them as read. Use in a background subagent to receive notifications.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orchestrator_id: {
+          type: "string",
+          description: "The orchestrator session ID to poll notifications for",
+        },
+        cleanup: {
+          type: "boolean",
+          description: "Whether to delete notification files after reading (default: true)",
+        },
+      },
+      required: ["orchestrator_id"],
+    },
+  },
+  {
+    name: "get_orchestrator_status",
+    description: "Gets the status of an orchestrator session including unread message count.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orchestrator_id: {
+          type: "string",
+          description: "The orchestrator session ID to check status for",
+        },
+      },
+      required: ["orchestrator_id"],
+    },
+  },
 ] as const satisfies readonly Tool[];
 
 const server = new Server({ name: "crux", version: "4.0.0" }, { capabilities: { tools: {} } });
@@ -125,6 +163,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
       return createOrchestrator(args as unknown as CreateOrchestratorArgs);
     case "send_message":
       return sendMessage(args as unknown as SendMessageArgs);
+    case "poll_notifications":
+      return pollNotifications(args as unknown as PollNotificationsArgs);
+    case "get_orchestrator_status":
+      return getOrchestratorStatus(args as unknown as GetOrchestratorStatusArgs);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
