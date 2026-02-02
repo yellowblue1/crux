@@ -2,6 +2,8 @@
 
 Git worktree workflow with tmux integration for parallel Claude Code sessions.
 
+[![asciicast](https://asciinema.org/a/lZ2Wrmw8wzsI4wyj.svg)](https://asciinema.org/a/lZ2Wrmw8wzsI4wyj)
+
 ## Overview
 
 Delegate tasks to parallel Claude Code sessions running in separate git worktrees. When a worker completes a task, the orchestrator is notified via the `send_message` tool.
