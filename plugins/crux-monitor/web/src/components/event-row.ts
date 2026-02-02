@@ -1,7 +1,8 @@
 // Event row Lit component
 
-import { html, LitElement, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { html, LitElement } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { when } from "lit/directives/when.js";
 import { checkSessionStatus, deleteSessionApi } from "../api";
 import { ICON_CLIPBOARD, ICON_CLIPBOARD_CHECK, ICON_TRASH } from "../icons";
 import { setReadStatus } from "../storage";
@@ -14,6 +15,9 @@ import "./status-badge";
 export class EventRow extends LitElement {
   @property({ type: Object }) event!: EventResponse;
   @property({ type: Boolean }) isRead = false;
+
+  /** Internal state for delete animation */
+  @state() private deleting = false;
 
   // Use light DOM for Tailwind CSS compatibility
   protected createRenderRoot() {
@@ -39,11 +43,7 @@ export class EventRow extends LitElement {
   }
 
   private async handleDelete() {
-    const row = this.querySelector("tr") as HTMLTableRowElement | null;
-    if (row) {
-      row.style.transition = "opacity 0.3s";
-      row.style.opacity = "0.5";
-    }
+    this.deleting = true;
 
     const status = await checkSessionStatus(this.event.session_id);
     if (status.process_running) {
@@ -57,7 +57,7 @@ export class EventRow extends LitElement {
         destructive: true,
       });
       if (!confirmed) {
-        if (row) row.style.opacity = "1";
+        this.deleting = false;
         return;
       }
     }
@@ -67,7 +67,7 @@ export class EventRow extends LitElement {
       showToast("Session deleted");
     } else {
       showToast("Failed to delete session", "error");
-      if (row) row.style.opacity = "1";
+      this.deleting = false;
     }
   }
 
@@ -89,24 +89,27 @@ export class EventRow extends LitElement {
 
   render() {
     const event = this.event;
+    const rowClass = `${this.isRead ? "read" : ""} ${this.deleting ? "deleting" : ""}`.trim();
 
     return html`
-      <tr class="${this.isRead ? "read" : ""}" data-event-id="${event.event_id}">
+      <tr
+        class="${rowClass}"
+        data-event-id="${event.event_id}"
+        style="${this.deleting ? "opacity: 0.5; transition: opacity 0.3s" : ""}"
+      >
         <td class="col-project">
           <div class="project-info">
             <span class="project-name">${escapeHtml(event.project_name)}</span>
-            ${
-              event.git_branch
-                ? html`<span class="git-branch">(${escapeHtml(event.git_branch)})</span>`
-                : nothing
-            }
+            ${when(
+              event.git_branch,
+              () => html`<span class="git-branch">(${escapeHtml(event.git_branch)})</span>`,
+            )}
           </div>
           <div class="session-info">
-            ${
-              event.tmux_window_id
-                ? html`<span class="tmux-id">${escapeHtml(event.tmux_window_id)}</span>`
-                : nothing
-            }
+            ${when(
+              event.tmux_window_id,
+              () => html`<span class="tmux-id">${escapeHtml(event.tmux_window_id)}</span>`,
+            )}
             <span class="session-id">${escapeHtml(event.session_id.substring(0, 8))}</span>
           </div>
         </td>
@@ -119,11 +122,10 @@ export class EventRow extends LitElement {
         <td class="col-summary">
           <div class="summary-wrapper">
             <span class="summary" title="${escapeHtml(event.summary)}">${escapeHtml(event.summary)}</span>
-            ${
-              isAiSummary(event.summary)
-                ? html`<span class="ai-indicator" title="AI-generated summary">✨</span>`
-                : nothing
-            }
+            ${when(
+              isAiSummary(event.summary),
+              () => html`<span class="ai-indicator" title="AI-generated summary">✨</span>`,
+            )}
           </div>
         </td>
         <td class="col-copy">${this.renderCopyButton()}</td>
