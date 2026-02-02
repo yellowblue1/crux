@@ -18,11 +18,11 @@
     "type-coverage:detail": "type-coverage --detail"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.0.0",
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@biomejs/biome": "^2.3.13",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "bun-types": "latest",
     "knip": "^5.82.1",
     "type-coverage": "^2.29.7",
-    "typescript": "^5.7.0"
+    "typescript": "^5.9.3"
   }
 }
