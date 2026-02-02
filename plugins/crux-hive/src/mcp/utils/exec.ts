@@ -1,5 +1,3 @@
-import { execSync } from "node:child_process";
-
 /**
  * Escape a string for safe use in shell commands.
  * Uses single quotes and escapes any embedded single quotes.
@@ -16,24 +14,27 @@ export interface ExecResult {
 }
 
 /**
- * Execute a command and return the result
+ * Execute a command and return the result.
+ * Uses Bun.spawnSync for better structured output.
  */
 export function exec(command: string, options?: { timeout?: number }): ExecResult {
   try {
-    const stdout = execSync(command, {
-      encoding: "utf-8",
+    const result = Bun.spawnSync(["sh", "-c", command], {
+      stdout: "pipe",
+      stderr: "pipe",
       timeout: options?.timeout ?? 30000,
-      stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
-    return { success: true, stdout };
+    });
+
+    const stdout = result.stdout.toString().trim();
+    const stderr = result.stderr.toString().trim();
+
+    if (result.success) {
+      return { success: true, stdout };
+    }
+    return { success: false, stdout: "", error: stderr || `Exit code: ${result.exitCode}` };
   } catch (e) {
-    const error = e as Error & { stderr?: Buffer | string };
-    const stderr = error.stderr
-      ? typeof error.stderr === "string"
-        ? error.stderr
-        : error.stderr.toString()
-      : error.message;
-    return { success: false, stdout: "", error: stderr.trim() };
+    const error = e as Error;
+    return { success: false, stdout: "", error: error.message };
   }
 }
 

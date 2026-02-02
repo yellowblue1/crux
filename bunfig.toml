@@ -1,0 +1,4 @@
+[test]
+# Enable test coverage reporting
+coverage = true
+coverageDir = "coverage"
