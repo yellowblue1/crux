@@ -14,6 +14,8 @@ import {
   migrate,
   pruneDeadSessions,
 } from "../src/db";
+import { getGcpProject } from "../src/notification/config";
+import { getAccessToken } from "../src/notification/gemini";
 
 // In dev mode (PORT=3848), Vite handles static files
 // In production (PORT=3847 or default), serve from dist/
@@ -143,6 +145,19 @@ const app = new Hono()
       setTimeout(() => broadcastUpdate(), 50);
     }
     return c.json(result);
+  })
+
+  // GET /api/auth/status
+  .get("/api/auth/status", (c) => {
+    const gcloudAuthenticated = getAccessToken() !== null;
+    const gcpProjectConfigured = getGcpProject() !== null;
+    const aiSummaryAvailable = gcloudAuthenticated && gcpProjectConfigured;
+
+    return c.json({
+      gcloud_authenticated: gcloudAuthenticated,
+      gcp_project_configured: gcpProjectConfigured,
+      ai_summary_available: aiSummaryAvailable,
+    });
   })
 
   // SSE endpoint - keep manual ReadableStream (works well with broadcast pattern)
