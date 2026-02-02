@@ -19,7 +19,7 @@ CRUX enables a powerful orchestrator-worker pattern for Claude Code:
 
 ```bash
 # Add marketplace
-claude plugin marketplace add https://github.com/yellowblue1/crux
+claude plugin marketplace add git@github.com:yellowblue1/crux.git
 
 # Install plugins
 claude plugin install crux-hive
