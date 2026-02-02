@@ -8,6 +8,7 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { type CreateOrchestratorArgs, createOrchestrator } from "./tools/create-orchestrator.js";
+import { debugEnv } from "./tools/debug-env.js";
 import { type SendMessageArgs, sendMessage } from "./tools/send-message.js";
 import {
   type StartWorktreeSessionArgs,
@@ -107,6 +108,16 @@ The orchestrator cannot see your work until you call this tool.`,
       required: ["message_type", "content"],
     },
   },
+  {
+    name: "debug_env",
+    description:
+      "Diagnostic tool to check environment variables and import.meta in MCP server context. Useful for debugging path resolution.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
 ] as const satisfies readonly Tool[];
 
 const server = new Server({ name: "crux", version: "4.0.0" }, { capabilities: { tools: {} } });
@@ -125,6 +136,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
       return createOrchestrator(args as unknown as CreateOrchestratorArgs);
     case "send_message":
       return sendMessage(args as unknown as SendMessageArgs);
+    case "debug_env":
+      return debugEnv();
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
