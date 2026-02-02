@@ -33,7 +33,7 @@ You are now in **Orchestrator Mode**. Your role is to orchestrate ALL tasks—im
 │  - Runs in plan mode                                        │
 │  - Executes the task (implementation, research, etc.)       │
 │  - Creates pull request                                     │
-│  - Stop hook reminds → Claude calls send_message            │
+│  - SessionStart hook injects instructions → Claude calls send_message            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -43,8 +43,8 @@ When you pass `orchestratorId` to `start_worktree_session`, the system:
 
 1. **Records the worker** in a tracking database
 2. **Creates `.claude/.orchestrator-id`** file in the worktree
-3. **Configures Stop hook** via the plugin:
-   - When the worker session stops, the hook reminds Claude to notify the orchestrator
+3. **SessionStart hook automatically injects instructions** via the plugin:
+   - When the worker session starts, the hook detects `.orchestrator-id` and injects notification instructions into Claude's context
    - Claude calls `send_message` to report task completion, failures, or questions
 
 The `send_message` tool automatically reads the orchestrator ID from the `.claude/.orchestrator-id` file.
@@ -155,14 +155,14 @@ Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
 | planMode | true for plan mode (default: false) |
 | prompt | Initial prompt for Claude Code |
 | fromRef | Base branch to create from |
-| orchestratorId | **Required** - The orchestrator session ID for Stop hook notifications |
+| orchestratorId | **Required** - The orchestrator session ID for worker notifications |
 
-**IMPORTANT**: Always pass `orchestratorId` so the Stop hook can remind workers to notify.
+**IMPORTANT**: Always pass `orchestratorId` so the SessionStart hook can inject notification instructions.
 
 **Examples:**
 
 ```
-# Standard task (Stop hook will remind worker to notify)
+# Standard task (SessionStart hook will inject notification instructions)
 mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-auth",
   planMode: true,
@@ -181,7 +181,7 @@ mcp__plugin_crux-hive_crux__start_worktree_session({
 ```
 
 This creates a worktree, opens a new tmux window, and starts Claude Code.
-The Stop hook will remind the worker to notify the orchestrator when the task is complete.
+The SessionStart hook will inject instructions for the worker to notify the orchestrator.
 
 ## Phase 2: PR Review and Merge
 
@@ -273,8 +273,8 @@ This automatically cleans up the tmux window via the preRemove hook.
 
 - **Always keep watcher running**: Restart the watcher immediately every time it exits
 - **Initialize first**: Always call `create_orchestrator_session` and start watcher before delegating
-- **Always pass `orchestratorId`**: This enables the Stop hook to remind workers to notify
-- **Stop hook reminder**: When a worker session stops, the hook reminds Claude to call `send_message`
+- **Always pass `orchestratorId`**: This enables the SessionStart hook to inject notification instructions
+- **SessionStart hook injection**: When a worker session starts, the hook detects `.orchestrator-id` and injects instructions for Claude to call `send_message`
 - Always use `planMode: true` when starting worker sessions
 - Workers should create PRs, not push directly to main
 - Review PRs and ask user before merging
