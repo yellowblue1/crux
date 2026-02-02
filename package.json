@@ -1,0 +1,28 @@
+{
+  "name": "crux",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "plugins/crux-monitor",
+    "plugins/crux-monitor/web",
+    "plugins/crux-hive"
+  ],
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "knip": "knip",
+    "knip:fix": "knip --fix",
+    "type-coverage": "type-coverage --at-least 95",
+    "type-coverage:detail": "type-coverage --detail"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "bun-types": "latest",
+    "knip": "^5.82.1",
+    "type-coverage": "^2.29.7",
+    "typescript": "^5.7.0"
+  }
+}

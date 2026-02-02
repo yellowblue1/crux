@@ -1,0 +1,31 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [],
+      "project": [],
+      "ignoreDependencies": ["@modelcontextprotocol/sdk"]
+    },
+    "plugins/crux-monitor": {
+      "entry": [
+        "src/cli.ts",
+        "src/db/index.ts",
+        "src/notification/index.ts",
+        "shared/types.ts",
+        "**/*.test.ts"
+      ],
+      "project": ["src/**/*.ts", "shared/**/*.ts"]
+    },
+    "plugins/crux-monitor/web": {
+      "vite": true,
+      "entry": ["src/app.ts", "src/test/setup.ts", "**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["tailwindcss"],
+      "ignore": ["src/sse.ts", "src/ui.ts", "src/types.ts", "src/components/*.ts"]
+    },
+    "plugins/crux-hive": {
+      "entry": ["src/ensure-gtrconfig.ts", "scripts/hooks/*.ts", "**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+    }
+  }
+}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Monitoring</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body class="font-sans bg-bg-primary text-text-primary min-h-screen text-base leading-relaxed">
+  <div class="max-w-[1400px] mx-auto p-6 max-md:p-4">
+    <header class="flex justify-between items-center mb-6 pb-4 border-b border-border-default max-md:flex-wrap max-md:gap-3">
+      <h1 class="text-[1.75rem] font-semibold text-text-primary max-md:text-2xl">Claude Monitoring</h1>
+      <div class="flex gap-1 bg-bg-secondary p-1 rounded-lg border border-border-default max-md:order-3 max-md:w-full max-md:justify-center">
+        <button id="mode-waiting" class="filter-btn active" title="Only Stop/Notification events">
+          Waiting
+        </button>
+        <button id="mode-active" class="filter-btn" title="All active sessions">
+          Active
+        </button>
+        <button id="mode-all" class="filter-btn" title="All sessions including ended">
+          All
+        </button>
+      </div>
+      <button id="prune-btn" class="prune-btn" title="Delete sessions where process is not running">
+        <svg class="w-4 h-4 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5.5 5.5A.5.5 0 016 6v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm2.5 0a.5.5 0 01.5.5v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm3 .5a.5.5 0 00-1 0v6a.5.5 0 001 0V6z"/>
+          <path fill-rule="evenodd" d="M14.5 3a1 1 0 01-1 1H13v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h-.5a1 1 0 01-1-1V2a1 1 0 011-1H6a1 1 0 011-1h2a1 1 0 011 1h3.5a1 1 0 011 1v1zM4.118 4L4 4.059V13a1 1 0 001 1h6a1 1 0 001-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </svg>
+        Prune
+      </button>
+      <div class="flex items-center gap-2.5 text-[0.9375rem] text-text-muted">
+        <span id="connection-status" class="status-indicator disconnected"></span>
+        <span id="connection-text">Connecting...</span>
+      </div>
+    </header>
+
+    <main>
+      <div id="empty-state" class="empty-state hidden">
+        <p>No active sessions found.</p>
+        <p class="hint">Sessions will appear here when Claude Code is running.</p>
+      </div>
+
+      <table id="events-table" class="events-table hidden">
+        <thead>
+          <tr>
+            <th class="col-project">Project</th>
+            <th class="col-status">Status</th>
+            <th class="col-time">Time</th>
+            <th class="col-summary">Summary</th>
+            <th class="col-copy">Tmux</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="events-body">
+        </tbody>
+      </table>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Prune confirmation modal -->
+    <div id="prune-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Prune Dead Sessions</h2>
+        <p id="prune-count">0 sessions will be deleted.</p>
+        <ul id="prune-list" class="prune-list"></ul>
+        <div class="modal-actions">
+          <button id="prune-cancel" class="modal-btn cancel">Cancel</button>
+          <button id="prune-confirm" class="modal-btn confirm">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generic confirmation dialog -->
+    <div id="confirm-dialog" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div class="modal-content confirm-dialog-content">
+        <h2 id="confirm-dialog-title"></h2>
+        <p id="confirm-dialog-message"></p>
+        <div class="modal-actions">
+          <button id="confirm-dialog-cancel" class="modal-btn cancel">Cancel</button>
+          <button id="confirm-dialog-confirm" class="modal-btn confirm">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.ts"></script>
+</body>
+</html>

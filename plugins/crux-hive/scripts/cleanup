@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Clean up tmux windows before worktree removal
+# Called from git-gtr's preRemove hook (runs in the worktree directory)
+
+set -euo pipefail
+
+# Hook runs in the worktree directory
+worktree_path="$PWD"
+
+# Skip if tmux is not running
+if ! tmux info >/dev/null 2>&1; then
+    exit 0
+fi
+
+# Find panes that have the worktree path as their current directory
+window_ids=$(tmux list-panes -a -F "#{window_id} #{pane_current_path}" 2>/dev/null | \
+    grep -F "$worktree_path" | \
+    awk '{print $1}' | \
+    sort -u || true)
+
+if [ -z "$window_ids" ]; then
+    exit 0
+fi
+
+# Kill each window (this also terminates Claude Code processes)
+for window_id in $window_ids; do
+    echo "🧹 Killing tmux window: $window_id (path: $worktree_path)"
+    tmux kill-window -t "$window_id" 2>/dev/null || true
+done

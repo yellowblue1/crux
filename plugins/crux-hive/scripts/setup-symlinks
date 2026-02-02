@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Create symlinks for .claude/settings.local.json and CLAUDE.local.md in new worktrees
+# Called from git-gtr's postCreate hook (runs in the worktree directory)
+
+set -euo pipefail
+
+# Hook runs in the worktree directory
+worktree_path="$PWD"
+
+# Get main worktree path from git worktree list
+main_repo=$(git worktree list --porcelain | grep -A2 "^worktree " | head -3 | grep "^worktree " | head -1 | cut -d' ' -f2)
+
+# Symlink target
+source_file="$main_repo/.claude/settings.local.json"
+target_dir="$worktree_path/.claude"
+target_file="$target_dir/settings.local.json"
+
+# Only create symlink if source file exists
+if [ -f "$source_file" ]; then
+    mkdir -p "$target_dir"
+    # Remove existing file/symlink if present
+    { [ -e "$target_file" ] || [ -L "$target_file" ]; } && rm -f "$target_file"
+    ln -s "$source_file" "$target_file"
+    echo "Created symlink: $target_file -> $source_file"
+fi
+
+# Symlink CLAUDE.local.md (user's private project instructions)
+source_file_claude_local="$main_repo/CLAUDE.local.md"
+target_file_claude_local="$worktree_path/CLAUDE.local.md"
+
+if [ -f "$source_file_claude_local" ]; then
+    { [ -e "$target_file_claude_local" ] || [ -L "$target_file_claude_local" ]; } && rm -f "$target_file_claude_local"
+    ln -s "$source_file_claude_local" "$target_file_claude_local"
+    echo "Created symlink: $target_file_claude_local -> $source_file_claude_local"
+fi

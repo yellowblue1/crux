@@ -1,0 +1,30 @@
+{
+  "name": "crux-monitor-web",
+  "version": "2.0.0",
+  "description": "Web UI for Claude Code session monitoring",
+  "type": "module",
+  "scripts": {
+    "postinstall": "bun run build",
+    "dev": "concurrently -k \"vite\" \"PORT=3848 bun --watch run server.ts\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "bun run server.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "build:embed": "bun run scripts/generate-embed.ts",
+    "build:binary": "bun run scripts/build-binary.ts"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "lit": "^3.3.2"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/bun": "latest",
+    "concurrently": "^9.1.2",
+    "tailwindcss": "^4.0.0",
+    "vite": "^6.2.3"
+  }
+}

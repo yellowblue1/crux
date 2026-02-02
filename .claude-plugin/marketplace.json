@@ -1,0 +1,21 @@
+{
+  "name": "crux",
+  "owner": {
+    "name": "akirasosa"
+  },
+  "metadata": {
+    "description": "CRUX (Claude Running mUX) - A collection of plugins for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "crux-hive",
+      "source": "./plugins/crux-hive",
+      "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions"
+    },
+    {
+      "name": "crux-monitor",
+      "source": "./plugins/crux-monitor",
+      "description": "Claude Code event monitoring with desktop notifications and DB logging"
+    }
+  ]
+}
