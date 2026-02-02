@@ -1,6 +1,15 @@
 # CRUX (Claude Running mUX)
 
-A collection of plugins for Claude Code.
+Orchestrate multiple Claude Code sessions in parallel.
+
+## What You Can Do
+
+CRUX enables a powerful orchestrator-worker pattern for Claude Code:
+
+- **Run an orchestrator session** that delegates tasks to worker sessions
+- **Workers run simultaneously** in isolated git worktrees
+- **Each worker creates a PR** when their task completes
+- **Complete multiple features or fixes** in parallel
 
 ## Prerequisites
 
@@ -19,12 +28,14 @@ claude plugin install crux-hive
 claude plugin install crux-monitor
 ```
 
+Then in any Claude Code session, use the `/orchestrator-mode` command to start delegating tasks to parallel workers.
+
 ## Available Plugins
 
 | Plugin | Description | Requirements |
 |--------|-------------|--------------|
-| [crux-hive](./plugins/crux-hive/) | Git worktree workflow with tmux integration | tmux, [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) |
-| [crux-monitor](./plugins/crux-monitor/) | (Optional) Event monitoring with desktop notifications and DB logging | - |
+| [crux-hive](./plugins/crux-hive/) | Orchestrate parallel Claude Code sessions—delegate tasks to workers that create PRs automatically | tmux, [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) |
+| [crux-monitor](./plugins/crux-monitor/) | (Optional) Get browser notifications when tasks complete and monitor all sessions | - |
 
 ## Crux Monitor Web UI (Optional)
 
