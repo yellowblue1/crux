@@ -19,7 +19,7 @@ CRUX enables a powerful orchestrator-worker pattern for Claude Code:
 
 ```bash
 # Add marketplace
-claude plugin marketplace add https://github.com/akirasosa/crux
+claude plugin marketplace add https://github.com/yellowblue1/crux
 
 # Install plugins
 claude plugin install crux-hive
@@ -40,12 +40,12 @@ Then in any Claude Code session, use the `/orchestrator-mode` command to start d
 ## Crux Monitor Web UI (Optional)
 
 ```bash
-git clone https://github.com/akirasosa/crux
+git clone https://github.com/yellowblue1/crux
 cd crux && bun install
 bun run --cwd plugins/crux-monitor/web start  # starts on port 3847
 ```
 
-Or download pre-built binary from [Releases](https://github.com/akirasosa/crux/releases).
+Or download pre-built binary from [Releases](https://github.com/yellowblue1/crux/releases).
 
 ## Tips
 
