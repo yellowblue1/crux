@@ -8,7 +8,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.json"]
+    "includes": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.json", "**/*.css", "!!**/dist"]
   },
   "formatter": {
     "enabled": true,
@@ -20,6 +20,14 @@
     "formatter": {
       "quoteStyle": "double",
       "semicolons": "always"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
+    "formatter": {
+      "enabled": true
     }
   },
   "linter": {
@@ -37,6 +45,9 @@
       "suspicious": {
         "noExplicitAny": "error"
       }
+    },
+    "domains": {
+      "test": "recommended"
     }
   },
   "assist": {
