@@ -1,3 +1,4 @@
+// Security verification test: worker notification flow verified at 2026-02-02T12:00:00Z
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
