@@ -43,7 +43,7 @@ All 8 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary
 
 The notification watcher is still documented in `orchestrator-mode.md` Step 2 (lines 88-104). The removed MCP tools were an alternative approach; the file-based watcher with this auto-approve hook remains the current mechanism for orchestrators to receive worker notifications.
 
-The hook auto-approves a specific Bash command pattern that watches for file changes using `fswatch`, preventing manual approval prompts during orchestrator operation.
+The hook auto-approves the `bun run poll-notifications.ts` command that watches for notification files, preventing manual approval prompts during orchestrator operation.
 
 ### Git-gtr Hooks
 
