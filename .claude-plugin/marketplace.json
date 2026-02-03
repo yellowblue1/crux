@@ -10,14 +10,12 @@
     {
       "name": "crux-hive",
       "source": "./plugins/crux-hive",
-      "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions",
-      "ref": "crux-hive-v4.4.1"
+      "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions"
     },
     {
       "name": "crux-monitor",
       "source": "./plugins/crux-monitor",
-      "description": "Claude Code event monitoring with desktop notifications and DB logging",
-      "ref": "crux-monitor-v2.0.0"
+      "description": "Claude Code event monitoring with desktop notifications and DB logging"
     }
   ]
 }

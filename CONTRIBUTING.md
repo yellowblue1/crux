@@ -32,23 +32,7 @@ main (DEFAULT, always stable/releasable)
 
 ### User Installation Note
 
-Users can specify exact versions when installing plugins:
-
-- Via marketplace.json: use the `ref` field (supports branches, tags, or commit SHAs)
-- Via CLI: use `#ref` syntax (e.g., `plugin-url#v1.0.0` or `plugin-url#abc123`)
-
-Example marketplace.json with pinned version:
-```json
-{
-  "plugins": [{
-    "source": "yellowblue1/crux",
-    "subdir": "plugins/crux-hive",
-    "ref": "crux-hive-v4.4.0"
-  }]
-}
-```
-
-However, most users install from `main` (default branch), so it must always be stable.
+Users install plugins from `main` (default branch), so it must always be stable.
 
 ## Development Workflow
 
@@ -67,7 +51,6 @@ Claude Code uses **Git commit SHA** as the true identifier for plugin code, not 
 
 - The version from `plugin.json` is displayed to users
 - The actual Git commit SHA is stored in `~/.claude/plugins/installed_plugins.json`
-- Users can specify a `ref` in marketplace.json or use `#branch` CLI syntax for pinning
 
 ### The "Same Version, Different Code" Problem
 
@@ -81,8 +64,6 @@ Without discipline, two users could have "version 1.0.0" but different code if i
 - Maintainer release tracking
 - CI version validation
 - GitHub release automation
-
-> **Note**: Git tags enable version pinning when users specify `ref` in their marketplace.json. Without explicit `ref`, users get the latest from `main`.
 
 ### When to Bump Versions
 
@@ -140,7 +121,6 @@ git tag -a crux-hive-v4.4.0 -m "Release crux-hive 4.4.0"
 git push origin crux-hive-v4.4.0
 ```
 
-> **Note**: Git tags enable users to pin to specific versions via `ref` in marketplace.json (e.g., `"ref": "crux-hive-v4.4.0"`). They also support release tracking and CI validation.
 
 ### Tag Naming Convention
 
