@@ -1,6 +1,6 @@
 {
   "name": "crux-hive",
-  "version": "4.0.0",
+  "version": "4.3.0",
   "type": "module",
   "bin": {
     "crux-hive-mcp": "./src/mcp/server.ts"

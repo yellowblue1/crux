@@ -30,6 +30,9 @@ jobs:
       - name: Run type check
         run: bun run typecheck
 
+      - name: Check version sync
+        run: bun run scripts/check-version-sync.ts
+
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
