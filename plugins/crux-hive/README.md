@@ -55,16 +55,6 @@ You (human)
                 SessionStart hook injects instructions → Claude calls send_message
 ```
 
-## Reducing Permission Prompts
-
-Workers can operate with fewer permission prompts by enabling Claude Code's native sandboxing:
-
-1. Copy `templates/sandbox-settings.example.json` to `.claude/settings.local.json`
-2. Customize allowed network domains for your project
-3. Workers will inherit settings via symlinks
-
-See [docs/sandbox-integration-guide.md](docs/sandbox-integration-guide.md) for detailed setup instructions.
-
 ## Note
 
 The plugin creates `.claude/.orchestrator-id` in worktrees. Ensure your `.gitignore` includes `.claude/*` (with appropriate exceptions) to avoid committing this file.
