@@ -32,12 +32,23 @@ main (DEFAULT, always stable/releasable)
 
 ### User Installation Note
 
-Users can specify branches when installing plugins:
+Users can specify exact versions when installing plugins:
 
-- Via marketplace.json: use the `ref` field
-- Via CLI: use `#branch` syntax (e.g., `plugin-url#develop`)
+- Via marketplace.json: use the `ref` field (supports branches, tags, or commit SHAs)
+- Via CLI: use `#ref` syntax (e.g., `plugin-url#v1.0.0` or `plugin-url#abc123`)
 
-However, most users install from `main`, so it must always be stable.
+Example marketplace.json with pinned version:
+```json
+{
+  "plugins": [{
+    "source": "yellowblue1/crux",
+    "subdir": "plugins/crux-hive",
+    "ref": "crux-hive-v4.4.0"
+  }]
+}
+```
+
+However, most users install from `main` (default branch), so it must always be stable.
 
 ## Development Workflow
 
@@ -71,7 +82,7 @@ Without discipline, two users could have "version 1.0.0" but different code if i
 - CI version validation
 - GitHub release automation
 
-> **Note**: Git tags don't enable automatic user-side version pinning. Users must manually specify `ref` in their marketplace.json to pin to a specific tag or commit.
+> **Note**: Git tags enable version pinning when users specify `ref` in their marketplace.json. Without explicit `ref`, users get the latest from `main`.
 
 ### When to Bump Versions
 
@@ -129,7 +140,7 @@ git tag -a crux-hive-v4.4.0 -m "Release crux-hive 4.4.0"
 git push origin crux-hive-v4.4.0
 ```
 
-> **Note**: While git tags don't enable user-side version pinning (due to Claude Code limitations), they are valuable for maintainers to track releases and ensure CI validates version consistency.
+> **Note**: Git tags enable users to pin to specific versions via `ref` in marketplace.json (e.g., `"ref": "crux-hive-v4.4.0"`). They also support release tracking and CI validation.
 
 ### Tag Naming Convention
 
