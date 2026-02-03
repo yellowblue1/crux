@@ -45,13 +45,10 @@ function generateId(prefix: string): string {
 
 /**
  * Validates an orchestrator ID to prevent path traversal attacks.
- * Supports both old (8-char alphanumeric) and new (12-char hex) formats
- * for backward compatibility during the transition period.
+ * Format: orch_ followed by exactly 12 lowercase hex characters.
  */
 function isValidOrchestratorId(id: string): boolean {
-  // New format: orch_ + 12 hex characters
-  // Old format: orch_ + 8 alphanumeric characters (for backward compatibility)
-  return /^orch_[a-f0-9]{12}$/.test(id) || /^orch_[a-z0-9]{8}$/.test(id);
+  return /^orch_[a-f0-9]{12}$/.test(id);
 }
 
 function generateUlid(): string {

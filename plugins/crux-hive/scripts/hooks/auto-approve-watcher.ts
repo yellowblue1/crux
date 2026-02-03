@@ -38,27 +38,24 @@ interface HookInput {
  *    bun run /path/to/scripts/poll-notifications.ts orch_<id>
  *
  * 2. Legacy format (bash with NOTIF_DIR):
- *    NOTIF_DIR="/path/to/tmpdir/orch_xxxxxxxx/notifications"; <watcher logic>
+ *    NOTIF_DIR="/path/to/tmpdir/orch_xxxxxxxxxxxx/notifications"; <watcher logic>
  *
  * Security considerations:
- * - orch_id must be exactly 8 lowercase alphanumeric or 12 hex characters after "orch_"
+ * - orch_id must be exactly 12 lowercase hex characters after "orch_"
  * - Path must not contain shell metacharacters or command separators
  * - Only allows the specific watcher patterns, not arbitrary commands
  */
 function isWatcherCommand(command: string): boolean {
   // New format: bun run <path>/scripts/poll-notifications.ts orch_<id>
   // Path allows safe directory characters, orchestrator ID is validated strictly
-  const bunRunPattern =
-    /^bun run ([\w./-]+)\/scripts\/poll-notifications\.ts (orch_([a-z0-9]{8}|[a-f0-9]{12}))$/;
+  const bunRunPattern = /^bun run ([\w./-]+)\/scripts\/poll-notifications\.ts (orch_[a-f0-9]{12})$/;
 
   if (bunRunPattern.test(command)) {
     return true;
   }
 
   // Legacy format: NOTIF_DIR="/safe/path/orch_[id]/notifications"
-  // Supports both old format (8 alphanumeric) and new format (12 hex chars)
-  const notifDirPattern =
-    /^NOTIF_DIR="(\/[\w./-]+\/orch_([a-z0-9]{8}|[a-f0-9]{12})\/notifications)"/;
+  const notifDirPattern = /^NOTIF_DIR="(\/[\w./-]+\/orch_[a-f0-9]{12}\/notifications)"/;
 
   const match = command.match(notifDirPattern);
   if (!match) {
