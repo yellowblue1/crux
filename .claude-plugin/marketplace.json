@@ -11,7 +11,7 @@
       "name": "crux-hive",
       "source": "./plugins/crux-hive",
       "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions",
-      "ref": "crux-hive-v4.4.0"
+      "ref": "crux-hive-v4.4.1"
     },
     {
       "name": "crux-monitor",
