@@ -55,6 +55,29 @@ You (human)
                 SessionStart hook injects instructions → Claude calls send_message
 ```
 
+## Architecture Details
+
+### Why the PreToolUse Auto-Approve Hook Exists
+
+The orchestrator uses a background notification watcher that must restart periodically (every 10 minutes due to timeout). Without the PreToolUse hook, users would be prompted to approve Bash commands every 10 minutes, breaking the unattended workflow.
+
+**Why simpler alternatives don't work:**
+
+| Approach | Why It Doesn't Work |
+|----------|---------------------|
+| `permissionMode: "bypassPermissions"` | Dangerous - approves ALL tools without validation |
+| One-time user approval | Doesn't persist across Task restarts |
+| `--dangerously-skip-permissions` | Inappropriate for plugins - affects entire session |
+
+The hook (`scripts/hooks/auto-approve-watcher.ts`) follows [Claude Code's recommended approach](https://code.claude.com/docs/en/hooks) for conditional tool approval:
+
+1. **Strict regex validation** - Only approves exact command patterns
+2. **ID format validation** - Ensures orchestrator ID is properly formatted  
+3. **Dangerous pattern detection** - Blocks command injection attempts
+4. **Graceful passthrough** - Non-matching commands proceed to normal permission flow
+
+This aligns with the official documentation which explicitly recommends PreToolUse hooks when you need to "allow some operations of a tool while blocking others."
+
 ## Note
 
 The plugin creates `.claude/.orchestrator-id` in worktrees. Ensure your `.gitignore` includes `.claude/*` (with appropriate exceptions) to avoid committing this file.
