@@ -13,3 +13,4 @@ plugins/crux-monitor/web/embed.generated.ts
 .claude/*
 !.claude/CLAUDE.md
 !.claude/rules/
+!.claude/skills/
