@@ -1,0 +1,143 @@
+name: Release Validation
+
+on:
+  push:
+    tags:
+      - "crux-*-v*"
+
+jobs:
+  validate-release:
+    name: Validate Release Tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Parse tag information
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          # Extract plugin name and version from tag (e.g., crux-hive-v4.3.0)
+          PLUGIN_NAME=$(echo "$TAG" | sed -E 's/^(crux-[^-]+)-v.*/\1/')
+          VERSION=$(echo "$TAG" | sed -E 's/^crux-[^-]+-v//')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "plugin_name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Parsed tag: $TAG -> plugin: $PLUGIN_NAME, version: $VERSION"
+
+      - name: Validate plugin.json version
+        run: |
+          PLUGIN_DIR="plugins/${{ steps.tag.outputs.plugin_name }}"
+          PLUGIN_JSON="$PLUGIN_DIR/.claude-plugin/plugin.json"
+
+          if [ ! -f "$PLUGIN_JSON" ]; then
+            echo "ERROR: plugin.json not found at $PLUGIN_JSON"
+            exit 1
+          fi
+
+          PLUGIN_VERSION=$(jq -r '.version' "$PLUGIN_JSON")
+          EXPECTED="${{ steps.tag.outputs.version }}"
+
+          if [ "$PLUGIN_VERSION" != "$EXPECTED" ]; then
+            echo "ERROR: plugin.json version ($PLUGIN_VERSION) does not match tag version ($EXPECTED)"
+            exit 1
+          fi
+
+          echo "plugin.json version matches: $PLUGIN_VERSION"
+
+      - name: Validate package.json version
+        run: |
+          PLUGIN_DIR="plugins/${{ steps.tag.outputs.plugin_name }}"
+          PACKAGE_JSON="$PLUGIN_DIR/package.json"
+
+          if [ ! -f "$PACKAGE_JSON" ]; then
+            echo "WARNING: package.json not found at $PACKAGE_JSON"
+            exit 0
+          fi
+
+          PACKAGE_VERSION=$(jq -r '.version' "$PACKAGE_JSON")
+          EXPECTED="${{ steps.tag.outputs.version }}"
+
+          if [ "$PACKAGE_VERSION" != "$EXPECTED" ]; then
+            echo "ERROR: package.json version ($PACKAGE_VERSION) does not match tag version ($EXPECTED)"
+            exit 1
+          fi
+
+          echo "package.json version matches: $PACKAGE_VERSION"
+
+      - name: Run version sync check
+        run: bun run scripts/check-version-sync.ts
+
+  create-release:
+    name: Create GitHub Release
+    needs: validate-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse tag information
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          PLUGIN_NAME=$(echo "$TAG" | sed -E 's/^(crux-[^-]+)-v.*/\1/')
+          VERSION=$(echo "$TAG" | sed -E 's/^crux-[^-]+-v//')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "plugin_name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ steps.tag.outputs.plugin_name }} v${{ steps.tag.outputs.version }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  update-marketplace:
+    name: Update Marketplace Reference
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Parse tag information
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          PLUGIN_NAME=$(echo "$TAG" | sed -E 's/^(crux-[^-]+)-v.*/\1/')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "plugin_name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Update marketplace.json ref
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          PLUGIN_NAME="${{ steps.tag.outputs.plugin_name }}"
+          MARKETPLACE=".claude-plugin/marketplace.json"
+
+          # Update the ref field for the matching plugin
+          jq --arg ref "$TAG" --arg name "$PLUGIN_NAME" \
+            '(.plugins[] | select(.name == $name)).ref = $ref' \
+            "$MARKETPLACE" > tmp.json
+          mv tmp.json "$MARKETPLACE"
+
+          echo "Updated $PLUGIN_NAME ref to $TAG"
+          cat "$MARKETPLACE"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/marketplace.json
+          git diff --staged --quiet || git commit -m "chore: update marketplace ${{ steps.tag.outputs.plugin_name }} to ${{ steps.tag.outputs.tag }}"
+          git push origin main
