@@ -53,13 +53,13 @@ The `send_message` tool automatically reads the orchestrator ID from the `.claud
 
 When a worker calls `send_message`, the tool writes a JSON file:
 
-1. **Directory**: `$TMPDIR/<orchestrator_id>/notifications/` (e.g., on macOS: `/var/folders/.../T/orch_abc12345/notifications/`)
+1. **Directory**: `$TMPDIR/<orchestrator_id>/notifications/` (e.g., on macOS: `/var/folders/.../T/orch_abc123def456/notifications/`)
 2. **Filename**: `msg_<ulid>.json` (e.g., `msg_01arz3ndektsv4rrffq69g5fav.json`)
 3. **Content**:
    ```json
    {
      "id": "msg_01arz3ndektsv4rrffq69g5fav",
-     "orchestrator_id": "orch_abc12345",
+     "orchestrator_id": "orch_abc123def456",
      "worker_id": "feat/add-auth",
      "message_type": "task_complete",
      "content": {
@@ -84,7 +84,7 @@ mcp__plugin_crux-hive_crux__create_orchestrator_session({})
 ```
 
 This returns:
-- `orchestrator_id` (e.g., `orch_abc12345`) - **Save this ID** for use with all worker sessions
+- `orchestrator_id` (e.g., `orch_abc123def456`) - **Save this ID** for use with all worker sessions
 - `poll_command` - A ready-to-use command for the notification watcher
 
 ### Step 2: Start Background Notification Watcher
@@ -103,7 +103,7 @@ After completion, always include:
 })
 ```
 
-Example: If `poll_command` is `bun run /path/to/scripts/poll-notifications.ts orch_abc12345`, use that exact command.
+Example: If `poll_command` is `bun run /path/to/scripts/poll-notifications.ts orch_abc123def456`, use that exact command.
 
 **Why 10-minute timeout?** The poll script has a default 600-second timeout. Claude Code background tasks must exit periodically. Files persist on disk, so notifications sent during restart are not lost.
 
@@ -166,7 +166,7 @@ Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
 mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-auth",
   planMode: true,
-  orchestratorId: "orch_abc12345",
+  orchestratorId: "orch_abc123def456",
   prompt: "Objective: Add user authentication..."
 })
 
@@ -175,7 +175,7 @@ mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-metrics",
   fromRef: "develop",
   planMode: true,
-  orchestratorId: "orch_abc12345",
+  orchestratorId: "orch_abc123def456",
   prompt: "Objective: Add metrics collection..."
 })
 ```

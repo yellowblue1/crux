@@ -60,10 +60,10 @@ describe("poll-notifications", () => {
       expect(isValidOrchestratorId("orch_ffffffffffff")).toBe(true);
     });
 
-    it("should accept valid 8-char alphanumeric orchestrator ID (legacy)", () => {
-      expect(isValidOrchestratorId("orch_abc12345")).toBe(true);
-      expect(isValidOrchestratorId("orch_00000000")).toBe(true);
-      expect(isValidOrchestratorId("orch_zzzzzzzz")).toBe(true);
+    it("should reject old 8-char alphanumeric orchestrator ID format (no longer supported)", () => {
+      expect(isValidOrchestratorId("orch_abc12345")).toBe(false);
+      expect(isValidOrchestratorId("orch_00000000")).toBe(false);
+      expect(isValidOrchestratorId("orch_zzzzzzzz")).toBe(false);
     });
 
     it("should reject invalid orchestrator ID formats", () => {

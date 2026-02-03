@@ -30,10 +30,10 @@ const DEFAULT_TIMEOUT_SECONDS = 600;
 
 /**
  * Validates an orchestrator ID format.
- * Supports both old (8-char alphanumeric) and new (12-char hex) formats.
+ * Format: orch_ followed by exactly 12 lowercase hex characters.
  */
 function isValidOrchestratorId(id: string): boolean {
-  return /^orch_[a-f0-9]{12}$/.test(id) || /^orch_[a-z0-9]{8}$/.test(id);
+  return /^orch_[a-f0-9]{12}$/.test(id);
 }
 
 /**
@@ -93,7 +93,7 @@ function parseArgs(args: string[]): { orchestratorId: string; timeoutSeconds: nu
 
   if (!isValidOrchestratorId(orchestratorId)) {
     console.error(`Error: Invalid orchestrator ID format: ${orchestratorId}`);
-    console.error("Expected format: orch_<12 hex chars> or orch_<8 alphanumeric chars>");
+    console.error("Expected format: orch_<12 hex chars>");
     return null;
   }
 
