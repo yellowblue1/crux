@@ -383,11 +383,23 @@ Enhance PreToolUse hooks to auto-approve known-safe patterns.
 
 ---
 
-## 8. Next Steps (Implementation Phase)
+## 8. Getting Started
 
-1. **Test native sandboxing** in a single worker to validate 84% reduction claim
-2. **Create sandbox configuration templates** for common project types
-3. **Update crux-hive worker spawning** to include sandbox settings
-4. **Document setup requirements** for Linux users (bubblewrap)
-5. **Evaluate Docker Sandboxes** for future integration
-6. **Create migration path** from current PreToolUse hooks to sandbox-based approach
+Native sandboxing is **available now** in crux-hive. No code changes required.
+
+### Immediate Setup
+
+1. Copy the template to your project:
+   ```bash
+   cp plugins/crux-hive/templates/sandbox-settings.example.json .claude/settings.local.json
+   ```
+
+2. Customize allowed network domains for your project
+
+3. Start using orchestrator mode - workers automatically inherit sandbox settings via existing symlink mechanism
+
+### Optional Future Enhancements
+
+- Evaluate Docker Sandboxes for even stronger isolation
+- Add project-specific sandbox profiles
+- Create automated sandbox configuration based on detected dependencies
