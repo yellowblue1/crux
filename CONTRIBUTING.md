@@ -20,7 +20,12 @@ Claude Code uses **Git commit SHA** as the true identifier for plugin code, not 
 - The actual Git commit SHA is stored in `~/.claude/plugins/installed_plugins.json`
 - Two users can have "version 1.0.0" but different code if installed at different commits
 
-**Best practice**: Use git tags for releases to ensure users installing from a tagged release always get identical code.
+**Important limitation**: Claude Code currently does not support installing plugins from specific git tags or commits. Users always get the HEAD of the main branch. This means user-side version pinning is not possible with the current Claude Code specification.
+
+**Git tags are used for**:
+- Maintainer release tracking
+- CI version validation
+- GitHub release automation
 
 ### When to Bump Versions
 
@@ -66,11 +71,15 @@ After PR approval and CI passes, merge to `main`.
 
 ### 3. Create Git Tag
 
+Git tags provide immutable reference points for releases, useful for tracking release history and CI validation.
+
 ```bash
 # Create annotated tag
 git tag -a crux-hive-v4.4.0 -m "Release crux-hive 4.4.0"
 git push origin crux-hive-v4.4.0
 ```
+
+> **Note**: While git tags don't enable user-side version pinning (due to Claude Code limitations), they are valuable for maintainers to track releases and ensure CI validates version consistency.
 
 ### Tag Naming Convention
 
