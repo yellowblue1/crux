@@ -2,13 +2,51 @@
 
 Thank you for your interest in contributing to CRUX! This document covers the development workflow, versioning policy, and release process.
 
+## Branching Strategy: Always-Releasable Main
+
+CRUX follows the **"Always-Releasable Main"** pattern - a simplified workflow where `main` is always stable and ready for release.
+
+### Why This Strategy?
+
+Claude Code installs plugins from the repository's **default branch** (main). This means:
+
+- Every commit on `main` is immediately available to users
+- We cannot use GitFlow with `develop` as default (users would get unstable code)
+- `main` must always be in a releasable state
+
+### Branch Structure
+
+```
+main (DEFAULT, always stable/releasable)
+├── feature/* (short-lived, merged via PR)
+├── fix/* (short-lived, merged via PR)
+└── release/x.y.z (optional, for stabilization)
+```
+
+### Key Principles
+
+1. **Main is always releasable** - every commit could be installed by users
+2. **Feature branches** - all development happens in short-lived branches
+3. **Version bump on every meaningful merge** - ensures version accuracy
+4. **Git tags for release tracking** - immutable reference points for maintainers
+
+### User Installation Note
+
+Users can specify branches when installing plugins:
+
+- Via marketplace.json: use the `ref` field
+- Via CLI: use `#branch` syntax (e.g., `plugin-url#develop`)
+
+However, most users install from `main`, so it must always be stable.
+
 ## Development Workflow
 
-1. Create a feature branch from `main`
+1. Create a feature branch from `main`: `git checkout -b feature/my-feature`
 2. Make your changes following existing code patterns
 3. Ensure all tests pass: `bun test`
 4. Run linting: `bun run lint:fix`
-5. Submit a pull request
+5. **Bump version if code changes** (see Version Policy below)
+6. Submit a pull request targeting `main`
 
 ## Plugin Version Policy
 
@@ -18,22 +56,34 @@ Claude Code uses **Git commit SHA** as the true identifier for plugin code, not 
 
 - The version from `plugin.json` is displayed to users
 - The actual Git commit SHA is stored in `~/.claude/plugins/installed_plugins.json`
-- Two users can have "version 1.0.0" but different code if installed at different commits
+- Users can specify a `ref` in marketplace.json or use `#branch` CLI syntax for pinning
 
-**Important limitation**: Claude Code currently does not support installing plugins from specific git tags or commits. Users always get the HEAD of the main branch. This means user-side version pinning is not possible with the current Claude Code specification.
+### The "Same Version, Different Code" Problem
+
+Without discipline, two users could have "version 1.0.0" but different code if installed at different commits. We solve this by:
+
+1. **Bumping version on every meaningful change** - ensures version reflects code state
+2. **CI validation** - enforces version sync between plugin.json and package.json
+3. **Git tags** - provide immutable reference points for releases
 
 **Git tags are used for**:
 - Maintainer release tracking
 - CI version validation
 - GitHub release automation
 
+> **Note**: Git tags don't enable automatic user-side version pinning. Users must manually specify `ref` in their marketplace.json to pin to a specific tag or commit.
+
 ### When to Bump Versions
+
+**Every PR with meaningful code changes must include a version bump.** This ensures version accuracy and prevents the "same version, different code" problem.
 
 | Change Type | Version Bump | Example |
 |-------------|--------------|---------|
 | Breaking changes | Major (X.0.0) | Removing MCP tools, changing hook signatures |
 | New features | Minor (x.Y.0) | Adding new MCP tools, new hooks |
 | Bug fixes | Patch (x.y.Z) | Performance improvements, refactoring |
+| Docs only | None | README updates, comments |
+| CI/tooling only | None | Workflow changes, dev dependencies |
 
 ### Version Sync Requirement
 
