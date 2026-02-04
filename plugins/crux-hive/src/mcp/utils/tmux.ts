@@ -13,7 +13,7 @@ export function isTmuxAvailable(): boolean {
  */
 export function createWindow(name: string, dir: string): string {
   return execOrThrow(
-    `tmux new-window -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`,
+    `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`,
   );
 }
 
