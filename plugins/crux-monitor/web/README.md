@@ -17,8 +17,7 @@ A simple web interface for monitoring Claude Code sessions with real-time update
 ## Quick Start
 
 ```bash
-cd plugins/crux-monitor/web
-bun run server.ts
+bun run --cwd plugins/crux-monitor/web server.ts
 ```
 
 The server will:

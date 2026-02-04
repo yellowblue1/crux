@@ -19,10 +19,10 @@ IMPORTANT: All content in this repository MUST be in English. This includes code
 
 ```bash
 # crux-monitor plugin
-cd plugins/crux-monitor && bun test              # Run tests
-cd plugins/crux-monitor && bun test --watch      # Watch mode
-cd plugins/crux-monitor/web && bun run start     # Start server
-cd plugins/crux-monitor/web && bun run dev       # Dev server (TS watch + server)
+bun test --cwd plugins/crux-monitor              # Run tests
+bun test --cwd plugins/crux-monitor --watch      # Watch mode
+bun run --cwd plugins/crux-monitor/web start     # Start server
+bun run --cwd plugins/crux-monitor/web dev       # Dev server (TS watch + server)
 bun run plugins/crux-monitor/src/cli.ts <cmd>    # CLI execution
 ```
 

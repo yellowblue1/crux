@@ -8,8 +8,8 @@ paths: plugins/**/*.test.ts, plugins/**/__tests__/**
 - Bun test runner (built-in, fast)
 - Commands:
   ```bash
-  cd plugins/crux-monitor && bun test        # Run all tests
-  cd plugins/crux-monitor && bun test --watch  # Watch mode
+  bun test --cwd plugins/crux-monitor        # Run all tests
+  bun test --cwd plugins/crux-monitor --watch  # Watch mode
   ```
 
 ## Test Structure
