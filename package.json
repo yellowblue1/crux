@@ -2,6 +2,9 @@
   "name": "crux",
   "private": true,
   "type": "module",
+  "overrides": {
+    "@isaacs/brace-expansion": "5.0.1"
+  },
   "workspaces": [
     "plugins/crux-monitor",
     "plugins/crux-monitor/web",
