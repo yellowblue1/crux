@@ -45,8 +45,7 @@ claude --plugin-dir /path/to/crux-monitor
 Start the monitoring dashboard:
 
 ```bash
-cd plugins/crux-monitor/web
-bun run start
+bun run --cwd plugins/crux-monitor/web start
 ```
 
 The server runs on port 3847 by default (auto-selects next available port if busy).
@@ -142,16 +141,14 @@ mv ~/.local/share/claude-monitoring/events.db ~/.local/share/crux-monitor/events
 ### Running Tests
 
 ```bash
-cd plugins/crux-monitor
-bun test              # Run all tests
-bun test --watch      # Watch mode
+bun test --cwd plugins/crux-monitor              # Run all tests
+bun test --cwd plugins/crux-monitor --watch      # Watch mode
 ```
 
 ### Web UI Development
 
 ```bash
-cd plugins/crux-monitor/web
-bun run dev           # Start dev server with auto-reload
+bun run --cwd plugins/crux-monitor/web dev       # Start dev server with auto-reload
 ```
 
 ## Uninstalling
