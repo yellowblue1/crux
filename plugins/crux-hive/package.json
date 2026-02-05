@@ -6,6 +6,6 @@
     "crux-hive-mcp": "./src/mcp/server.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.26.0"
   }
 }
