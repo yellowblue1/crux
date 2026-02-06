@@ -2,7 +2,6 @@
 description: Orchestrator mode for delegating tasks to parallel Claude Code sessions via git worktrees
 allowed-tools:
   - Bash
-  - Task
   - mcp__plugin_crux-hive_crux__start_worktree_session
   - mcp__plugin_crux-hive_crux__create_orchestrator_session
 ---
@@ -71,7 +70,7 @@ When a worker calls `send_message`, the tool writes a JSON file:
    }
    ```
 
-The Bash watcher polls this directory every 2 seconds, reads and deletes files atomically.
+The watcher uses `fs.watch` for near-instant detection with a 30-second fallback poll, reads and deletes files atomically.
 
 ## Phase 0: Initialize Orchestrator Session
 
@@ -89,36 +88,29 @@ This returns:
 
 ### Step 2: Start Background Notification Watcher
 
-Start a background Bash task using the `poll_command` from Step 1.
+Start a background Bash command using the `poll_command` from Step 1.
 
 ```
-Task({
-  subagent_type: "Bash",
-  description: "Wait for worker notifications",
+Bash({
+  command: "<poll_command from create_orchestrator_session>",
   run_in_background: true,
-  prompt: `Run: <poll_command from create_orchestrator_session>
-
-After completion, always include:
-"→ Watcher exited. Please restart immediately."`
+  description: "Watch for worker notifications"
 })
 ```
 
 Example: If `poll_command` is `bun run /path/to/scripts/poll-notifications.ts orch_abc123def456`, use that exact command.
 
-**Why 10-minute timeout?** The poll script has a default 600-second timeout. Claude Code background tasks must exit periodically. Files persist on disk, so notifications sent during restart are not lost.
+The poll script runs indefinitely until a notification arrives, then exits with the notification content.
 
-**When the background task exits**:
+**When the background watcher exits**:
 
 1. **Read the output** and interpret the result:
-   - **JSON output present**: Notification received. Parse for `pr_url` and `worker` (branch name).
-   - **Exit code 124**: Timeout after 10 minutes, no notifications.
-   - **Other**: Error occurred, investigate.
+   - **JSON output present** (exit code 0): Notification received. Parse for `pr_url` and `worker` (branch name).
+   - **Other exit code**: Error occurred, investigate.
 
-2. **Process** if notification received (review PR, answer question, etc.)
+2. **Process** the notification (review PR, answer question, etc.)
 
-3. **Restart the watcher immediately** (use the same `poll_command`)
-
-**Always keep the watcher running.** Restart it every time it exits, regardless of the exit reason.
+3. **Restart the watcher immediately** after processing (use the same `poll_command`)
 
 ## Phase 1: Task Delegation
 
@@ -277,7 +269,7 @@ This automatically cleans up the tmux window via the preRemove hook.
 
 ## Important Notes
 
-- **Always keep watcher running**: Restart the watcher immediately every time it exits
+- **Always keep watcher running**: Restart the watcher immediately after each notification
 - **Initialize first**: Always call `create_orchestrator_session` and start watcher before delegating
 - **Always pass `orchestratorId`**: This enables the SessionStart hook to inject notification instructions
 - **SessionStart hook injection**: When a worker session starts, the hook detects `.orchestrator-id` and injects instructions for Claude to call `send_message`

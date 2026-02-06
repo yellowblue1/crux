@@ -8,11 +8,11 @@
  *
  * Arguments:
  *   orchestrator_id  The orchestrator session ID (e.g., orch_abc123456789)
- *   --timeout        Timeout in seconds (default: 600)
+ *   --timeout        Timeout in seconds (default: indefinite, runs until notification arrives)
  *
  * Exit codes:
  *   0   - Notification found and output
- *   124 - Timeout (no notifications within timeout period)
+ *   124 - Timeout (only when --timeout is specified)
  *   1   - Error (invalid arguments, etc.)
  *
  * Output:
@@ -68,9 +68,11 @@ function pollNotification(notificationsDir: string): string | null {
   }
 }
 
-function parseArgs(args: string[]): { orchestratorId: string; timeoutSeconds: number } | null {
+function parseArgs(
+  args: string[],
+): { orchestratorId: string; timeoutSeconds: number | null } | null {
   let orchestratorId: string | undefined;
-  let timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
+  let timeoutSeconds: number | null = null;
 
   for (const arg of args) {
     if (arg.startsWith("--timeout=")) {
@@ -113,7 +115,7 @@ class NotificationWatcher {
 
   constructor(
     orchestratorId: string,
-    private timeoutMs: number,
+    private timeoutMs: number | null,
   ) {
     this.notificationsDir = getNotificationsDir(orchestratorId);
   }
@@ -130,11 +132,13 @@ class NotificationWatcher {
     }
 
     return new Promise((resolve) => {
-      // Setup timeout
-      this.timeoutTimer = setTimeout(() => {
-        this.cleanup();
-        resolve(null);
-      }, this.timeoutMs);
+      // Setup timeout (only when timeoutMs is specified)
+      if (this.timeoutMs !== null) {
+        this.timeoutTimer = setTimeout(() => {
+          this.cleanup();
+          resolve(null);
+        }, this.timeoutMs);
+      }
 
       // Setup fs.watch if directory exists
       if (existsSync(this.notificationsDir)) {
@@ -234,7 +238,10 @@ async function main(): Promise<void> {
   }
 
   const { orchestratorId, timeoutSeconds } = parsed;
-  const watcher = new NotificationWatcher(orchestratorId, timeoutSeconds * 1000);
+  const watcher = new NotificationWatcher(
+    orchestratorId,
+    timeoutSeconds !== null ? timeoutSeconds * 1000 : null,
+  );
 
   // Setup signal handlers for graceful cleanup
   const cleanup = (): void => {

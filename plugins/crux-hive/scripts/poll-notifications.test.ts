@@ -88,7 +88,7 @@ describe("poll-notifications", () => {
       const result = parseArgs(["orch_abc123def456"]);
       expect(result).not.toBeNull();
       expect(result?.orchestratorId).toBe("orch_abc123def456");
-      expect(result?.timeoutSeconds).toBe(DEFAULT_TIMEOUT_SECONDS);
+      expect(result?.timeoutSeconds).toBeNull();
     });
 
     it("should parse --timeout flag", () => {
@@ -297,6 +297,39 @@ describe("poll-notifications", () => {
         // Should timeout around 200ms (with some tolerance)
         expect(elapsed).toBeGreaterThanOrEqual(180);
         expect(elapsed).toBeLessThan(500);
+      });
+    });
+
+    describe("indefinite watch", () => {
+      it("should detect notification when timeoutMs is null", async () => {
+        const orchestratorId = "orch_aabbccdd0020";
+        const dir = createTestDir(orchestratorId);
+        const content = { indefinite: true };
+
+        const watcher = new NotificationWatcher(orchestratorId, null);
+        const watchPromise = watcher.watch();
+
+        // Write notification after a short delay
+        await Bun.sleep(50);
+        writeTestNotification(dir, content);
+
+        const result = await watchPromise;
+        expect(result).toBe(JSON.stringify(content));
+      });
+
+      it("should not resolve on its own when timeoutMs is null", async () => {
+        const orchestratorId = "orch_aabbccdd0021";
+        createTestDir(orchestratorId);
+
+        const watcher = new NotificationWatcher(orchestratorId, null);
+        const watchPromise = watcher.watch();
+
+        // Race against a sentinel - watcher should NOT resolve within 300ms
+        const sentinel = Symbol("sentinel");
+        const result = await Promise.race([watchPromise, Bun.sleep(300).then(() => sentinel)]);
+
+        expect(result).toBe(sentinel);
+        watcher.cleanup();
       });
     });
 
