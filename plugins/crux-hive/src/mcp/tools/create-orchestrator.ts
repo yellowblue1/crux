@@ -49,7 +49,7 @@ export function createOrchestrator(args: CreateOrchestratorArgs): CallToolResult
               project_dir: session.project_dir,
               created_at: session.created_at,
               message:
-                "Orchestrator session created. Use poll_command with Task to watch for notifications.",
+                "Orchestrator session created. Use poll_command with Bash (run_in_background: true) to watch for notifications.",
             },
             null,
             2,

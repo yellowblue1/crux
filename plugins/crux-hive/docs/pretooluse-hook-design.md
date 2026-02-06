@@ -4,14 +4,14 @@ This document explains the design rationale for the PreToolUse hook that auto-ap
 
 ## Why the Hook Exists
 
-The orchestrator uses a background notification watcher that must restart periodically (every 10 minutes due to timeout). Without the PreToolUse hook, users would be prompted to approve Bash commands every 10 minutes, breaking the unattended workflow.
+The orchestrator uses a background notification watcher that runs indefinitely until a notification arrives, then restarts. Without the PreToolUse hook, users would be prompted to approve Bash commands each time the watcher restarts, breaking the unattended workflow.
 
 ## Why Simpler Alternatives Don't Work
 
 | Approach | Why It Doesn't Work |
 |----------|---------------------|
 | `permissionMode: "bypassPermissions"` | Dangerous - approves ALL tools without validation |
-| One-time user approval | Doesn't persist across Task restarts |
+| One-time user approval | Doesn't persist across watcher restarts |
 | `--dangerously-skip-permissions` | Inappropriate for plugins - affects entire session |
 
 ## Implementation
