@@ -1,62 +1,50 @@
 # crux-monitor Web UI
 
-A simple web interface for monitoring Claude Code sessions with real-time updates and additional features.
-
-## Features
-
-- **Real-time updates**: Automatically refreshes when new events occur (via SSE)
-- **Browser notifications**: Native browser notifications for Stop and Notification events
-- **Read tracking**: Mark events as read (persisted in browser localStorage)
-- **Clipboard copy**: Click tmux commands to copy to clipboard
-- **Responsive design**: Works on desktop and mobile
-
-## Requirements
-
-- [Bun](https://bun.sh/) runtime
+Web dashboard for monitoring Claude Code sessions with real-time updates.
 
 ## Quick Start
 
 ```bash
-bun run --cwd plugins/crux-monitor/web server.ts
+bun run start
 ```
 
-The server will:
-1. Try port 3847 first
-2. If port is in use, automatically find an available port
-
-Stop with Ctrl+C.
-
-## Configuration
-
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `PORT` | auto (prefers 3847) | HTTP server port. Set to force a specific port |
-
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Web UI (index.html) |
-| GET | `/api/events` | Get current active events |
-| GET | `/api/events/stream` | SSE endpoint for real-time updates |
-| GET | `/*` | Static files from `public/` |
+The server runs on port 3847 by default.
 
 ## Development
-
-Watch mode with auto-reload:
 
 ```bash
 bun run dev
 ```
 
+Starts Vite dev server (frontend) and Bun API server with watch mode.
+
+## Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `PORT` | 3847 | HTTP server port |
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/sessions` | Get current sessions |
+| GET | `/api/sessions/stream` | SSE for real-time updates |
+| POST | `/api/sessions/:pane_id/jump` | Switch tmux to pane |
+| GET | `/api/auth/status` | GCP auth status |
+| GET | `/*` | Static files (Vite build) |
+
 ## Architecture
 
 ```
-Browser <-- SSE -- Server <-- fs.watch -- SQLite DB
-                      |
-                      +--> HTTP API
+Browser <-- SSE -- Server <-- SessionManager
+                     |              |
+                     |          fs.watch(JSONL)
+                     |          tmux polling
+                     |
+                     +--> HTTP API
 ```
 
-- Server watches the SQLite database file for changes
-- Changes are broadcasted to all connected clients via SSE
-- If SSE connection fails, client falls back to 5-second polling
+- SessionManager polls tmux/ps for session discovery (every 5s)
+- Watches JSONL files for activity detection (idle after 3s)
+- State changes broadcast to all SSE clients

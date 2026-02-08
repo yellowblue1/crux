@@ -17,47 +17,34 @@ paths: plugins/**/*.test.ts, plugins/**/__tests__/**
 plugins/crux-monitor/src/
 ├── __tests__/
 │   ├── index.ts           # Barrel export for test utilities
-│   ├── fixtures/          # Test data
-│   └── helpers/           # Test utilities
-├── db/
-│   └── database.test.ts   # Co-located unit tests
+│   └── helpers/
+│       └── fetch-mock.ts  # Fetch mocking for Gemini API
+├── tmux/
+│   └── utils.test.ts      # Co-located unit tests
+├── session/
+│   └── manager.test.ts    # Co-located unit tests
 └── notification/
     └── *.test.ts          # Co-located unit tests
 ```
 
 ## Test Utilities
 Import from `../__tests__`:
-- `createTestDatabase()` - In-memory SQLite for isolation
-- `seedEvent()` - Insert test events with defaults
-- `seedSessionEvents()` - Create session lifecycle data
-- `clearEvents()` - Reset database between tests
-- `mockGeminiSuccess/Error()` - Fetch mocking for API tests
-- `createTempDir/File()` - File system test helpers
+- `mockGeminiSuccess/Error/Empty()` - Fetch mocking for Gemini API tests
+- `mockFetchNetworkError()` - Simulate network failures
 
 ## Test Pattern
 ```typescript
-import { afterEach, describe, expect, it } from "bun:test";
-import { createTestDatabase, seedEvent } from "../__tests__";
+import { describe, expect, it } from "bun:test";
 
 describe("feature", () => {
-  let db: Database;
-
-  afterEach(() => {
-    if (db) db.close();
-  });
-
   it("should do something", () => {
-    db = createTestDatabase();
-    seedEvent(db, { eventType: "Stop" });
-
-    // Test logic
+    // Test logic with dependency injection
     expect(result).toBe(expected);
   });
 });
 ```
 
 ## Key Practices
-- Always close database in `afterEach`
-- Use in-memory databases for test isolation
-- Prefer `seedEvent` over manual SQL for consistency
+- Use dependency injection for testability (exec functions, watchers, etc.)
 - Mock external APIs (Gemini) to avoid network calls
+- Use `MockFSWatcher` pattern for fs.watch testing

@@ -3,7 +3,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ClaudeProcess, TmuxPane } from "../types";
-import { shellEscape } from "../utils";
+
+/**
+ * Escape a string for safe use in shell commands.
+ * Uses single quotes and escapes any embedded single quotes.
+ */
+function shellEscape(str: string): string {
+  return `'${str.replace(/'/g, "'\\''")}'`;
+}
 
 type ExecFn = (command: string) => string;
 

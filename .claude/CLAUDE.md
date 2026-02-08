@@ -8,22 +8,20 @@ IMPORTANT: All content in this repository MUST be in English. This includes code
 
 ## Project Structure
 
-- Multi-plugin monorepo under `plugins/` using Bun workspaces
+- Monorepo under `plugins/` using Bun workspaces
 - Single `bun install` at root installs all workspace dependencies
 - Single root `bun.lock` consolidates all dependencies
-- Each plugin has `.claude-plugin/plugin.json` manifest
-- Plugins integrate via Claude Code hooks: SessionStart, Stop, Notification, SessionEnd
-- `${CLAUDE_PLUGIN_ROOT}` substituted at runtime for plugin paths
+- crux-hive: Claude Code plugin with hooks and MCP server (`.claude-plugin/plugin.json`)
+- crux-monitor: Standalone tmux-based monitoring tool (no plugin manifest)
 
 ## Development Commands
 
 ```bash
-# crux-monitor plugin
+# crux-monitor
 bun test --cwd plugins/crux-monitor              # Run tests
 bun test --cwd plugins/crux-monitor --watch      # Watch mode
 bun run --cwd plugins/crux-monitor/web start     # Start server
-bun run --cwd plugins/crux-monitor/web dev       # Dev server (TS watch + server)
-bun run plugins/crux-monitor/src/cli.ts <cmd>    # CLI execution
+bun run --cwd plugins/crux-monitor/web dev       # Dev server (Vite + API)
 ```
 
 ## Quality Standards

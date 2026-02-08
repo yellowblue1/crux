@@ -9,6 +9,3 @@ export {
   mockGeminiError,
   mockGeminiSuccess,
 } from "./helpers/fetch-mock";
-
-// File system test utilities
-export { cleanupAll } from "./helpers/fs-test";

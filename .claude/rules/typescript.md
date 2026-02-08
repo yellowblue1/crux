@@ -5,7 +5,7 @@ paths: plugins/**/*.ts
 # TypeScript Conventions
 
 ## Runtime & Tooling
-- Bun runtime (native SQLite, fast startup)
+- Bun runtime (fast startup, native APIs)
 - Biome for lint/format (see biome.json)
 
 ## Error Handling
@@ -15,9 +15,6 @@ paths: plugins/**/*.ts
 ## Async Patterns
 - Use `Promise.race` for timeout protection
 
-## Database
-- SQLite with `PRAGMA user_version` for migrations
-- In-memory databases for testing (`:memory:`)
-
-## Exports
-- Single `index.ts` re-exports all public functions per module (barrel exports)
+## Code Organization
+- Import directly from source files (no barrel exports)
+- Dependency injection for testability

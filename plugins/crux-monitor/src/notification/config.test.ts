@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { cleanupAll } from "../__tests__";
 import { getGcpLocation, getGcpProject } from "./config";
 
 describe("config", () => {
@@ -24,8 +23,6 @@ describe("config", () => {
     } else {
       process.env.GEMINI_GCP_LOCATION = originalEnv.GEMINI_GCP_LOCATION;
     }
-
-    cleanupAll();
   });
 
   describe("getGcpProject", () => {

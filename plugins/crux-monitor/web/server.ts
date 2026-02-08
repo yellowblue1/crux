@@ -1,7 +1,8 @@
 import { serveStatic } from "hono/bun";
-import { generatePaneSummary, getAccessToken, getGcpProject } from "../src/notification";
-import { SessionManager } from "../src/session";
-import { switchToPane } from "../src/tmux";
+import { getGcpProject } from "../src/notification/config";
+import { generatePaneSummary, getAccessToken } from "../src/notification/gemini";
+import { SessionManager } from "../src/session/manager";
+import { switchToPane } from "../src/tmux/utils";
 import { type AppType, createApp, type SseClient } from "./server-app";
 
 const DEFAULT_PORT = 3847;
