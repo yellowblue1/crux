@@ -73,9 +73,10 @@ Use the repository name as the team name (e.g., `"crux"`). One team per conversa
 When the user describes what they want to accomplish:
 
 1. **Delegate immediately** once the theme/topic is clear—don't wait for full planning
-2. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
-3. **Include what you know** in the handoff prompt; workers handle the rest
-4. **Hand off with a complete prompt** containing:
+2. **One task per worker**—each task gets its own worktree and PR; don't add unrelated work to a running worker
+3. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
+4. **Include what you know** in the handoff prompt; workers handle the rest
+5. **Hand off with a complete prompt** containing:
    - **Objective**: What needs to be accomplished
    - **Context**: Why this task is needed
    - **Findings**: What has been discovered so far
