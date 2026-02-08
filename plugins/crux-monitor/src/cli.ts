@@ -165,92 +165,58 @@ async function handleEventLog(args: string[]): Promise<void> {
 }
 
 async function handleNotificationCommand(args: string[]): Promise<void> {
-  const isBackground = args.includes("--background");
+  const eventType = (args[0] || "notification") as EventType;
 
-  if (isBackground) {
-    // Background mode: input is passed as base64-encoded argument
-    const eventType = (args[0] || "notification") as EventType;
-    const inputBase64 = args.find((a) => a.startsWith("--input="))?.slice(8);
-    const pidArg = args.find((a) => a.startsWith("--pid="));
-    const processPid = pidArg ? parseInt(pidArg.slice(6), 10) : null;
+  const inputJson = await readStdin();
+  let input: NotificationInput;
+  try {
+    input = JSON.parse(inputJson);
+  } catch {
+    input = {};
+  }
 
-    let input: NotificationInput;
-    try {
-      input = JSON.parse(Buffer.from(inputBase64 || "", "base64").toString());
-    } catch {
-      input = {};
-    }
+  // Capture Claude's PID directly (only meaningful for SessionStart)
+  const processPid = eventType === "sessionstart" ? process.ppid : null;
 
-    // Ensure migrations are run
-    try {
-      migrate();
-    } catch {
-      // Ignore migration errors during event handling
-    }
+  // Ensure migrations are run
+  try {
+    migrate();
+  } catch {
+    // Ignore migration errors during event handling
+  }
 
-    // Create a logToDb function that uses recordEvent
-    const logToDb = (evtType: string, summary: string): void => {
-      let tmuxWindowId: string | null = null;
-      if (process.env.TMUX) {
-        if (evtType === "SessionStart") {
+  // Create a logToDb function that uses recordEvent
+  const logToDb = (evtType: string, summary: string): void => {
+    let tmuxWindowId: string | null = null;
+    if (process.env.TMUX) {
+      if (evtType === "SessionStart") {
+        tmuxWindowId = getTmuxWindowId();
+      } else if (input.session_id) {
+        tmuxWindowId = getTmuxWindowIdForSession(input.session_id);
+        if (!tmuxWindowId) {
           tmuxWindowId = getTmuxWindowId();
-        } else if (input.session_id) {
-          tmuxWindowId = getTmuxWindowIdForSession(input.session_id);
-          if (!tmuxWindowId) {
-            tmuxWindowId = getTmuxWindowId();
-          }
         }
       }
-
-      const gitBranch = getGitBranch(input.cwd);
-      const projectName = getProjectName(input.cwd);
-
-      recordEvent({
-        eventType: evtType,
-        summary,
-        input: {
-          session_id: input.session_id,
-          cwd: input.cwd,
-        },
-        tmuxWindowId,
-        gitBranch,
-        projectName,
-        processPid: evtType === "SessionStart" ? processPid : null,
-      });
-    };
-
-    await handleEvent(eventType, input, logToDb);
-  } else {
-    // Foreground mode: read stdin, spawn background process, exit immediately
-    const eventType = args[0] || "notification";
-    const inputJson = await readStdin();
-    const inputBase64 = Buffer.from(inputJson).toString("base64");
-
-    // Capture Claude's PID in foreground mode (only for SessionStart)
-    const claudePid = eventType.toLowerCase() === "sessionstart" ? process.ppid : null;
-
-    // Spawn ourselves in background mode
-    const spawnArgs = [
-      "bun",
-      "run",
-      import.meta.path,
-      "notification",
-      eventType,
-      "--background",
-      `--input=${inputBase64}`,
-    ];
-    if (claudePid) {
-      spawnArgs.push(`--pid=${claudePid}`);
     }
 
-    const proc = Bun.spawn(spawnArgs, {
-      stdout: "ignore",
-      stderr: "ignore",
-      stdin: "ignore",
-      detached: true,
+    const gitBranch = getGitBranch(input.cwd);
+    const projectName = getProjectName(input.cwd);
+
+    recordEvent({
+      eventType: evtType,
+      summary,
+      input: {
+        session_id: input.session_id,
+        cwd: input.cwd,
+      },
+      tmuxWindowId,
+      gitBranch,
+      projectName,
+      processPid: evtType === "SessionStart" ? processPid : null,
     });
-    proc.unref();
-  }
+  };
+
+  await handleEvent(eventType, input, logToDb);
 }
 
 async function main(): Promise<void> {

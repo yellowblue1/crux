@@ -9,7 +9,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification notification"
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification notification",
+            "async": true
           }
         ]
       }
@@ -20,7 +21,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification stop"
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification stop",
+            "async": true
           }
         ]
       }
@@ -30,7 +32,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification sessionstart"
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification sessionstart",
+            "async": true
           }
         ]
       }
@@ -40,7 +43,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification sessionend"
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification sessionend",
+            "async": true
           }
         ]
       }
