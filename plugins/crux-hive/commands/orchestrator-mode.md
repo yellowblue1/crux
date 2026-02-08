@@ -3,7 +3,9 @@ description: Orchestrator mode for delegating tasks to parallel Claude Code sess
 allowed-tools:
   - Bash
   - mcp__plugin_crux-hive_crux__start_worktree_session
-  - mcp__plugin_crux-hive_crux__create_orchestrator_session
+  - TeamCreate
+  - SendMessage
+  - TeamDelete
 ---
 
 # Orchestrator Mode
@@ -16,101 +18,45 @@ You are now in **Orchestrator Mode**. Your role is to orchestrate ALL tasks—im
 ┌─────────────────────────────────────────────────────────────┐
 │  Orchestrator Mode (this session)                           │
 │                                                             │
-│  1. Create orchestrator session (get ID)                    │
-│  2. Start background notification watcher                   │
-│  3. Discuss task with user → Create worktree (with ID)      │
-│  4. Receive notification when worker completes              │
-│  5. Review PR → Merge → Update main → Cleanup               │
-│  6. Repeat                                                  │
+│  1. TeamCreate → creates team + config.json                 │
+│  2. Discuss task with user → start_worktree_session          │
+│     (with teamName → worker joins as teammate)               │
+│  3. Worker uses built-in SendMessage → auto-delivered         │
+│  4. Review PR → Merge → Update main → Cleanup                │
+│  5. TeamDelete when all work is done                         │
 └─────────────────────────────────────────────────────────────┘
          │                          ▲
-         │ delegate                 │ notification (via send_message)
+         │ delegate                 │ SendMessage (built-in, auto-delivered)
          ▼                          │
 ┌─────────────────────────────────────────────────────────────┐
-│  Worker Session (separate tmux window)                      │
+│  Worker Session (separate tmux window + git worktree)        │
 │                                                             │
+│  - Launched as Agent Teams teammate                          │
 │  - Runs in plan mode                                        │
-│  - Executes the task (implementation, research, etc.)       │
-│  - Creates pull request                                     │
-│  - SessionStart hook injects instructions → Claude calls send_message            │
+│  - Executes the task (implementation, research, etc.)        │
+│  - Creates pull request                                      │
+│  - Uses built-in SendMessage to notify orchestrator           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## How Notifications Work
+## How It Works
 
-When you pass `orchestratorId` to `start_worktree_session`, the system:
+Workers are launched as **Agent Teams teammates** using Claude Code's built-in team coordination:
 
-1. **Records the worker** in a tracking database
-2. **Creates `.claude/.orchestrator-id`** file in the worktree
-3. **SessionStart hook automatically injects instructions** via the plugin:
-   - When the worker session starts, the hook detects `.orchestrator-id` and injects notification instructions into Claude's context
-   - Claude calls `send_message` to report task completion, failures, or questions
+1. **TeamCreate** creates a team with a shared config at `~/.claude/teams/{name}/`
+2. **start_worktree_session** (with `teamName`) launches the worker with Agent Teams flags
+3. The worker automatically has access to **SendMessage** (built-in) for bidirectional communication
+4. Messages are **auto-delivered** — no polling or watcher needed
 
-The `send_message` tool automatically reads the orchestrator ID from the `.claude/.orchestrator-id` file.
-
-## How File-Based Notifications Work
-
-When a worker calls `send_message`, the tool writes a JSON file:
-
-1. **Directory**: `$TMPDIR/<orchestrator_id>/notifications/` (e.g., on macOS: `/var/folders/.../T/orch_abc123def456/notifications/`)
-2. **Filename**: `msg_<ulid>.json` (e.g., `msg_01arz3ndektsv4rrffq69g5fav.json`)
-3. **Content**:
-   ```json
-   {
-     "id": "msg_01arz3ndektsv4rrffq69g5fav",
-     "orchestrator_id": "orch_abc123def456",
-     "worker_id": "feat/add-auth",
-     "message_type": "task_complete",
-     "content": {
-       "summary": "PR created: https://github.com/owner/repo/pull/123",
-       "pr_url": "https://github.com/owner/repo/pull/123",
-       "branch": "feat/add-auth"
-     },
-     "created_at": "2026-01-31T12:00:00.000Z"
-   }
-   ```
-
-The watcher uses `fs.watch` for near-instant detection with a 30-second fallback poll, reads and deletes files atomically.
-
-## Phase 0: Initialize Orchestrator Session
+## Phase 0: Create Team
 
 **CRITICAL: Do this FIRST before delegating any tasks.**
 
-### Step 1: Create Orchestrator Session
-
 ```
-mcp__plugin_crux-hive_crux__create_orchestrator_session({})
+TeamCreate({ team_name: "my-project" })
 ```
 
-This returns:
-- `orchestrator_id` (e.g., `orch_abc123def456`) - **Save this ID** for use with all worker sessions
-- `poll_command` - A ready-to-use command for the notification watcher
-
-### Step 2: Start Background Notification Watcher
-
-Start a background Bash command using the `poll_command` from Step 1.
-
-```
-Bash({
-  command: "<poll_command from create_orchestrator_session>",
-  run_in_background: true,
-  description: "Watch for worker notifications"
-})
-```
-
-Example: If `poll_command` is `bun run /path/to/scripts/poll-notifications.ts orch_abc123def456`, use that exact command.
-
-The poll script runs indefinitely until a notification arrives, then exits with the notification content.
-
-**When the background watcher exits**:
-
-1. **Read the output** and interpret the result:
-   - **JSON output present** (exit code 0): Notification received. Parse for `pr_url` and `worker` (branch name).
-   - **Other exit code**: Error occurred, investigate.
-
-2. **Process** the notification (review PR, answer question, etc.)
-
-3. **Restart the watcher immediately** after processing (use the same `poll_command`)
+This creates the team config at `~/.claude/teams/my-project/config.json` with your session as the team lead.
 
 ## Phase 1: Task Delegation
 
@@ -147,18 +93,23 @@ Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
 | planMode | true for plan mode (default: false) |
 | prompt | Initial prompt for Claude Code |
 | fromRef | Base branch to create from |
-| orchestratorId | **Required** - The orchestrator session ID for worker notifications |
+| teamName | **Required** — The team name from TeamCreate |
+| agentName | **Required** when teamName is set — Unique name for this worker |
+| agentColor | Optional display color (e.g., 'blue', 'green', 'red') |
+| model | Optional model override (e.g., 'sonnet', 'haiku') |
 
-**IMPORTANT**: Always pass `orchestratorId` so the SessionStart hook can inject notification instructions.
+**IMPORTANT**: Always pass `teamName` and `agentName` so the worker is registered as a teammate with SendMessage access.
 
 **Examples:**
 
 ```
-# Standard task (SessionStart hook will inject notification instructions)
+# Standard task
 mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-auth",
   planMode: true,
-  orchestratorId: "orch_abc123def456",
+  teamName: "my-project",
+  agentName: "worker-auth",
+  agentColor: "blue",
   prompt: "Objective: Add user authentication..."
 })
 
@@ -167,15 +118,30 @@ mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-metrics",
   fromRef: "develop",
   planMode: true,
-  orchestratorId: "orch_abc123def456",
+  teamName: "my-project",
+  agentName: "worker-metrics",
+  agentColor: "green",
   prompt: "Objective: Add metrics collection..."
 })
 ```
 
-This creates a worktree, opens a new tmux window, and starts Claude Code.
-The SessionStart hook will inject instructions for the worker to notify the orchestrator.
+This creates a worktree, opens a new tmux window, and starts Claude Code as a teammate.
 
-## Phase 2: PR Review and Merge
+## Phase 2: Communication
+
+Workers automatically have access to **SendMessage** (built-in). Messages are delivered to you automatically — no polling needed.
+
+You can also send messages to workers:
+```
+SendMessage({
+  type: "message",
+  recipient: "worker-auth",
+  content: "Please also add rate limiting to the login endpoint",
+  summary: "Add rate limiting request"
+})
+```
+
+## Phase 3: PR Review and Merge
 
 When notified that a PR is ready:
 
@@ -211,7 +177,7 @@ When notified that a PR is ready:
    git fetch origin && git pull origin main
    ```
 
-## Phase 3: Cleanup
+## Phase 4: Cleanup
 
 After merging, clean up the worktree (this also deletes the local branch):
 
@@ -228,6 +194,11 @@ After merging, clean up the worktree (this also deletes the local branch):
 3. **Delete remote branch**
    ```bash
    git push origin --delete <branch>
+   ```
+
+4. **When all work is done**, clean up the team:
+   ```
+   TeamDelete()
    ```
 
 ### Handling Uncommitted Changes
@@ -255,9 +226,9 @@ This automatically cleans up the tmux window via the preRemove hook.
 
 | Action | Tool/Command |
 |--------|--------------|
-| Create orchestrator session | `mcp__plugin_crux-hive_crux__create_orchestrator_session` |
-| Create worktree | `mcp__plugin_crux-hive_crux__start_worktree_session` |
-| Notification directory | `$TMPDIR/<orchestrator_id>/notifications/` |
+| Create team | `TeamCreate` |
+| Create worktree + worker | `mcp__plugin_crux-hive_crux__start_worktree_session` |
+| Send message to worker | `SendMessage` |
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
 | Merge PR | `gh pr merge <number> --squash` |
@@ -266,13 +237,14 @@ This automatically cleans up the tmux window via the preRemove hook.
 | Run command in worktree | `git gtr run <branch> <cmd>` |
 | Remove worktree | `git gtr rm <branch> --yes` |
 | Delete remote branch | `git push origin --delete <branch>` |
+| Clean up team | `TeamDelete` |
 
 ## Important Notes
 
-- **Always keep watcher running**: Restart the watcher immediately after each notification
-- **Initialize first**: Always call `create_orchestrator_session` and start watcher before delegating
-- **Always pass `orchestratorId`**: This enables the SessionStart hook to inject notification instructions
-- **SessionStart hook injection**: When a worker session starts, the hook detects `.orchestrator-id` and injects instructions for Claude to call `send_message`
+- **Create team first**: Always call `TeamCreate` before delegating tasks
+- **Always pass `teamName` + `agentName`**: This registers the worker as a teammate
+- **No watcher needed**: Messages are auto-delivered via Agent Teams
+- **Bidirectional**: You can send messages to workers using `SendMessage`
 - Always use `planMode: true` when starting worker sessions
 - Workers should create PRs, not push directly to main
 - Review PRs and ask user before merging
@@ -280,3 +252,4 @@ This automatically cleans up the tmux window via the preRemove hook.
 - The orchestrator session stays on the main branch
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
+- Call `TeamDelete` when all work is complete

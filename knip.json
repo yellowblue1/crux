@@ -24,12 +24,7 @@
       "ignore": ["src/sse.ts", "src/ui.ts", "src/types.ts", "src/components/*.ts"]
     },
     "plugins/crux-hive": {
-      "entry": [
-        "src/ensure-gtrconfig.ts",
-        "scripts/hooks/*.ts",
-        "scripts/poll-notifications.ts",
-        "**/*.test.ts"
-      ],
+      "entry": ["src/ensure-gtrconfig.ts", "**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]
     }
   }

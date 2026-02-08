@@ -4,7 +4,7 @@ Git worktree workflow with tmux integration for parallel Claude Code sessions.
 
 ## Overview
 
-Delegate tasks to parallel Claude Code sessions running in separate git worktrees. When a worker completes a task, the orchestrator is notified via the `send_message` tool.
+Delegate tasks to parallel Claude Code sessions running in separate git worktrees. Workers are launched as Agent Teams teammates with built-in `SendMessage` for bidirectional communication.
 
 ## Prerequisites
 
@@ -25,11 +25,10 @@ claude plugin install /path/to/crux-hive
 ```
 
 That's it. The orchestrator handles everything:
-1. Creates orchestrator session
-2. Starts background polling for notifications
-3. Delegates tasks to worker sessions in separate worktrees
-4. Receives notification when workers complete tasks
-5. Reviews and merges PRs
+1. Creates a team with `TeamCreate`
+2. Delegates tasks to worker sessions in separate worktrees
+3. Workers communicate via built-in `SendMessage` (auto-delivered)
+4. Reviews and merges PRs
 
 ## How it works
 
@@ -41,23 +40,21 @@ You (human)
             ▼
         Orchestrator (Claude)
             │
-            ├─► Creates worktree + worker session
+            ├─► TeamCreate → team config
             │
-            └─► Polls for messages
+            ├─► start_worktree_session (with teamName)
+            │       → Worker launched as Agent Teams teammate
+            │
+            └─► SendMessage (bidirectional, auto-delivered)
                     ▲
-                    │ notification via send_message
                     │
         Worker (Claude in worktree)
             │
             └─► Completes task (creates PR, etc.)
                     │
                     ▼
-                SessionStart hook injects instructions → Claude calls send_message
+                Uses built-in SendMessage to notify orchestrator
 ```
-
-## Note
-
-The plugin creates `.claude/.orchestrator-id` in worktrees. Ensure your `.gitignore` includes `.claude/*` (with appropriate exceptions) to avoid committing this file.
 
 ## Uninstalling
 

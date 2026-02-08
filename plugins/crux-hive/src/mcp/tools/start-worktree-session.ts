@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { createInbox, getLeadSessionId, registerTeamMember } from "../utils/agent-teams.js";
 import { getMcpServersFromProject, updateClaudeConfig } from "../utils/claude-config.js";
 import { exec, execOrThrow, shellEscape } from "../utils/exec.js";
 import { createWindow, isTmuxAvailable, sendKeys, waitForShellInit } from "../utils/tmux.js";
@@ -10,8 +9,11 @@ export interface StartWorktreeSessionArgs {
   fromRef?: string;
   planMode?: boolean;
   prompt?: string;
-  orchestratorId?: string;
   pluginDir?: string;
+  teamName?: string;
+  agentName?: string;
+  agentColor?: string;
+  model?: string;
 }
 
 /**
@@ -20,14 +22,10 @@ export interface StartWorktreeSessionArgs {
  * This prevents command injection via shell metacharacters.
  */
 function isValidGitRef(ref: string): boolean {
-  // Git ref names: alphanumeric, /, -, _, .
-  // Must not start with - or . to prevent flag injection
-  // Must not contain consecutive dots (..) or end with .lock
   const safeRefPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
   if (!safeRefPattern.test(ref)) {
     return false;
   }
-  // Additional git ref restrictions
   if (ref.includes("..") || ref.endsWith(".lock") || ref.includes("@{")) {
     return false;
   }
@@ -35,16 +33,36 @@ function isValidGitRef(ref: string): boolean {
 }
 
 /**
- * Writes orchestrator ID file to worktree's .claude directory
- * This file is read by hooks (defined in plugin.json) to determine if
- * this session is a worker spawned by an orchestrator.
+ * Builds the Agent Teams CLI flags for launching a teammate.
+ * Returns an empty string if teamName is not provided.
  */
-function writeOrchestratorIdFile(worktreePath: string, orchestratorId: string): void {
-  const claudeDir = join(worktreePath, ".claude");
-  if (!existsSync(claudeDir)) {
-    mkdirSync(claudeDir, { recursive: true });
+function buildAgentTeamsFlags(args: {
+  teamName: string;
+  agentName: string;
+  leadSessionId: string;
+  agentColor?: string;
+  model?: string;
+}): string {
+  const { teamName, agentName, leadSessionId, agentColor, model } = args;
+  const agentId = `${agentName}@${teamName}`;
+
+  const flags = [
+    `--agent-id ${shellEscape(agentId)}`,
+    `--agent-name ${shellEscape(agentName)}`,
+    `--team-name ${shellEscape(teamName)}`,
+    `--parent-session-id ${shellEscape(leadSessionId)}`,
+    `--agent-type Bash`,
+  ];
+
+  if (agentColor) {
+    flags.push(`--agent-color ${shellEscape(agentColor)}`);
   }
-  writeFileSync(join(claudeDir, ".orchestrator-id"), orchestratorId);
+
+  if (model) {
+    flags.push(`--model ${shellEscape(model)}`);
+  }
+
+  return flags.join(" ");
 }
 
 /**
@@ -53,7 +71,8 @@ function writeOrchestratorIdFile(worktreePath: string, orchestratorId: string): 
 export async function startWorktreeSession(
   args: StartWorktreeSessionArgs,
 ): Promise<CallToolResult> {
-  const { branch, fromRef, planMode, prompt, orchestratorId, pluginDir } = args;
+  const { branch, fromRef, planMode, prompt, pluginDir, teamName, agentName, agentColor, model } =
+    args;
 
   // Validate branch parameter
   if (!branch || typeof branch !== "string") {
@@ -99,12 +118,45 @@ export async function startWorktreeSession(
     }
   }
 
+  // Validate teamName requires agentName
+  if (teamName && !agentName) {
+    return {
+      content: [{ type: "text", text: "Error: agentName is required when teamName is provided" }],
+      isError: true,
+    };
+  }
+
   // Check if running inside a tmux session
   if (!isTmuxAvailable()) {
     return {
       content: [{ type: "text", text: "Error: Must be run inside a tmux session" }],
       isError: true,
     };
+  }
+
+  // Resolve Agent Teams config before creating the worktree
+  let agentTeamsFlags = "";
+  if (teamName && agentName) {
+    const leadSessionId = getLeadSessionId(teamName);
+    if (!leadSessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: Team '${teamName}' not found or missing leadSessionId. Create the team with TeamCreate first.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    agentTeamsFlags = buildAgentTeamsFlags({
+      teamName,
+      agentName,
+      leadSessionId,
+      agentColor,
+      model,
+    });
   }
 
   // Create worktree
@@ -154,10 +206,29 @@ export async function startWorktreeSession(
   // Update ~/.claude.json to trust the worktree and enable MCP servers
   updateClaudeConfig(worktreePath, mcpServers);
 
-  // If orchestratorId is provided, write the orchestrator ID file
-  // (hooks read this to send notifications)
-  if (orchestratorId) {
-    writeOrchestratorIdFile(worktreePath, orchestratorId);
+  // Register teammate and create inbox if Agent Teams is enabled
+  if (teamName && agentName) {
+    try {
+      registerTeamMember(teamName, {
+        agentId: `${agentName}@${teamName}`,
+        name: agentName,
+        agentType: "Bash",
+        model: model,
+        color: agentColor,
+        isActive: true,
+      });
+      createInbox(teamName, agentName);
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: Failed to register teammate: ${(e as Error).message}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   }
 
   // Window name (remove branch prefix like feat/, fix/, etc.)
@@ -183,21 +254,17 @@ export async function startWorktreeSession(
   await waitForShellInit();
 
   // Build claude command
-  // Since sendKeys now uses tmux's -l flag for literal input,
-  // we send the command directly without complex shell escaping
   const pluginDirFlag = pluginDir ? `--plugin-dir ${shellEscape(pluginDir)}` : "";
   const planModeFlag = planMode ? "--permission-mode plan" : "";
 
   if (prompt) {
-    // Use base64 encoding to safely transfer prompts with special characters
     const encoded = Buffer.from(prompt).toString("base64");
-    // The command is sent literally to tmux, then executed by the shell in the tmux pane
     sendKeys(
       windowId,
-      `claude ${pluginDirFlag} ${planModeFlag} "$(echo '${encoded}' | base64 -d)"`,
+      `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag} "$(echo '${encoded}' | base64 -d)"`,
     );
   } else {
-    sendKeys(windowId, `claude ${pluginDirFlag} ${planModeFlag}`);
+    sendKeys(windowId, `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag}`);
   }
 
   return {
