@@ -25,7 +25,7 @@ crux-monitor is a standalone tool that detects Claude Code sessions running in t
 Start the monitoring dashboard:
 
 ```bash
-bun run --cwd plugins/crux-monitor/web start
+bun run --cwd tools/crux-monitor/web start
 ```
 
 The server runs on port 3847 by default (auto-selects next available port if busy).
@@ -66,12 +66,12 @@ If no GCP project is configured, summaries will not be generated.
 ### Running Tests
 
 ```bash
-bun test --cwd plugins/crux-monitor              # Run all tests
-bun test --cwd plugins/crux-monitor --watch      # Watch mode
+bun test --cwd tools/crux-monitor              # Run all tests
+bun test --cwd tools/crux-monitor --watch      # Watch mode
 ```
 
 ### Web UI Development
 
 ```bash
-bun run --cwd plugins/crux-monitor/web dev       # Vite + API server with auto-reload
+bun run --cwd tools/crux-monitor/web dev       # Vite + API server with auto-reload
 ```

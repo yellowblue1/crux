@@ -6,11 +6,11 @@
       "project": [],
       "ignoreDependencies": ["@modelcontextprotocol/sdk"]
     },
-    "plugins/crux-monitor": {
+    "tools/crux-monitor": {
       "entry": ["shared/types.ts", "**/*.test.ts"],
       "project": ["src/**/*.ts", "shared/**/*.ts"]
     },
-    "plugins/crux-monitor/web": {
+    "tools/crux-monitor/web": {
       "vite": true,
       "entry": ["src/app.ts", "src/test/setup.ts", "**/*.test.ts"],
       "project": ["**/*.ts"],
