@@ -1,6 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export interface TeamMember {
   agentId: string;
@@ -189,4 +196,40 @@ export function createInbox(teamName: string, agentName: string): void {
   if (!existsSync(inboxPath)) {
     writeFileSync(inboxPath, "[]");
   }
+}
+
+/**
+ * Finds a worker's teamName and agentName by looking up the worktree path
+ * across all team configs. Returns null if no matching worker is found.
+ */
+export function findWorkerByWorktreePath(
+  worktreePath: string,
+): { teamName: string; agentName: string } | null {
+  const teamsDir = getTeamsDir();
+  if (!existsSync(teamsDir)) {
+    return null;
+  }
+
+  const normalizedPath = resolve(worktreePath);
+
+  let entries: string[];
+  try {
+    entries = readdirSync(teamsDir);
+  } catch {
+    return null;
+  }
+
+  for (const teamName of entries) {
+    const config = readTeamConfig(teamName);
+    if (!config) {
+      continue;
+    }
+
+    const member = config.members.find((m) => m.cwd && resolve(m.cwd) === normalizedPath);
+    if (member) {
+      return { teamName: config.name, agentName: member.name };
+    }
+  }
+
+  return null;
 }
