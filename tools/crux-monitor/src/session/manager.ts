@@ -29,10 +29,12 @@ export interface SessionManagerDeps {
 export interface SessionManagerOptions {
   pollIntervalMs?: number;
   idleThresholdMs?: number;
+  summaryCooldownMs?: number;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 const DEFAULT_IDLE_THRESHOLD_MS = 3000;
+const DEFAULT_SUMMARY_COOLDOWN_MS = 120_000; // 2 minutes
 
 /**
  * Manages Claude Code session state via tmux polling + JSONL file watching.
@@ -50,6 +52,7 @@ export class SessionManager {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private readonly pollIntervalMs: number;
   private readonly idleThresholdMs: number;
+  private readonly summaryCooldownMs: number;
   private onChangeCallback: (() => void) | null = null;
 
   constructor(deps?: Partial<SessionManagerDeps>, options?: SessionManagerOptions) {
@@ -70,6 +73,7 @@ export class SessionManager {
     };
     this.pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.idleThresholdMs = options?.idleThresholdMs ?? DEFAULT_IDLE_THRESHOLD_MS;
+    this.summaryCooldownMs = options?.summaryCooldownMs ?? DEFAULT_SUMMARY_COOLDOWN_MS;
   }
 
   /**
@@ -210,6 +214,7 @@ export class SessionManager {
       last_changed: Date.now(),
       last_activity: new Date().toISOString(),
       summary_pending: false,
+      last_summary_time: 0,
     });
 
     // Start watching the JSONL file for idle detection
@@ -289,7 +294,8 @@ export class SessionManager {
 
     if (session.status === "waiting") {
       session.status = "busy";
-      session.summary = null;
+      // Keep the previous summary visible — it will be replaced
+      // when a new summary is generated on the next WAITING transition
       session.summary_pending = false;
       this.notifyChange();
     }
@@ -323,8 +329,15 @@ export class SessionManager {
     session.last_activity = new Date().toISOString();
     this.notifyChange();
 
-    // Trigger summary generation
+    // Trigger summary generation with cooldown check
     if (!session.summary_pending) {
+      const elapsed = Date.now() - session.last_summary_time;
+      if (elapsed < this.summaryCooldownMs) {
+        console.log(
+          `[SessionManager] Skipping Gemini call for ${session.project_name} (cooldown: ${Math.round((this.summaryCooldownMs - elapsed) / 1000)}s remaining)`,
+        );
+        return;
+      }
       session.summary_pending = true;
       this.generateSummaryAsync(paneId);
     }
@@ -353,6 +366,7 @@ export class SessionManager {
       if (current && current.status === "waiting") {
         current.summary = summary;
         current.summary_pending = false;
+        current.last_summary_time = Date.now();
         this.notifyChange();
       }
     } catch {

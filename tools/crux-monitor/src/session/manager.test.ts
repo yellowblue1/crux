@@ -350,6 +350,73 @@ describe("SessionManager", () => {
 
       expect(generateSpy).not.toHaveBeenCalled();
     });
+
+    it("skips summary during cooldown period", async () => {
+      let callCount = 0;
+      const generateSpy = mock(async () => {
+        callCount++;
+        return `Summary #${callCount}`;
+      });
+
+      const { deps, watchers } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryCooldownMs: 500,
+      });
+      manager.start();
+
+      // Wait for first idle → summary
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Summary #1");
+
+      // Simulate BUSY → WAITING cycle (activity then idle again)
+      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
+      watcher?.triggerChange(); // BUSY
+      await new Promise((resolve) => setTimeout(resolve, 150)); // idle again
+
+      // Should NOT have called Gemini again — cooldown active
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      // Previous summary should still be visible
+      expect(manager.getSessions()[0]?.summary).toBe("Summary #1");
+    });
+
+    it("generates new summary after cooldown expires", async () => {
+      let callCount = 0;
+      const generateSpy = mock(async () => {
+        callCount++;
+        return `Summary #${callCount}`;
+      });
+
+      const { deps, watchers } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryCooldownMs: 100,
+      });
+      manager.start();
+
+      // Wait for first idle → summary (~50ms idle + summary generation)
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Wait for cooldown to fully expire, then simulate activity + idle
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
+      watcher?.triggerChange(); // BUSY
+      await new Promise((resolve) => setTimeout(resolve, 150)); // idle threshold expires
+
+      // Should have called Gemini again — cooldown has expired
+      expect(generateSpy).toHaveBeenCalledTimes(2);
+      expect(manager.getSessions()[0]?.summary).toBe("Summary #2");
+    });
   });
 
   describe("stop", () => {
