@@ -73,4 +73,4 @@ claude plugin marketplace remove crux
 
 ## Community
 
-We welcome contributions from the community! Check out our contributing guidelines and join the discussion.
+Join our community! We welcome contributions, feedback, and discussions from developers worldwide.
