@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import { describe, expect, it } from "bun:test";
-import { MockEventSource, mockIndexedDBOpen } from "./setup";
+import { MockEventSource } from "./setup";
 
 describe("Test Setup", () => {
   describe("happy-dom globals", () => {
@@ -20,19 +20,6 @@ describe("Test Setup", () => {
 
     it("should provide fetch global", () => {
       expect(fetch).toBeDefined();
-    });
-  });
-
-  describe("IndexedDB mock", () => {
-    it("should be available globally", () => {
-      expect(indexedDB).toBeDefined();
-      expect(indexedDB.open).toBe(mockIndexedDBOpen);
-    });
-
-    it("should return mock request on open", () => {
-      const request = indexedDB.open("test-db");
-      expect(request).toBeDefined();
-      expect(request.result).toBeDefined();
     });
   });
 });

@@ -70,23 +70,23 @@
 }
 
 /* Sessions table */
-.events-table {
+.sessions-table {
   @apply w-full border-collapse text-base;
 }
 
-.events-table th {
+.sessions-table th {
   @apply text-left py-3.5 px-[18px] bg-bg-secondary text-text-secondary font-medium text-[0.8125rem] uppercase tracking-[0.05em] border-b border-border-default;
 }
 
-.events-table td {
+.sessions-table td {
   @apply py-3.5 px-[18px] border-b border-border-muted align-middle;
 }
 
-.events-table tbody tr {
+.sessions-table tbody tr {
   @apply transition-colors;
 }
 
-.events-table tbody tr:hover {
+.sessions-table tbody tr:hover {
   @apply bg-bg-secondary;
 }
 
@@ -223,8 +223,8 @@
     display: none;
   }
 
-  .events-table th,
-  .events-table td {
+  .sessions-table th,
+  .sessions-table td {
     @apply py-2.5 px-3.5;
   }
 }

@@ -1,60 +1,9 @@
 /// <reference lib="dom" />
 
-import { mock } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 // Register browser globals (document, window, fetch, etc.)
 GlobalRegistrator.register();
-
-// Mock IndexedDB (not provided by happy-dom)
-const createMockObjectStore = () => ({
-  get: mock(() => ({ onsuccess: null, onerror: null, result: undefined })),
-  put: mock(() => ({ onsuccess: null, onerror: null })),
-  delete: mock(() => ({ onsuccess: null, onerror: null })),
-  getAll: mock(() => ({ onsuccess: null, onerror: null, result: [] })),
-});
-
-const createMockTransaction = () => ({
-  objectStore: mock(() => createMockObjectStore()),
-  oncomplete: null,
-  onerror: null,
-});
-
-const createMockDatabase = () => ({
-  objectStoreNames: {
-    contains: mock(() => false),
-  },
-  createObjectStore: mock(() => createMockObjectStore()),
-  transaction: mock(() => createMockTransaction()),
-  close: mock(() => {}),
-});
-
-const mockIndexedDBOpen = mock(() => {
-  const request = {
-    result: createMockDatabase(),
-    onsuccess: null as ((event: Event) => void) | null,
-    onerror: null as ((event: Event) => void) | null,
-    onupgradeneeded: null as ((event: Event) => void) | null,
-  };
-
-  // Simulate async success
-  setTimeout(() => {
-    if (request.onupgradeneeded) {
-      request.onupgradeneeded(new Event("upgradeneeded"));
-    }
-    if (request.onsuccess) {
-      request.onsuccess(new Event("success"));
-    }
-  }, 0);
-
-  return request;
-});
-
-Object.defineProperty(globalThis, "indexedDB", {
-  value: { open: mockIndexedDBOpen },
-  writable: true,
-  configurable: true,
-});
 
 // Mock EventSource (not provided by happy-dom)
 class MockEventSource {
@@ -106,4 +55,4 @@ Object.defineProperty(globalThis, "EventSource", {
 });
 
 // Export mocks for test access
-export { MockEventSource, mockIndexedDBOpen };
+export { MockEventSource };
