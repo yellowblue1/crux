@@ -70,3 +70,10 @@ claude plugin uninstall crux-hive
 claude plugin uninstall crux-monitor  # if installed
 claude plugin marketplace remove crux
 ```
+
+## Community
+
+We welcome contributions from the community! Here's how you can get involved:
+
+- **Contribute**: Check out our [Contributing Guide](./CONTRIBUTING.md) to get started
+- **Questions & Ideas**: Open an [issue](https://github.com/yellowblue1/crux/issues) for questions, bug reports, or feature requests
