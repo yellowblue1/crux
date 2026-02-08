@@ -16,7 +16,6 @@ export interface SessionState {
   last_changed: number;
   last_activity: string;
   summary_pending: boolean;
-  last_summary_time: number;
 }
 
 export interface TmuxPane {

@@ -286,8 +286,8 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("summary generation", () => {
-    it("triggers summary when session becomes idle", async () => {
+  describe("summary generation (sustained WAITING)", () => {
+    it("triggers summary only after sustained WAITING period", async () => {
       const generateSpy = mock(async () => "Waiting for user approval");
 
       const { deps } = createMockDeps({
@@ -296,16 +296,81 @@ describe("SessionManager", () => {
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 100,
+        idleThresholdMs: 50,
+        summaryDelayMs: 150,
       });
       manager.start();
 
-      // Wait for idle + summary
+      // After idle threshold (50ms): WAITING but no Gemini call yet
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).not.toHaveBeenCalled();
+
+      // After summary delay (50 + 150 = 200ms total): Gemini called
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Waiting for user approval");
+    });
+
+    it("cancels summary when session goes BUSY before delay fires", async () => {
+      const generateSpy = mock(async () => "Should not appear");
+
+      const { deps, watchers } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 200,
+      });
+      manager.start();
+
+      // Wait for WAITING (50ms idle threshold)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Go BUSY before summary delay fires (at ~100ms, delay hasn't fired at 50+200=250ms)
+      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
+      watcher?.triggerChange();
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Wait past the original summary delay
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      // Gemini should NOT have been called — the timer was cancelled
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not call Gemini during brief BUSY↔WAITING cycling", async () => {
+      const generateSpy = mock(async () => "test");
+
+      const { deps, watchers } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 200,
+      });
+      manager.start();
+
+      // Rapid BUSY↔WAITING cycling: go idle, then active, repeat
+      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
+      for (let i = 0; i < 5; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 50)); // idle → WAITING
+        watcher?.triggerChange(); // → BUSY (cancels summary timer)
+      }
+
+      // Wait past summary delay
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      expect(generateSpy).toHaveBeenCalled();
-      const session = manager.getSessions()[0];
-      expect(session?.summary).toBe("Waiting for user approval");
+      // The final cycle left the session BUSY (last action was triggerChange),
+      // then idle again. Only the LAST sustained WAITING should trigger Gemini.
+      // But since we ended with triggerChange (BUSY) and then waited,
+      // it should have triggered exactly once for the final sustained idle.
+      expect(generateSpy).toHaveBeenCalledTimes(1);
     });
 
     it("passes JSONL conversation to generateSummary", async () => {
@@ -322,11 +387,12 @@ describe("SessionManager", () => {
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 100,
+        idleThresholdMs: 50,
+        summaryDelayMs: 50,
       });
       manager.start();
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(receivedContents).toHaveLength(1);
       expect(receivedContents[0]).toBe(conversationText);
@@ -342,80 +408,14 @@ describe("SessionManager", () => {
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 100,
+        idleThresholdMs: 50,
+        summaryDelayMs: 50,
       });
       manager.start();
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(generateSpy).not.toHaveBeenCalled();
-    });
-
-    it("skips summary during cooldown period", async () => {
-      let callCount = 0;
-      const generateSpy = mock(async () => {
-        callCount++;
-        return `Summary #${callCount}`;
-      });
-
-      const { deps, watchers } = createMockDeps({
-        generateSummary: generateSpy,
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 50,
-        summaryCooldownMs: 500,
-      });
-      manager.start();
-
-      // Wait for first idle → summary
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      expect(generateSpy).toHaveBeenCalledTimes(1);
-      expect(manager.getSessions()[0]?.summary).toBe("Summary #1");
-
-      // Simulate BUSY → WAITING cycle (activity then idle again)
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-      watcher?.triggerChange(); // BUSY
-      await new Promise((resolve) => setTimeout(resolve, 150)); // idle again
-
-      // Should NOT have called Gemini again — cooldown active
-      expect(generateSpy).toHaveBeenCalledTimes(1);
-      // Previous summary should still be visible
-      expect(manager.getSessions()[0]?.summary).toBe("Summary #1");
-    });
-
-    it("generates new summary after cooldown expires", async () => {
-      let callCount = 0;
-      const generateSpy = mock(async () => {
-        callCount++;
-        return `Summary #${callCount}`;
-      });
-
-      const { deps, watchers } = createMockDeps({
-        generateSummary: generateSpy,
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 50,
-        summaryCooldownMs: 100,
-      });
-      manager.start();
-
-      // Wait for first idle → summary (~50ms idle + summary generation)
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      expect(generateSpy).toHaveBeenCalledTimes(1);
-
-      // Wait for cooldown to fully expire, then simulate activity + idle
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-      watcher?.triggerChange(); // BUSY
-      await new Promise((resolve) => setTimeout(resolve, 150)); // idle threshold expires
-
-      // Should have called Gemini again — cooldown has expired
-      expect(generateSpy).toHaveBeenCalledTimes(2);
-      expect(manager.getSessions()[0]?.summary).toBe("Summary #2");
     });
   });
 

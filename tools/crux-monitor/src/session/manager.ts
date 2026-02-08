@@ -29,12 +29,12 @@ export interface SessionManagerDeps {
 export interface SessionManagerOptions {
   pollIntervalMs?: number;
   idleThresholdMs?: number;
-  summaryCooldownMs?: number;
+  summaryDelayMs?: number;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 const DEFAULT_IDLE_THRESHOLD_MS = 3000;
-const DEFAULT_SUMMARY_COOLDOWN_MS = 120_000; // 2 minutes
+const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING
 
 /**
  * Manages Claude Code session state via tmux polling + JSONL file watching.
@@ -42,17 +42,19 @@ const DEFAULT_SUMMARY_COOLDOWN_MS = 120_000; // 2 minutes
  * Session discovery: polls ps + tmux list-panes periodically.
  * Idle detection: watches JSONL files with fs.watch — file changes mean BUSY,
  * no changes for idleThresholdMs means WAITING.
- * Summary generation: reads JSONL conversation on WAITING transition.
+ * Summary generation: after sustained WAITING for summaryDelayMs, reads JSONL
+ * conversation and calls Gemini. Brief BUSY↔WAITING cycles don't trigger calls.
  */
 export class SessionManager {
   private sessions = new Map<string, SessionState>();
   private watchers = new Map<string, FSWatcher>();
   private idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private summaryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private deps: SessionManagerDeps;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private readonly pollIntervalMs: number;
   private readonly idleThresholdMs: number;
-  private readonly summaryCooldownMs: number;
+  private readonly summaryDelayMs: number;
   private onChangeCallback: (() => void) | null = null;
 
   constructor(deps?: Partial<SessionManagerDeps>, options?: SessionManagerOptions) {
@@ -73,7 +75,7 @@ export class SessionManager {
     };
     this.pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.idleThresholdMs = options?.idleThresholdMs ?? DEFAULT_IDLE_THRESHOLD_MS;
-    this.summaryCooldownMs = options?.summaryCooldownMs ?? DEFAULT_SUMMARY_COOLDOWN_MS;
+    this.summaryDelayMs = options?.summaryDelayMs ?? DEFAULT_SUMMARY_DELAY_MS;
   }
 
   /**
@@ -108,6 +110,10 @@ export class SessionManager {
       clearTimeout(timer);
     }
     this.idleTimers.clear();
+    for (const timer of this.summaryTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.summaryTimers.clear();
   }
 
   /**
@@ -214,7 +220,6 @@ export class SessionManager {
       last_changed: Date.now(),
       last_activity: new Date().toISOString(),
       summary_pending: false,
-      last_summary_time: 0,
     });
 
     // Start watching the JSONL file for idle detection
@@ -234,11 +239,12 @@ export class SessionManager {
   private removeSession(paneId: string): void {
     this.sessions.delete(paneId);
     this.stopWatching(paneId);
-    const timer = this.idleTimers.get(paneId);
-    if (timer) {
-      clearTimeout(timer);
+    const idleTimer = this.idleTimers.get(paneId);
+    if (idleTimer) {
+      clearTimeout(idleTimer);
       this.idleTimers.delete(paneId);
     }
+    this.cancelSummaryTimer(paneId);
   }
 
   /**
@@ -247,12 +253,16 @@ export class SessionManager {
   private cleanupAllSessions(): void {
     for (const paneId of this.sessions.keys()) {
       this.stopWatching(paneId);
-      const timer = this.idleTimers.get(paneId);
-      if (timer) clearTimeout(timer);
+      const idleTimer = this.idleTimers.get(paneId);
+      if (idleTimer) clearTimeout(idleTimer);
     }
     this.sessions.clear();
     this.watchers.clear();
     this.idleTimers.clear();
+    for (const timer of this.summaryTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.summaryTimers.clear();
   }
 
   /**
@@ -294,9 +304,9 @@ export class SessionManager {
 
     if (session.status === "waiting") {
       session.status = "busy";
-      // Keep the previous summary visible — it will be replaced
-      // when a new summary is generated on the next WAITING transition
       session.summary_pending = false;
+      // Cancel pending summary timer — session is active again
+      this.cancelSummaryTimer(paneId);
       this.notifyChange();
     }
 
@@ -329,17 +339,38 @@ export class SessionManager {
     session.last_activity = new Date().toISOString();
     this.notifyChange();
 
-    // Trigger summary generation with cooldown check
-    if (!session.summary_pending) {
-      const elapsed = Date.now() - session.last_summary_time;
-      if (elapsed < this.summaryCooldownMs) {
-        console.log(
-          `[SessionManager] Skipping Gemini call for ${session.project_name} (cooldown: ${Math.round((this.summaryCooldownMs - elapsed) / 1000)}s remaining)`,
-        );
-        return;
+    // Schedule summary generation after sustained WAITING period.
+    // If the session goes BUSY before the timer fires, it gets cancelled.
+    this.scheduleSummaryTimer(paneId);
+  }
+
+  /**
+   * Schedule a summary generation after a delay.
+   * Only fires if the session is still WAITING when the timer expires.
+   */
+  private scheduleSummaryTimer(paneId: string): void {
+    this.cancelSummaryTimer(paneId);
+
+    const timer = setTimeout(() => {
+      this.summaryTimers.delete(paneId);
+      const session = this.sessions.get(paneId);
+      if (session?.status === "waiting" && !session.summary_pending) {
+        session.summary_pending = true;
+        this.generateSummaryAsync(paneId);
       }
-      session.summary_pending = true;
-      this.generateSummaryAsync(paneId);
+    }, this.summaryDelayMs);
+
+    this.summaryTimers.set(paneId, timer);
+  }
+
+  /**
+   * Cancel a pending summary timer
+   */
+  private cancelSummaryTimer(paneId: string): void {
+    const timer = this.summaryTimers.get(paneId);
+    if (timer) {
+      clearTimeout(timer);
+      this.summaryTimers.delete(paneId);
     }
   }
 
@@ -366,7 +397,6 @@ export class SessionManager {
       if (current && current.status === "waiting") {
         current.summary = summary;
         current.summary_pending = false;
-        current.last_summary_time = Date.now();
         this.notifyChange();
       }
     } catch {
