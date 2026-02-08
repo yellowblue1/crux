@@ -30,7 +30,7 @@ If any prerequisite is not met, inform the user before proceeding.
 │  2. Discuss task with user → start_worktree_session          │
 │     (with teamName → worker joins as teammate)               │
 │  3. Worker uses built-in SendMessage → auto-delivered         │
-│  4. Review PR → Merge/Close → Shutdown worker → Cleanup      │
+│  4. Review PR → Merge/Close → Cleanup                        │
 │  (repeat 2-4 for additional tasks)                           │
 └─────────────────────────────────────────────────────────────┘
          │                          ▲
@@ -187,23 +187,9 @@ When notified that a PR is ready:
    git fetch origin && git pull origin main
    ```
 
-## Phase 4: Worker Shutdown and Cleanup
+## Phase 4: Cleanup
 
-### Step 1: Shut Down the Worker
-
-Send a shutdown request before removing the worktree:
-
-```
-SendMessage({
-  type: "shutdown_request",
-  recipient: "worker-auth",
-  content: "Task complete, please shut down."
-})
-```
-
-Wait for the `shutdown_approved` response. If no response, resend once. If still unresponsive, proceed to Step 2 — `git gtr rm` will terminate the worker process via the cleanup hook.
-
-### Step 2: Remove the Worktree
+### Step 1: Remove the Worktree
 
 When a worktree is removed via `git gtr rm`, the cleanup hook automatically deregisters the worker from the Agent Teams config (`~/.claude/teams/{teamName}/config.json`). This means `TeamDelete` will not fail due to stale active members.
 
@@ -233,7 +219,7 @@ git gtr rm <branch> --yes --force  # Safe after PR is merged/closed
 
 Note: Always use `git gtr rm` instead of `git worktree remove`. The latter skips the cleanup hook and leaves orphaned tmux sessions.
 
-### Step 3: Delete the Remote Branch
+### Step 2: Delete the Remote Branch
 
 ```bash
 git push origin --delete <branch>
@@ -254,7 +240,6 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 | Create team | `TeamCreate` |
 | Create worktree + worker | `mcp__plugin_crux-hive_crux__start_worktree_session` |
 | Send message to worker | `SendMessage` |
-| Request worker shutdown | `SendMessage` (type: `shutdown_request`) |
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
 | Merge PR | `gh pr merge <number> --squash` |
