@@ -73,10 +73,11 @@ claude plugin marketplace remove crux
 
 ## Community
 
-Join our community to discuss ideas, share feedback, and collaborate.
+We welcome contributors of all experience levels! Here's how to get involved:
 
-- **Discussions:** [GitHub Discussions](https://github.com/yellowblue1/crux/discussions)
-- **Issues:** [GitHub Issues](https://github.com/yellowblue1/crux/issues)
+- **Bug Reports:** Open an issue on [GitHub Issues](https://github.com/yellowblue1/crux/issues)
+- **Questions & Ideas:** Start a thread in [GitHub Discussions](https://github.com/yellowblue1/crux/discussions)
+- **Pull Requests:** Contributions are welcome — feel free to submit a PR!
 
 ## Contributors
 
