@@ -1,6 +1,6 @@
 {
   "name": "crux-monitor-web",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Web UI for Claude Code session monitoring",
   "type": "module",
   "scripts": {

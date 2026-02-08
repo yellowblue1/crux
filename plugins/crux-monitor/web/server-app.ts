@@ -76,7 +76,7 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
 
     // POST /api/sessions/:pane_id/jump
     .post("/api/sessions/:pane_id/jump", (c) => {
-      const paneId = decodeURIComponent(c.req.param("pane_id"));
+      const paneId = c.req.param("pane_id");
       const success = deps.switchToPane(paneId);
       if (success) {
         return c.json({ success: true });
