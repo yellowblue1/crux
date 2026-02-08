@@ -188,8 +188,16 @@
   @apply bg-badge-session-bg text-badge-session-text;
 }
 
+.status-badge--subagentstart {
+  @apply bg-badge-subagent-bg text-badge-subagent-text;
+}
+
 .status-badge--subagentstop {
   @apply bg-badge-subagent-bg text-badge-subagent-text;
+}
+
+.status-badge--posttoolusefailure {
+  @apply bg-accent-red text-white;
 }
 
 .status-badge--sessionend {

@@ -120,6 +120,12 @@ function getDefaultSummary(eventType: string): string {
       return "Task completed";
     case "Notification":
       return "Notification";
+    case "SubagentStart":
+      return "Subagent started";
+    case "SubagentStop":
+      return "Subagent stopped";
+    case "PostToolUseFailure":
+      return "Tool failed";
     default:
       return eventType;
   }

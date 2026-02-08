@@ -20,7 +20,7 @@ Commands:
   cleanup        Delete old records based on retention policy
   event-log      Record an event (stdin: JSON with session_id, cwd)
                  Usage: echo '{"session_id":"...","cwd":"..."}' | crux-monitor event-log <event_type> [summary]
-  notification   Handle Claude Code hook events (stop, notification, sessionstart, sessionend)
+  notification   Handle Claude Code hook events (stop, notification, sessionstart, sessionend, subagentstart, subagentstop, posttoolusefailure)
                  Usage: echo '{"session_id":"...","cwd":"...","transcript_path":"..."}' | crux-monitor notification <event_type>
   init           Initialize database (run migrations)
   help           Show this help message

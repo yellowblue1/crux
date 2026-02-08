@@ -1,6 +1,13 @@
 import { generateSummary } from "./gemini";
 
-export type EventType = "stop" | "notification" | "sessionstart" | "sessionend";
+export type EventType =
+  | "stop"
+  | "notification"
+  | "sessionstart"
+  | "sessionend"
+  | "subagentstart"
+  | "subagentstop"
+  | "posttoolusefailure";
 
 export interface NotificationInput {
   session_id?: string;
@@ -8,6 +15,13 @@ export interface NotificationInput {
   transcript_path?: string;
   reason?: string;
   notification_type?: string;
+  // SubagentStart/SubagentStop fields
+  agent_id?: string;
+  agent_type?: string;
+  // PostToolUseFailure fields
+  tool_name?: string;
+  error?: string;
+  is_interrupt?: boolean;
 }
 
 /**
@@ -69,6 +83,49 @@ async function handleSessionEnd(
 }
 
 /**
+ * Handle a subagent start event: log agent type and ID to DB
+ */
+async function handleSubagentStart(
+  input: NotificationInput,
+  logToDb: (eventType: string, summary: string) => void,
+): Promise<void> {
+  const agentType = input.agent_type || "unknown";
+  const agentId = input.agent_id || "unknown";
+  const summary = `Started: ${agentType} agent (${agentId})`;
+
+  logToDb("SubagentStart", summary);
+}
+
+/**
+ * Handle a subagent stop event: log agent type and ID to DB
+ */
+async function handleSubagentStop(
+  input: NotificationInput,
+  logToDb: (eventType: string, summary: string) => void,
+): Promise<void> {
+  const agentType = input.agent_type || "unknown";
+  const agentId = input.agent_id || "unknown";
+  const summary = `Finished: ${agentType} agent (${agentId})`;
+
+  logToDb("SubagentStop", summary);
+}
+
+/**
+ * Handle a post tool use failure event: log tool name and error to DB
+ */
+async function handlePostToolUseFailure(
+  input: NotificationInput,
+  logToDb: (eventType: string, summary: string) => void,
+): Promise<void> {
+  const toolName = input.tool_name || "unknown";
+  const error = input.error || "unknown error";
+  const truncatedError = error.length > 100 ? `${error.substring(0, 100)}...` : error;
+  const summary = `${toolName} failed: ${truncatedError}`;
+
+  logToDb("PostToolUseFailure", summary);
+}
+
+/**
  * Main event handler that dispatches to specific handlers
  */
 export async function handleEvent(
@@ -85,6 +142,12 @@ export async function handleEvent(
       return handleSessionStart(input, logToDb);
     case "sessionend":
       return handleSessionEnd(input, logToDb);
+    case "subagentstart":
+      return handleSubagentStart(input, logToDb);
+    case "subagentstop":
+      return handleSubagentStop(input, logToDb);
+    case "posttoolusefailure":
+      return handlePostToolUseFailure(input, logToDb);
     default:
       // Unknown event type, log as-is
       logToDb(eventType, "Unknown event");

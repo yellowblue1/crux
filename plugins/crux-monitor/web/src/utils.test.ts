@@ -74,6 +74,24 @@ describe("parseEventType", () => {
       cssClass: "status-badge--subagentstop",
     });
   });
+
+  it("handles SubagentStart", () => {
+    const result = parseEventType("SubagentStart");
+    expect(result).toEqual({
+      baseType: "SubagentStart",
+      subType: null,
+      cssClass: "status-badge--subagentstart",
+    });
+  });
+
+  it("handles PostToolUseFailure", () => {
+    const result = parseEventType("PostToolUseFailure");
+    expect(result).toEqual({
+      baseType: "PostToolUseFailure",
+      subType: null,
+      cssClass: "status-badge--posttoolusefailure",
+    });
+  });
 });
 
 describe("isAiSummary", () => {
