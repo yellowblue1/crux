@@ -5,6 +5,7 @@ import type { TeamConfig } from "./agent-teams.js";
 import {
   createInbox,
   deregisterTeamMember,
+  findWorkerByWorktreePath,
   getLeadSessionId,
   readTeamConfig,
   registerTeamMember,
@@ -329,5 +330,94 @@ describe("removeInbox", () => {
 
     expect(removeInbox(teamName, "worker-a")).toBe(true);
     expect(removeInbox(teamName, "worker-a")).toBe(false);
+  });
+});
+
+describe("findWorkerByWorktreePath", () => {
+  it("should find a worker by worktree path", () => {
+    const teamName = "find-worker-test";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-a@${teamName}`,
+      name: "worker-a",
+      agentType: "Bash",
+      isActive: true,
+      cwd: "/worktrees/feat-branch",
+    });
+    writeTestConfig(teamName, config);
+
+    const result = findWorkerByWorktreePath("/worktrees/feat-branch");
+    expect(result).not.toBeNull();
+    expect(result?.teamName).toBe(teamName);
+    expect(result?.agentName).toBe("worker-a");
+  });
+
+  it("should return null when no worker matches", () => {
+    const teamName = "find-no-match";
+    writeTestConfig(teamName, createValidConfig(teamName));
+
+    const result = findWorkerByWorktreePath("/nonexistent/path");
+    expect(result).toBeNull();
+  });
+
+  it("should return null when teams directory does not exist", () => {
+    rmSync(join(testTeamsDir, "fakehome", ".claude", "teams"), {
+      recursive: true,
+      force: true,
+    });
+
+    const result = findWorkerByWorktreePath("/some/path");
+    expect(result).toBeNull();
+  });
+
+  it("should normalize paths for comparison", () => {
+    const teamName = "normalize-test";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-b@${teamName}`,
+      name: "worker-b",
+      agentType: "Bash",
+      cwd: "/worktrees/feat-branch/",
+    });
+    writeTestConfig(teamName, config);
+
+    const result = findWorkerByWorktreePath("/worktrees/feat-branch");
+    expect(result).not.toBeNull();
+    expect(result?.agentName).toBe("worker-b");
+  });
+
+  it("should search across multiple teams", () => {
+    const team1 = "multi-team-1";
+    const team2 = "multi-team-2";
+    writeTestConfig(team1, createValidConfig(team1));
+
+    const config2 = createValidConfig(team2);
+    config2.members.push({
+      agentId: `worker-x@${team2}`,
+      name: "worker-x",
+      agentType: "Bash",
+      cwd: "/worktrees/fix-bug",
+    });
+    writeTestConfig(team2, config2);
+
+    const result = findWorkerByWorktreePath("/worktrees/fix-bug");
+    expect(result).not.toBeNull();
+    expect(result?.teamName).toBe(team2);
+    expect(result?.agentName).toBe("worker-x");
+  });
+
+  it("should skip members without cwd", () => {
+    const teamName = "no-cwd-test";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-no-cwd@${teamName}`,
+      name: "worker-no-cwd",
+      agentType: "Bash",
+      isActive: true,
+    });
+    writeTestConfig(teamName, config);
+
+    const result = findWorkerByWorktreePath("/unrelated/path");
+    expect(result).toBeNull();
   });
 });
