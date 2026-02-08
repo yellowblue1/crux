@@ -24,7 +24,13 @@
       "ignore": ["src/sse.ts", "src/ui.ts", "src/types.ts", "src/components/*.ts"]
     },
     "plugins/crux-hive": {
-      "entry": ["src/ensure-gtrconfig.ts", "scripts/deregister-worker.ts", "**/*.test.ts"],
+      "entry": [
+        "src/ensure-gtrconfig.ts",
+        "scripts/deregister-worker.ts",
+        "src/hooks/teammate-idle.ts",
+        "src/hooks/task-completed.ts",
+        "**/*.test.ts"
+      ],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]
     }
   }

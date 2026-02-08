@@ -1,6 +1,6 @@
 {
   "name": "crux-hive",
-  "version": "5.3.0",
+  "version": "5.4.0",
   "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions",
   "hooks": {
     "SessionStart": [
@@ -9,6 +9,26 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/ensure-gtrconfig.ts"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hooks/teammate-idle.ts"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/hooks/task-completed.ts"
           }
         ]
       }
