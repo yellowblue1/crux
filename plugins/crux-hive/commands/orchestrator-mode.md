@@ -14,7 +14,7 @@ You are now in **Orchestrator Mode**. Your role is to orchestrate ALL tasks—im
 
 ## Prerequisites
 
-1. **Main branch**: You must be on `main`. Worktrees cannot be created for the branch you are currently on.
+1. **Default branch**: You must be on your repository's default branch. Worktrees cannot be created for the branch you are currently on. Detect it with: `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`
 2. **tmux**: The session must be running inside tmux.
 3. **git-gtr**: Worktree management depends on `git gtr`.
 
@@ -183,9 +183,9 @@ When notified that a PR is ready:
    ```
    Note: Do NOT use `--delete-branch` here. The worktree still references the branch.
 
-6. **Update main branch**
+6. **Update default branch**
    ```bash
-   git fetch origin && git pull origin main
+   git fetch origin && git pull origin <default-branch>
    ```
 
 ## Phase 4: Cleanup
@@ -244,7 +244,7 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
 | Merge PR | `gh pr merge <number> --squash` |
-| Update main | `git fetch origin && git pull origin main` |
+| Update default branch | `git fetch origin && git pull origin <default-branch>` |
 | List merged worktrees | `git gtr clean --merged -n` |
 | Run command in worktree | `git gtr run <branch> <cmd>` |
 | Remove worktree | `git gtr rm <branch> --yes` |
@@ -255,7 +255,7 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 
 - Always use `planMode: true` when starting worker sessions
 - When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins (via `plan_approval_request`/`plan_approval_response`)
-- Workers should create PRs, not push directly to main
+- Workers should create PRs, not push directly to the default branch
 - Review PRs and ask user before merging
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
