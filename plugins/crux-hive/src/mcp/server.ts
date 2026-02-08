@@ -7,8 +7,6 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import { type CreateOrchestratorArgs, createOrchestrator } from "./tools/create-orchestrator.js";
-import { type SendMessageArgs, sendMessage } from "./tools/send-message.js";
 import {
   type StartWorktreeSessionArgs,
   startWorktreeSession,
@@ -38,78 +36,34 @@ const TOOL_DEFINITIONS = [
           type: "string",
           description: "Optional initial prompt for Claude Code",
         },
-        orchestratorId: {
-          type: "string",
-          description: "Optional orchestrator session ID for worker->orchestrator messaging",
-        },
         pluginDir: {
           type: "string",
           description: "Optional plugin directory path for --plugin-dir flag (development/testing)",
+        },
+        teamName: {
+          type: "string",
+          description:
+            "Agent Teams team name. When provided, launches the worker as a teammate with built-in SendMessage support.",
+        },
+        agentName: {
+          type: "string",
+          description: "Agent name for the teammate (required when teamName is provided)",
+        },
+        agentColor: {
+          type: "string",
+          description: "Display color for the teammate (e.g., 'blue', 'green')",
+        },
+        model: {
+          type: "string",
+          description: "Model to use for the teammate (e.g., 'sonnet', 'haiku')",
         },
       },
       required: ["branch"],
     },
   },
-  {
-    name: "create_orchestrator_session",
-    description:
-      "Creates a new orchestrator session for coordinating worker tasks. Returns an orchestrator_id to use with start_worktree_session.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        project_dir: {
-          type: "string",
-          description: "Project directory (defaults to current working directory)",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "send_message",
-    description: `REQUIRED: Workers MUST call this tool to notify the orchestrator. There is NO automatic detection.
-
-Call when:
-- After creating a pull request (include pr_url)
-- After updating a pull request
-- When research/investigation completes
-- When blocked or have questions (message_type: 'question')
-- When task fails (message_type: 'task_failed')
-
-The orchestrator cannot see your work until you call this tool.`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        message_type: {
-          type: "string",
-          enum: ["task_complete", "task_failed", "question"],
-          description: "Type of message being sent",
-        },
-        content: {
-          type: "object",
-          description:
-            "Message content with summary, and optional details, pr_url, branch, error, question fields",
-          properties: {
-            summary: { type: "string", description: "Brief summary of the message" },
-            details: { type: "string", description: "Additional details" },
-            pr_url: { type: "string", description: "Pull request URL if applicable" },
-            branch: { type: "string", description: "Git branch name" },
-            error: { type: "string", description: "Error message if task_failed" },
-            question: { type: "string", description: "Question text if asking" },
-          },
-          required: ["summary"],
-        },
-        worker_id: {
-          type: "string",
-          description: "Optional worker identifier",
-        },
-      },
-      required: ["message_type", "content"],
-    },
-  },
 ] as const satisfies readonly Tool[];
 
-const server = new Server({ name: "crux", version: "4.0.0" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "crux", version: "5.0.0" }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: TOOL_DEFINITIONS,
@@ -121,10 +75,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
   switch (name) {
     case "start_worktree_session":
       return startWorktreeSession(args as unknown as StartWorktreeSessionArgs);
-    case "create_orchestrator_session":
-      return createOrchestrator(args as unknown as CreateOrchestratorArgs);
-    case "send_message":
-      return sendMessage(args as unknown as SendMessageArgs);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

@@ -1,6 +1,6 @@
 {
   "name": "crux-hive",
-  "version": "4.5.0",
+  "version": "5.2.0",
   "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions",
   "hooks": {
     "SessionStart": [
@@ -9,17 +9,6 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/ensure-gtrconfig.ts"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto-approve-watcher.ts"
           }
         ]
       }
