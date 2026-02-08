@@ -1,6 +1,6 @@
 // UI helper functions
 
-import type { ConfirmDialogOptions, ConnectionStatus } from "./types";
+import type { ConnectionStatus } from "./types";
 
 // Constants
 export const TOAST_DURATION_MS = 2000;
@@ -35,76 +35,6 @@ export function showToast(message: string, type: "success" | "error" = "success"
 }
 
 /**
- * Show a custom confirmation dialog
- */
-export function showConfirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
-  return new Promise((resolve) => {
-    const dialog = document.getElementById("confirm-dialog");
-    const titleEl = document.getElementById("confirm-dialog-title");
-    const messageEl = document.getElementById("confirm-dialog-message");
-    const confirmBtn = document.getElementById(
-      "confirm-dialog-confirm",
-    ) as HTMLButtonElement | null;
-    const cancelBtn = document.getElementById("confirm-dialog-cancel") as HTMLButtonElement | null;
-
-    if (!dialog || !titleEl || !messageEl || !confirmBtn || !cancelBtn) {
-      resolve(false);
-      return;
-    }
-
-    // Set content
-    titleEl.textContent = options.title;
-    messageEl.textContent = options.message;
-    confirmBtn.textContent = options.confirmLabel ?? "Confirm";
-    cancelBtn.textContent = options.cancelLabel ?? "Cancel";
-
-    // Show dialog
-    dialog.classList.remove("hidden");
-    confirmBtn.focus();
-
-    // Cleanup function
-    const cleanup = () => {
-      dialog.classList.add("hidden");
-      confirmBtn.removeEventListener("click", handleConfirm);
-      cancelBtn.removeEventListener("click", handleCancel);
-      dialog.removeEventListener("click", handleBackdropClick);
-      document.removeEventListener("keydown", handleKeydown);
-    };
-
-    // Event handlers
-    const handleConfirm = () => {
-      cleanup();
-      resolve(true);
-    };
-
-    const handleCancel = () => {
-      cleanup();
-      resolve(false);
-    };
-
-    const handleBackdropClick = (e: MouseEvent) => {
-      if (e.target === dialog) {
-        cleanup();
-        resolve(false);
-      }
-    };
-
-    const handleKeydown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        cleanup();
-        resolve(false);
-      }
-    };
-
-    // Attach listeners
-    confirmBtn.addEventListener("click", handleConfirm);
-    cancelBtn.addEventListener("click", handleCancel);
-    dialog.addEventListener("click", handleBackdropClick);
-    document.addEventListener("keydown", handleKeydown);
-  });
-}
-
-/**
  * Update connection status indicator
  */
 export function setConnectionStatus(status: ConnectionStatus): void {
@@ -128,18 +58,6 @@ export function setConnectionStatus(status: ConnectionStatus): void {
 }
 
 /**
- * Copy text to clipboard with toast feedback
- */
-export async function copyToClipboard(text: string, label = "text"): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast(`Copied ${label} to clipboard!`);
-  } catch {
-    showToast(`Failed to copy ${label}`, "error");
-  }
-}
-
-/**
  * Show the warning banner with a message
  */
 export function showWarningBanner(message: string): void {
@@ -150,14 +68,4 @@ export function showWarningBanner(message: string): void {
 
   messageEl.innerHTML = message;
   banner.classList.remove("hidden");
-}
-
-/**
- * Hide the warning banner
- */
-export function hideWarningBanner(): void {
-  const banner = document.getElementById("warning-banner");
-  if (banner) {
-    banner.classList.add("hidden");
-  }
 }

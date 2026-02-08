@@ -1,7 +1,7 @@
 // SSE (Server-Sent Events) connection management
 
-import { fetchEvents } from "./api";
-import type { EventsApiResponse, FilterMode } from "./types";
+import { fetchSessions } from "./api";
+import type { SessionsApiResponse } from "./types";
 import { setConnectionStatus } from "./ui";
 
 // Constants
@@ -12,37 +12,22 @@ const RECONNECT_TIMEOUT_MS = 30000;
 let eventSource: EventSource | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
-let currentMode: FilterMode = "waiting";
-let onEventsCallback: ((events: EventsApiResponse) => void) | null = null;
+let onSessionsCallback: ((data: SessionsApiResponse) => void) | null = null;
 
 /**
- * Set the callback for when events are received
+ * Set the callback for when sessions data is received
  */
-export function setOnEventsCallback(callback: (events: EventsApiResponse) => void): void {
-  onEventsCallback = callback;
+export function setOnSessionsCallback(callback: (data: SessionsApiResponse) => void): void {
+  onSessionsCallback = callback;
 }
 
 /**
- * Set the current filter mode
+ * Poll sessions from API (fallback when SSE fails)
  */
-export function setCurrentMode(mode: FilterMode): void {
-  currentMode = mode;
-}
-
-/**
- * Get the current filter mode
- */
-export function getCurrentMode(): FilterMode {
-  return currentMode;
-}
-
-/**
- * Poll events from API (fallback when SSE fails)
- */
-async function pollEvents(): Promise<void> {
-  const data = await fetchEvents(currentMode);
-  if (data && onEventsCallback) {
-    onEventsCallback(data);
+async function pollSessions(): Promise<void> {
+  const data = await fetchSessions();
+  if (data && onSessionsCallback) {
+    onSessionsCallback(data);
   }
 }
 
@@ -55,7 +40,7 @@ export function connectSSE(): void {
     eventSource.close();
   }
 
-  eventSource = new EventSource(`/api/events/stream?mode=${currentMode}`);
+  eventSource = new EventSource("/api/sessions/stream");
 
   eventSource.onopen = () => {
     setConnectionStatus("connected");
@@ -68,9 +53,9 @@ export function connectSSE(): void {
 
   eventSource.onmessage = (event) => {
     try {
-      const data: EventsApiResponse = JSON.parse(event.data);
-      if (onEventsCallback) {
-        onEventsCallback(data);
+      const data: SessionsApiResponse = JSON.parse(event.data);
+      if (onSessionsCallback) {
+        onSessionsCallback(data);
       }
     } catch (err) {
       console.error("Failed to parse event data:", err);
@@ -87,8 +72,8 @@ export function connectSSE(): void {
     // Fallback to polling
     if (!pollTimer) {
       setConnectionStatus("polling");
-      pollTimer = setInterval(pollEvents, POLL_INTERVAL_MS);
-      pollEvents(); // Immediate poll
+      pollTimer = setInterval(pollSessions, POLL_INTERVAL_MS);
+      pollSessions(); // Immediate poll
     }
 
     // Try to reconnect SSE after timeout

@@ -1,10 +1,9 @@
 // Browser notification module for Web UI
 
-import type { EventResponse } from "./types";
-import { parseEventType } from "./utils";
+import type { SessionResponse } from "./types";
 
 // Track shown notifications to prevent duplicates within session
-const shownEventIds = new Set<string>();
+const shownPaneIds = new Set<string>();
 
 export function requestNotificationPermission(): void {
   if ("Notification" in window && Notification.permission === "default") {
@@ -12,29 +11,34 @@ export function requestNotificationPermission(): void {
   }
 }
 
-export function showBrowserNotification(event: EventResponse): void {
-  // Check browser support for Notification API
+/**
+ * Show browser notification when a session transitions to WAITING
+ */
+export function showBrowserNotification(session: SessionResponse): void {
   if (!("Notification" in window)) return;
 
-  // Only notify for Stop and Notification events
-  if (!event.event_type.startsWith("Stop") && !event.event_type.startsWith("Notification")) {
-    return;
-  }
+  // Only notify for WAITING sessions
+  if (session.status !== "waiting") return;
 
   // Skip if already shown in this browser session
-  if (shownEventIds.has(event.event_id)) return;
-  shownEventIds.add(event.event_id);
+  if (shownPaneIds.has(session.pane_id)) return;
+  shownPaneIds.add(session.pane_id);
 
   if (Notification.permission !== "granted") return;
 
-  const { baseType, subType } = parseEventType(event.event_type);
-  const title = subType
-    ? `[${subType}] ${event.project_name}`
-    : `[${baseType}] ${event.project_name}`;
+  const title = `[Waiting] ${session.project_name}`;
+  const body = session.summary || "Claude is waiting for input";
 
   new Notification(title, {
-    body: event.summary,
-    tag: event.event_id, // Prevents duplicate OS notifications
+    body,
+    tag: `crux-${session.pane_id}`,
     icon: "/favicon.ico",
   });
+}
+
+/**
+ * Clear notification tracking for a pane (when it goes back to BUSY)
+ */
+export function clearNotificationTracking(paneId: string): void {
+  shownPaneIds.delete(paneId);
 }

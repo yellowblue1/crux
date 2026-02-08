@@ -1,93 +1,58 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
-  cleanupAll,
-  createFile,
-  createTempDir,
   mockFetchNetworkError,
   mockGeminiEmpty,
   mockGeminiError,
   mockGeminiSuccess,
-  SAMPLE_TRANSCRIPTS,
 } from "../__tests__";
-import { buildPrompt, generateSummary, readTranscriptTail } from "./gemini";
+import { buildConversationPrompt, generatePaneSummary, getConversationTail } from "./gemini";
 
 describe("gemini", () => {
-  afterEach(() => {
-    cleanupAll();
+  describe("getConversationTail", () => {
+    it("returns full content when under limit", () => {
+      const content = "[user]: Hello\n\n[assistant]: Hi there!";
+      const result = getConversationTail(content);
+      expect(result).toBe(content);
+    });
+
+    it("truncates long content from the start", () => {
+      const content = "A".repeat(5000);
+      const result = getConversationTail(content);
+      expect(result.length).toBe(4000);
+      expect(result).toBe("A".repeat(4000));
+    });
+
+    it("handles empty content", () => {
+      expect(getConversationTail("")).toBe("");
+    });
   });
 
-  describe("buildPrompt", () => {
-    it("should include language instruction in all prompts", () => {
-      const prompt = buildPrompt("test content", "stop");
-      expect(prompt).toContain("IMPORTANT: Analyze the user's messages");
+  describe("buildConversationPrompt", () => {
+    it("includes language instruction", () => {
+      const prompt = buildConversationPrompt("test content");
+      expect(prompt).toContain("IMPORTANT: Analyze the messages");
       expect(prompt).toContain("Your response MUST be in the same language");
     });
 
-    it("should build stop event prompt with completion focus", () => {
-      const prompt = buildPrompt("test content", "stop");
-      expect(prompt).toContain("Summarize what was completed or accomplished");
-      expect(prompt).toContain("Fixed login bug");
-      expect(prompt).toContain("test content");
+    it("includes idle context", () => {
+      const prompt = buildConversationPrompt("test content");
+      expect(prompt).toContain("appears to be idle");
+      expect(prompt).toContain("15 words or less");
     });
 
-    it("should build notification event prompt with question focus", () => {
-      const prompt = buildPrompt("test content", "notification");
-      expect(prompt).toContain("Claude is waiting for user input");
-      expect(prompt).toContain("AskUserQuestion");
-      expect(prompt).toContain("Asking which database to use");
-      expect(prompt).toContain("test content");
+    it("includes the content at the end", () => {
+      const content = "[user]: Help me fix a bug\n\n[assistant]: Done.";
+      const prompt = buildConversationPrompt(content);
+      expect(prompt.endsWith(content)).toBe(true);
     });
 
-    it("should include transcript content at the end", () => {
-      const transcript = "line1\nline2\nline3";
-      const prompt = buildPrompt(transcript, "stop");
-      expect(prompt.endsWith(transcript)).toBe(true);
+    it("mentions conversation context", () => {
+      const prompt = buildConversationPrompt("test");
+      expect(prompt).toContain("conversation from a Claude Code session");
     });
   });
 
-  describe("readTranscriptTail", () => {
-    it("should return null for empty path", () => {
-      expect(readTranscriptTail("")).toBeNull();
-    });
-
-    it("should return null for non-existent file", () => {
-      expect(readTranscriptTail("/non/existent/path.jsonl")).toBeNull();
-    });
-
-    it("should read file content", () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = readTranscriptTail(filePath);
-      expect(result).not.toBeNull();
-      expect(result).toContain("React component");
-    });
-
-    it("should return last 50 lines for long files", () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "long.jsonl", SAMPLE_TRANSCRIPTS.long);
-
-      const result = readTranscriptTail(filePath);
-      expect(result).not.toBeNull();
-
-      const lines = result?.split("\n") ?? [];
-      expect(lines.length).toBe(50);
-      // Should have lines 51-100 (last 50 lines)
-      expect(lines[0]).toContain("Line 51");
-      expect(lines[49]).toContain("Line 100");
-    });
-
-    it("should handle files with fewer than 50 lines", () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "short.jsonl", SAMPLE_TRANSCRIPTS.minimal);
-
-      const result = readTranscriptTail(filePath);
-      expect(result).not.toBeNull();
-      expect(result).toContain("Hello");
-    });
-  });
-
-  describe("generateSummary", () => {
+  describe("generatePaneSummary", () => {
     type FetchFn = (url: string | URL | Request, options?: RequestInit) => Promise<Response>;
 
     const mockDeps = (fetchFn: FetchFn) => ({
@@ -97,125 +62,65 @@ describe("gemini", () => {
       getGcpLocationFn: () => "us-central1",
     });
 
-    it("should return summary on successful API response", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = await generateSummary(
-        filePath,
-        "stop",
-        mockDeps(mockGeminiSuccess("Created Dashboard component")),
+    it("returns summary on successful API response", async () => {
+      const result = await generatePaneSummary(
+        "[user]: Which database should we use?\n\n[assistant]: Let me help you decide.",
+        mockDeps(mockGeminiSuccess("Asking which database to use")),
       );
 
-      expect(result).toBe("Created Dashboard component");
+      expect(result).toBe("Asking which database to use");
     });
 
-    it("should return null when project is not configured", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
+    it("returns null for empty content", async () => {
+      const result = await generatePaneSummary("   ", mockDeps(mockGeminiSuccess("test")));
+      expect(result).toBeNull();
+    });
 
-      const result = await generateSummary(filePath, "stop", {
+    it("returns null when project is not configured", async () => {
+      const result = await generatePaneSummary("content", {
         ...mockDeps(mockGeminiSuccess("test")),
         getGcpProjectFn: () => null,
       });
-
       expect(result).toBeNull();
     });
 
-    it("should return null when transcript file is missing", async () => {
-      const result = await generateSummary(
-        "/non/existent/file.jsonl",
-        "stop",
-        mockDeps(mockGeminiSuccess("test")),
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null when access token is unavailable", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = await generateSummary(filePath, "stop", {
+    it("returns null when access token is unavailable", async () => {
+      const result = await generatePaneSummary("content", {
         ...mockDeps(mockGeminiSuccess("test")),
         getAccessTokenFn: () => null,
       });
-
       expect(result).toBeNull();
     });
 
-    it("should return null on API error response", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = await generateSummary(filePath, "stop", mockDeps(mockGeminiError(500)));
-
+    it("returns null on API error response", async () => {
+      const result = await generatePaneSummary("content", mockDeps(mockGeminiError(500)));
       expect(result).toBeNull();
     });
 
-    it("should return null on empty candidates", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = await generateSummary(filePath, "stop", mockDeps(mockGeminiEmpty()));
-
+    it("returns null on empty candidates", async () => {
+      const result = await generatePaneSummary("content", mockDeps(mockGeminiEmpty()));
       expect(result).toBeNull();
     });
 
-    it("should return null on network error", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = await generateSummary(filePath, "stop", mockDeps(mockFetchNetworkError()));
-
+    it("returns null on network error", async () => {
+      const result = await generatePaneSummary("content", mockDeps(mockFetchNetworkError()));
       expect(result).toBeNull();
     });
 
-    it("should truncate long summaries to 100 characters", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
+    it("truncates long summaries to 100 characters", async () => {
       const longSummary = "A".repeat(150);
-      const result = await generateSummary(
-        filePath,
-        "stop",
-        mockDeps(mockGeminiSuccess(longSummary)),
-      );
+      const result = await generatePaneSummary("content", mockDeps(mockGeminiSuccess(longSummary)));
 
       expect(result).not.toBeNull();
       expect(result?.length).toBe(100);
     });
 
-    it("should trim whitespace from summary", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.english);
-
-      const result = await generateSummary(
-        filePath,
-        "stop",
+    it("trims whitespace from summary", async () => {
+      const result = await generatePaneSummary(
+        "content",
         mockDeps(mockGeminiSuccess("  Summary with spaces  ")),
       );
-
       expect(result).toBe("Summary with spaces");
-    });
-
-    it("should use notification prompt for notification event type", async () => {
-      const dir = createTempDir("transcript");
-      const filePath = createFile(dir, "test.jsonl", SAMPLE_TRANSCRIPTS.askUserQuestion);
-
-      let capturedBody: string | undefined;
-      const capturingFetch = async (
-        url: string | URL | Request,
-        options?: RequestInit,
-      ): Promise<Response> => {
-        capturedBody = options?.body as string;
-        return mockGeminiSuccess("Asking about database choice")(url, options);
-      };
-
-      await generateSummary(filePath, "notification", mockDeps(capturingFetch));
-
-      expect(capturedBody).toBeDefined();
-      expect(capturedBody).toContain("Claude is waiting for user input");
     });
   });
 });

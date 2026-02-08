@@ -2,11 +2,10 @@
 
 import { html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { escapeHtml, parseEventType } from "../utils";
 
 @customElement("status-badge")
 export class StatusBadge extends LitElement {
-  @property() eventType = "";
+  @property() status: "busy" | "waiting" = "busy";
 
   // Use light DOM for Tailwind CSS compatibility
   protected createRenderRoot() {
@@ -14,20 +13,13 @@ export class StatusBadge extends LitElement {
   }
 
   render() {
-    const { baseType, subType, cssClass } = parseEventType(this.eventType);
+    const cssClass =
+      this.status === "busy"
+        ? "status-badge status-badge--busy"
+        : "status-badge status-badge--waiting";
+    const label = this.status === "busy" ? "Busy" : "Waiting";
 
-    if (subType) {
-      return html`
-        <span class="status-badge-wrapper">
-          <span class="status-badge ${cssClass}">${escapeHtml(baseType)}</span>
-          <span class="status-badge-subtype">${escapeHtml(subType)}</span>
-        </span>
-      `;
-    }
-
-    return html`
-      <span class="status-badge ${cssClass}">${escapeHtml(baseType)}</span>
-    `;
+    return html`<span class="${cssClass}">${label}</span>`;
   }
 }
 

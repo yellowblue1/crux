@@ -1,22 +1,32 @@
-// Re-export shared types
-export type { EventResponse, FilterMode } from "../shared/types";
+// Re-export shared types used by server-side code
+export type { SessionResponse } from "../shared/types";
 
-// Server-only types
+// Internal types for tmux polling
 
-export interface Event {
-  id: number;
-  event_id: string;
-  session_id: string;
-  event_type: string;
-  created_at: string;
-  summary: string | null;
-  project_dir: string | null;
-  project_name: string | null;
-  tmux_window_id: string | null;
+export interface SessionState {
+  pane_id: string;
+  process_pid: number;
+  cwd: string;
+  project_name: string;
   git_branch: string | null;
+  status: "busy" | "waiting";
+  summary: string | null;
+  tmux_target: string;
+  jsonl_path: string | null;
+  last_changed: number;
+  last_activity: string;
+  summary_pending: boolean;
 }
 
-export interface EventInput {
-  session_id?: string;
-  cwd?: string;
+export interface TmuxPane {
+  pane_id: string;
+  pane_pid: number;
+  session_name: string;
+  window_index: number;
+  pane_index: number;
+}
+
+export interface ClaudeProcess {
+  pid: number;
+  ppid: number;
 }

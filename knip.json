@@ -9,8 +9,9 @@
     "plugins/crux-monitor": {
       "entry": [
         "src/cli.ts",
-        "src/db/index.ts",
         "src/notification/index.ts",
+        "src/tmux/index.ts",
+        "src/session/index.ts",
         "shared/types.ts",
         "**/*.test.ts"
       ],

@@ -23,14 +23,10 @@
   --color-accent-red: #f85149;
 
   /* Status badge colors */
-  --color-badge-stop-bg: #238636;
-  --color-badge-stop-text: #fff;
-  --color-badge-notification-bg: #9e6a03;
-  --color-badge-notification-text: #fff;
-  --color-badge-session-bg: #1f6feb;
-  --color-badge-session-text: #fff;
-  --color-badge-subagent-bg: #8957e5;
-  --color-badge-subagent-text: #fff;
+  --color-badge-busy-bg: #238636;
+  --color-badge-busy-text: #fff;
+  --color-badge-waiting-bg: #9e6a03;
+  --color-badge-waiting-text: #fff;
 
   /* Font family */
   --font-family-sans:
@@ -39,27 +35,8 @@
 }
 
 /* ============================================
-   Component Classes (Original CSS preserved)
+   Component Classes
    ============================================ */
-
-/* Filter button component */
-.filter-btn {
-  @apply bg-transparent border-none text-text-muted px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-all;
-}
-
-.filter-btn:hover {
-  @apply text-text-secondary bg-bg-tertiary;
-}
-
-.filter-btn.active {
-  @apply bg-accent-blue text-white;
-}
-
-@media (max-width: 768px) {
-  .filter-btn {
-    @apply flex-1 text-center;
-  }
-}
 
 /* Status indicator */
 .status-indicator {
@@ -92,7 +69,7 @@
   @apply text-[0.9375rem] text-text-muted opacity-80;
 }
 
-/* Events table */
+/* Sessions table */
 .events-table {
   @apply w-full border-collapse text-base;
 }
@@ -102,7 +79,7 @@
 }
 
 .events-table td {
-  @apply py-3.5 px-[18px] border-b border-border-muted align-top;
+  @apply py-3.5 px-[18px] border-b border-border-muted align-middle;
 }
 
 .events-table tbody tr {
@@ -113,25 +90,18 @@
   @apply bg-bg-secondary;
 }
 
-.events-table tbody tr.read {
-  @apply opacity-70;
-}
-
 /* Column widths */
 .col-project {
-  width: 160px;
+  width: 180px;
+}
+.col-branch {
+  width: 140px;
 }
 .col-status {
-  width: 200px;
-}
-.col-time {
-  width: 80px;
+  width: 120px;
 }
 .col-summary {
   min-width: 200px;
-}
-.col-copy {
-  width: 100px;
 }
 .col-actions {
   width: 50px;
@@ -143,23 +113,11 @@
 }
 
 .git-branch {
-  @apply ml-1.5 text-sm text-accent-purple font-normal;
+  @apply text-sm text-accent-purple font-mono;
 }
 
-.project-info {
-  @apply mb-1;
-}
-
-.session-info {
-  @apply flex gap-2 text-xs text-text-muted font-mono;
-}
-
-.tmux-id {
-  @apply text-accent-yellow;
-}
-
-.session-id {
-  @apply opacity-70;
+.no-branch {
+  @apply text-text-muted italic text-sm opacity-70;
 }
 
 /* Status badge */
@@ -167,38 +125,12 @@
   @apply inline-block py-1 px-2.5 rounded-xl text-[0.8125rem] font-medium;
 }
 
-.status-badge-wrapper {
-  @apply inline-flex items-center gap-1;
+.status-badge--busy {
+  @apply bg-badge-busy-bg text-badge-busy-text;
 }
 
-.status-badge-subtype {
-  @apply inline-block py-0.5 px-1.5 rounded-lg text-[0.6875rem] font-medium bg-bg-tertiary text-text-muted border border-border-default;
-}
-
-/* Badge variants */
-.status-badge--stop {
-  @apply bg-badge-stop-bg text-badge-stop-text;
-}
-
-.status-badge--notification {
-  @apply bg-badge-notification-bg text-badge-notification-text;
-}
-
-.status-badge--sessionstart {
-  @apply bg-badge-session-bg text-badge-session-text;
-}
-
-.status-badge--subagentstop {
-  @apply bg-badge-subagent-bg text-badge-subagent-text;
-}
-
-.status-badge--sessionend {
-  @apply bg-text-muted text-bg-primary;
-}
-
-/* Time */
-.time {
-  @apply text-text-muted text-[0.9375rem] tabular-nums;
+.status-badge--waiting {
+  @apply bg-badge-waiting-bg text-badge-waiting-text;
 }
 
 /* Summary */
@@ -206,45 +138,30 @@
   @apply text-text-secondary;
 }
 
-/* Copy button */
-.copy-btn {
-  @apply inline-flex items-center gap-1.5 bg-bg-tertiary border border-border-default text-text-secondary py-1.5 px-2.5 rounded-md cursor-pointer transition-all;
-}
-
-.copy-btn:hover {
-  @apply bg-border-default border-text-muted text-text-primary;
-}
-
-.copy-btn:active {
-  @apply scale-[0.98];
-}
-
-.copy-btn.copied {
-  @apply text-accent-green;
-}
-
-.copy-btn svg {
-  @apply w-4 h-4 shrink-0;
-}
-
-.no-tmux {
+.summary-placeholder {
   @apply text-text-muted italic text-sm opacity-70;
 }
 
-/* End session button */
-.end-session-btn {
+/* AI Summary indicator */
+.ai-indicator {
+  @apply shrink-0 text-accent-yellow cursor-help;
+  font-size: 0.875rem;
+}
+
+/* Jump button */
+.jump-btn {
   @apply inline-flex items-center justify-center bg-transparent border border-border-default text-text-muted p-1.5 rounded-md cursor-pointer transition-all;
 }
 
-.end-session-btn:hover {
-  @apply bg-accent-red border-accent-red text-white;
+.jump-btn:hover {
+  @apply bg-accent-blue border-accent-blue text-white;
 }
 
-.end-session-btn:active {
+.jump-btn:active {
   @apply scale-95;
 }
 
-.end-session-btn svg {
+.jump-btn svg {
   @apply w-4 h-4 shrink-0;
 }
 
@@ -259,135 +176,11 @@
 }
 
 .toast.success {
-  @apply bg-badge-stop-bg;
+  @apply bg-badge-busy-bg;
 }
 
 .toast.error {
   @apply bg-accent-red;
-}
-
-/* Prune button */
-.prune-btn {
-  @apply inline-flex items-center gap-1.5 bg-bg-tertiary border border-border-default text-text-secondary py-2 px-3.5 rounded-md cursor-pointer transition-all text-sm font-medium;
-}
-
-.prune-btn:hover {
-  @apply bg-accent-red border-accent-red text-white;
-}
-
-.prune-btn:active {
-  @apply scale-[0.98];
-}
-
-.prune-btn svg {
-  @apply w-4 h-4 shrink-0;
-}
-
-/* Modal animations */
-@keyframes modal-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modal-scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Modal */
-.modal {
-  @apply fixed inset-0 flex items-center justify-center z-[2000] overscroll-contain;
-  background: rgba(0, 0, 0, 0.7);
-  animation: modal-fade-in 0.15s ease-out;
-}
-
-.modal-content {
-  @apply bg-bg-secondary border border-border-default rounded-xl p-6 max-w-[480px] w-[90%] max-h-[80vh] overflow-y-auto;
-  animation: modal-scale-in 0.15s ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modal,
-  .modal-content {
-    animation: none;
-  }
-}
-
-.modal-content h2 {
-  @apply text-xl font-semibold text-text-primary mb-4;
-}
-
-.modal-content p {
-  @apply text-text-secondary mb-4;
-}
-
-.prune-list {
-  @apply list-none max-h-[200px] overflow-y-auto bg-bg-tertiary rounded-lg p-3 mb-5;
-}
-
-.prune-list li {
-  @apply py-2 border-b border-border-muted text-text-secondary text-[0.9375rem];
-}
-
-.prune-list li:last-child {
-  @apply border-b-0;
-}
-
-.prune-list .session-id {
-  @apply text-text-muted font-mono text-xs ml-2;
-}
-
-.modal-actions {
-  @apply flex justify-end gap-3;
-}
-
-.modal-btn {
-  @apply py-2.5 px-5 rounded-md text-sm font-medium cursor-pointer transition-all;
-}
-
-.modal-btn.cancel {
-  @apply bg-bg-tertiary border border-border-default text-text-secondary;
-}
-
-.modal-btn.cancel:hover {
-  @apply bg-border-default text-text-primary;
-}
-
-.modal-btn.confirm {
-  @apply bg-accent-red border border-accent-red text-white;
-}
-
-.modal-btn.confirm:hover {
-  background: #da3633;
-  border-color: #da3633;
-}
-
-.modal-btn:focus-visible {
-  @apply outline-2 outline-accent-blue outline-offset-2;
-}
-
-/* AI Summary indicator */
-.summary-wrapper {
-  @apply flex items-center gap-1.5 min-w-0;
-}
-
-.ai-indicator {
-  @apply shrink-0 text-accent-yellow cursor-help;
-  font-size: 0.875rem;
-}
-
-.ai-indicator[title] {
-  /* Ensure tooltip works */
 }
 
 /* Warning banner */
@@ -426,7 +219,7 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .col-copy {
+  .col-branch {
     display: none;
   }
 

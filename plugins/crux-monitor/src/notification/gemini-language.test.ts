@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { getGcpLocation, getGcpProject } from "./config";
-import { buildPrompt, getAccessToken } from "./gemini";
+import { buildConversationPrompt, getAccessToken } from "./gemini";
 
 // Integration tests - require GCP authentication
 // Run with: INTEGRATION=true bun test gemini-language.test.ts
@@ -8,18 +8,28 @@ const runIntegration = process.env.INTEGRATION === "true";
 
 const MODEL_ID = "gemini-2.5-flash";
 
-// Sample transcripts
-const JAPANESE_TRANSCRIPT = `{"type":"user","message":{"role":"user","content":"今このディレクトリにPDFがあるのがわかると思う。bunでプロジェクトを立ち上げる"}}
-{"type":"assistant","message":{"role":"assistant","content":"PDFファイルを確認して、bunプロジェクトを立ち上げます。"}}
-{"type":"tool_use","tool":"Bash","input":{"command":"ls -la *.pdf"}}
-{"type":"tool_result","output":"sample.pdf"}
-{"type":"assistant","message":{"role":"assistant","content":"PDFファイルを確認しました。bunプロジェクトを初期化します。"}}`;
+// Sample conversation content (extracted from JSONL)
+const JAPANESE_PANE_CONTENT = `[user]: プロジェクトのセットアップを手伝ってください。
 
-const ENGLISH_TRANSCRIPT = `{"type":"user","message":{"role":"user","content":"I want to create a new React component for the dashboard"}}
-{"type":"assistant","message":{"role":"assistant","content":"I'll help you create a new React component for the dashboard."}}
-{"type":"tool_use","tool":"Write","input":{"path":"src/components/Dashboard.tsx"}}
-{"type":"tool_result","output":"File created"}
-{"type":"assistant","message":{"role":"assistant","content":"I've created the Dashboard component. Let me add the styling next."}}`;
+[assistant]: I'll help you with the project setup.
+
+Which database would you like to use?
+1. PostgreSQL
+2. MySQL
+3. SQLite
+
+データベースを選択してください。上の選択肢から番号を入力してください。`;
+
+const ENGLISH_PANE_CONTENT = `[user]: Please refactor the auth module.
+
+[assistant]: I've completed the refactoring of the auth module.
+
+Changes made:
+- Extracted JWT validation into middleware
+- Added refresh token rotation
+- Updated tests
+
+Would you like me to create a PR for these changes?`;
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -31,9 +41,6 @@ interface GeminiResponse {
   }>;
 }
 
-/**
- * Call Gemini API directly with a prompt
- */
 async function callGeminiWithPrompt(prompt: string): Promise<string | null> {
   const projectId = getGcpProject();
   if (!projectId) {
@@ -77,20 +84,16 @@ async function callGeminiWithPrompt(prompt: string): Promise<string | null> {
   return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
 }
 
-/**
- * Check if text contains Japanese characters
- */
 function containsJapanese(text: string): boolean {
-  // Hiragana, Katakana, or Kanji
   return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text);
 }
 
 describe.skipIf(!runIntegration)("Gemini Language Detection - Integration", () => {
-  it("should respond in Japanese for Japanese transcript", async () => {
-    const prompt = buildPrompt(JAPANESE_TRANSCRIPT, "stop");
+  it("should respond in Japanese for Japanese pane content", async () => {
+    const prompt = buildConversationPrompt(JAPANESE_PANE_CONTENT);
     const result = await callGeminiWithPrompt(prompt);
 
-    console.log("Japanese transcript result:", result);
+    console.log("Japanese pane result:", result);
 
     if (result === null) {
       throw new Error("Expected non-null result from Gemini API");
@@ -98,11 +101,11 @@ describe.skipIf(!runIntegration)("Gemini Language Detection - Integration", () =
     expect(containsJapanese(result)).toBe(true);
   }, 20000);
 
-  it("should respond in English for English transcript", async () => {
-    const prompt = buildPrompt(ENGLISH_TRANSCRIPT, "stop");
+  it("should respond in English for English pane content", async () => {
+    const prompt = buildConversationPrompt(ENGLISH_PANE_CONTENT);
     const result = await callGeminiWithPrompt(prompt);
 
-    console.log("English transcript result:", result);
+    console.log("English pane result:", result);
 
     if (result === null) {
       throw new Error("Expected non-null result from Gemini API");

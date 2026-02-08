@@ -1,53 +1,5 @@
 {
   "name": "crux-monitor",
-  "version": "2.1.0",
-  "description": "Claude Code event monitoring with browser notifications and DB logging",
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification notification",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification stop",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification sessionstart",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts notification sessionend",
-            "async": true
-          }
-        ]
-      }
-    ]
-  }
+  "version": "3.0.0",
+  "description": "Real-time Claude Code session monitoring via tmux polling"
 }

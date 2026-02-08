@@ -1,10 +1,9 @@
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
 import { getGcpLocation, getGcpProject } from "./config";
 
 const MODEL_ID = "gemini-2.5-flash";
 const MAX_SUMMARY_LENGTH = 100;
-const TRANSCRIPT_LINES = 50;
+const CONVERSATION_TAIL_CHARS = 4000;
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -46,55 +45,37 @@ export function getAccessToken(): string | null {
 }
 
 /**
- * Read the last N lines of a transcript file
+ * Get the tail of conversation text, limited by character count
  */
-export function readTranscriptTail(transcriptPath: string): string | null {
-  if (!transcriptPath || !existsSync(transcriptPath)) {
-    return null;
-  }
-
-  try {
-    const content = readFileSync(transcriptPath, "utf-8");
-    const lines = content.split("\n");
-    return lines.slice(-TRANSCRIPT_LINES).join("\n");
-  } catch {
-    return null;
-  }
+export function getConversationTail(conversation: string): string {
+  if (conversation.length <= CONVERSATION_TAIL_CHARS) return conversation;
+  return conversation.slice(-CONVERSATION_TAIL_CHARS);
 }
 
 /**
- * Build the prompt for Gemini based on event type
+ * Build the prompt for Gemini to summarize a Claude Code conversation
  */
-export function buildPrompt(transcriptTail: string, eventType: string): string {
-  const languageInstruction = `IMPORTANT: Analyze the user's messages in this transcript to determine what language they are using. Your response MUST be in the same language as the user's messages.
+export function buildConversationPrompt(conversationTail: string): string {
+  const languageInstruction = `IMPORTANT: Analyze the messages in this conversation to determine what language the user is using. Your response MUST be in the same language as the user's messages.
 
 `;
 
-  if (eventType === "notification") {
-    return `${languageInstruction}The following is the end of Claude Code's transcript (JSONL format).
-Claude is waiting for user input. Look for "AskUserQuestion" tool_use to understand what is being asked.
-Summarize what question or input Claude is waiting for in 15 words or less.
-Examples: "Asking which database to use", "Waiting for confirmation to proceed"
+  return `${languageInstruction}The following is a conversation from a Claude Code session.
+Claude appears to be idle and waiting for user input.
+Summarize what Claude is waiting for or what it last completed in 15 words or less.
+Examples: "Asking which database to use", "Waiting for confirmation to proceed", "Completed refactoring auth module"
 Output only the summary.
 
-${transcriptTail}`;
-  }
-
-  return `${languageInstruction}The following is the end of Claude Code's transcript (JSONL format).
-Summarize what was completed or accomplished in 15 words or less.
-Examples: "Fixed login bug", "Created PR for feature X", "Refactored auth module"
-Output only the summary.
-
-${transcriptTail}`;
+${conversationTail}`;
 }
 
 /**
- * Generate a summary using the Gemini API
- * Supports dependency injection for testing via the deps parameter
+ * Generate a summary from Claude Code conversation using the Gemini API.
+ * The conversation parameter is extracted text from the session's JSONL file.
+ * Supports dependency injection for testing via the deps parameter.
  */
-export async function generateSummary(
-  transcriptPath: string,
-  eventType: string = "stop",
+export async function generatePaneSummary(
+  conversation: string,
   deps?: GenerateSummaryDeps,
 ): Promise<string | null> {
   const fetchFn = deps?.fetchFn ?? fetch;
@@ -102,13 +83,12 @@ export async function generateSummary(
   const getGcpProjectFn = deps?.getGcpProjectFn ?? getGcpProject;
   const getGcpLocationFn = deps?.getGcpLocationFn ?? getGcpLocation;
 
-  const projectId = getGcpProjectFn();
-  if (!projectId) {
+  if (!conversation.trim()) {
     return null;
   }
 
-  const transcriptTail = readTranscriptTail(transcriptPath);
-  if (!transcriptTail) {
+  const projectId = getGcpProjectFn();
+  if (!projectId) {
     return null;
   }
 
@@ -117,10 +97,11 @@ export async function generateSummary(
     return null;
   }
 
+  const conversationTail = getConversationTail(conversation);
   const location = getGcpLocationFn();
   const apiUrl = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${MODEL_ID}:generateContent`;
 
-  const prompt = buildPrompt(transcriptTail, eventType);
+  const prompt = buildConversationPrompt(conversationTail);
 
   try {
     const controller = new AbortController();

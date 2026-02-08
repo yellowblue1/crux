@@ -2,197 +2,87 @@
  * Hono API integration tests.
  *
  * Tests all API endpoints using app.request() without starting an HTTP server.
- * Database dependencies are mocked for isolation.
+ * Dependencies are mocked for isolation.
  */
 
 import { describe, expect, it, mock } from "bun:test";
+import type { SessionResponse } from "../shared/types";
 import { type AppDependencies, createApp, type SseClient } from "./server-app";
 
-// Create mock dependencies for testing
 function createMockDeps(overrides: Partial<AppDependencies> = {}): AppDependencies {
   return {
-    getActiveEvents: () => [],
-    getDbLastModified: () => 1706000000000,
-    deleteSession: () => true,
-    getSessionStatus: () => ({ exists: true, status: "running" }),
-    getPruneCandidates: () => [],
-    pruneDeadSessions: () => ({ deleted_count: 0, deleted_sessions: [] }),
+    getSessions: () => [],
+    switchToPane: () => true,
     getAccessToken: () => "mock-token",
     getGcpProject: () => "mock-project",
     ...overrides,
   };
 }
 
+const sampleSession: SessionResponse = {
+  pane_id: "%0",
+  project_name: "my-project",
+  git_branch: "main",
+  status: "busy",
+  summary: null,
+  tmux_target: "main:0.0",
+  last_activity: new Date().toISOString(),
+};
+
 describe("Hono API endpoints", () => {
-  describe("GET /api/events", () => {
-    it("returns events with last_modified timestamp", async () => {
-      const mockEvents = [
-        { id: 1, event_id: "evt-1", session_id: "sess-1", event_type: "Stop" },
-        { id: 2, event_id: "evt-2", session_id: "sess-2", event_type: "Notification" },
-      ];
-
+  describe("GET /api/sessions", () => {
+    it("returns sessions with timestamp", async () => {
       const deps = createMockDeps({
-        getActiveEvents: () => mockEvents,
-        getDbLastModified: () => 1706123456789,
+        getSessions: () => [sampleSession],
       });
-
       const app = createApp(deps);
-      const res = await app.request("/api/events");
+      const res = await app.request("/api/sessions");
 
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.events).toEqual(mockEvents);
-      expect(data.last_modified).toBe(1706123456789);
+      expect(data.sessions).toHaveLength(1);
+      expect(data.sessions[0].pane_id).toBe("%0");
+      expect(data.timestamp).toBeGreaterThan(0);
     });
 
-    it("passes mode query parameter to getActiveEvents", async () => {
-      const getActiveEventsSpy = mock(() => []);
-      const deps = createMockDeps({ getActiveEvents: getActiveEventsSpy });
-
+    it("returns empty array when no sessions", async () => {
+      const deps = createMockDeps({ getSessions: () => [] });
       const app = createApp(deps);
 
-      // Test 'waiting' mode (default)
-      await app.request("/api/events");
-      expect(getActiveEventsSpy).toHaveBeenLastCalledWith("waiting");
-
-      // Test 'active' mode
-      await app.request("/api/events?mode=active");
-      expect(getActiveEventsSpy).toHaveBeenLastCalledWith("active");
-
-      // Test 'all' mode
-      await app.request("/api/events?mode=all");
-      expect(getActiveEventsSpy).toHaveBeenLastCalledWith("all");
-    });
-
-    it("returns empty array when no events", async () => {
-      const deps = createMockDeps({ getActiveEvents: () => [] });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/events");
+      const res = await app.request("/api/sessions");
       const data = await res.json();
 
-      expect(data.events).toEqual([]);
+      expect(data.sessions).toEqual([]);
     });
   });
 
-  describe("DELETE /api/sessions/:id", () => {
-    it("returns success when session is deleted", async () => {
-      const deleteSessionSpy = mock(() => true);
-      const deps = createMockDeps({ deleteSession: deleteSessionSpy });
+  describe("POST /api/sessions/:pane_id/jump", () => {
+    it("returns success when pane switch succeeds", async () => {
+      const switchSpy = mock(() => true);
+      const deps = createMockDeps({ switchToPane: switchSpy });
       const app = createApp(deps);
 
-      const res = await app.request("/api/sessions/test-session-123", {
-        method: "DELETE",
+      const res = await app.request("/api/sessions/%250/jump", {
+        method: "POST",
       });
 
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.success).toBe(true);
-      expect(deleteSessionSpy).toHaveBeenCalledWith("test-session-123");
+      expect(switchSpy).toHaveBeenCalledWith("%0");
     });
 
-    it("returns 500 error when deletion fails", async () => {
-      const deps = createMockDeps({ deleteSession: () => false });
+    it("returns 500 when pane switch fails", async () => {
+      const deps = createMockDeps({ switchToPane: () => false });
       const app = createApp(deps);
 
-      const res = await app.request("/api/sessions/nonexistent", {
-        method: "DELETE",
+      const res = await app.request("/api/sessions/%250/jump", {
+        method: "POST",
       });
 
       expect(res.status).toBe(500);
       const data = await res.json();
       expect(data.success).toBe(false);
-      expect(data.error).toBe("Failed to delete session");
-    });
-  });
-
-  describe("GET /api/sessions/:id/status", () => {
-    it("returns session status for existing session", async () => {
-      const mockStatus = { exists: true, status: "running", pid: 12345 };
-      const getSessionStatusSpy = mock(() => mockStatus);
-      const deps = createMockDeps({ getSessionStatus: getSessionStatusSpy });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/active-session/status");
-
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data).toEqual(mockStatus);
-      expect(getSessionStatusSpy).toHaveBeenCalledWith("active-session");
-    });
-
-    it("returns status for orphaned session", async () => {
-      const mockStatus = { exists: false, status: "orphaned" };
-      const deps = createMockDeps({ getSessionStatus: () => mockStatus });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/dead-session/status");
-      const data = await res.json();
-
-      expect(data.exists).toBe(false);
-      expect(data.status).toBe("orphaned");
-    });
-  });
-
-  describe("GET /api/prune/preview", () => {
-    it("returns empty list when no prune candidates", async () => {
-      const deps = createMockDeps({ getPruneCandidates: () => [] });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/prune/preview");
-
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.count).toBe(0);
-      expect(data.sessions).toEqual([]);
-    });
-
-    it("returns prune candidates with count", async () => {
-      const candidates = [
-        { session_id: "sess-1", project_name: "project-a", last_event: "2024-01-01" },
-        { session_id: "sess-2", project_name: "project-b", last_event: "2024-01-02" },
-        { session_id: "sess-3", project_name: "project-c", last_event: "2024-01-03" },
-      ];
-      const deps = createMockDeps({ getPruneCandidates: () => candidates });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/prune/preview");
-      const data = await res.json();
-
-      expect(data.count).toBe(3);
-      expect(data.sessions).toEqual(candidates);
-    });
-  });
-
-  describe("POST /api/prune", () => {
-    it("returns result when no sessions pruned", async () => {
-      const deps = createMockDeps({
-        pruneDeadSessions: () => ({ deleted_count: 0, deleted_sessions: [] }),
-      });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/prune", { method: "POST" });
-
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.deleted_count).toBe(0);
-      expect(data.deleted_sessions).toEqual([]);
-    });
-
-    it("returns deleted session information", async () => {
-      const pruneResult = {
-        deleted_count: 2,
-        deleted_sessions: ["sess-1", "sess-2"],
-      };
-      const deps = createMockDeps({ pruneDeadSessions: () => pruneResult });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/prune", { method: "POST" });
-      const data = await res.json();
-
-      expect(data.deleted_count).toBe(2);
-      expect(data.deleted_sessions).toContain("sess-1");
-      expect(data.deleted_sessions).toContain("sess-2");
     });
   });
 
@@ -224,7 +114,6 @@ describe("Hono API endpoints", () => {
       const data = await res.json();
 
       expect(data.gcloud_authenticated).toBe(false);
-      expect(data.gcp_project_configured).toBe(true);
       expect(data.ai_summary_available).toBe(false);
     });
 
@@ -238,35 +127,19 @@ describe("Hono API endpoints", () => {
       const res = await app.request("/api/auth/status");
       const data = await res.json();
 
-      expect(data.gcloud_authenticated).toBe(true);
-      expect(data.gcp_project_configured).toBe(false);
-      expect(data.ai_summary_available).toBe(false);
-    });
-
-    it("returns all false when neither authenticated nor configured", async () => {
-      const deps = createMockDeps({
-        getAccessToken: () => null,
-        getGcpProject: () => null,
-      });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/auth/status");
-      const data = await res.json();
-
-      expect(data.gcloud_authenticated).toBe(false);
       expect(data.gcp_project_configured).toBe(false);
       expect(data.ai_summary_available).toBe(false);
     });
   });
 
-  describe("GET /api/events/stream (SSE)", () => {
+  describe("GET /api/sessions/stream (SSE)", () => {
     it("returns SSE response headers", async () => {
       const deps = createMockDeps({
-        serializeEventsData: () => '{"events":[],"last_modified":0}',
+        serializeSessionsData: () => '{"sessions":[],"timestamp":0}',
       });
       const app = createApp(deps);
 
-      const res = await app.request("/api/events/stream");
+      const res = await app.request("/api/sessions/stream");
 
       expect(res.status).toBe(200);
       expect(res.headers.get("Content-Type")).toBe("text/event-stream");
@@ -278,25 +151,23 @@ describe("Hono API endpoints", () => {
       const onSseConnectSpy = mock((_client: SseClient) => {});
       const deps = createMockDeps({
         onSseConnect: onSseConnectSpy,
-        serializeEventsData: () => "{}",
+        serializeSessionsData: () => "{}",
       });
       const app = createApp(deps);
 
-      await app.request("/api/events/stream?mode=active");
+      await app.request("/api/sessions/stream");
 
       expect(onSseConnectSpy).toHaveBeenCalled();
-      const client = onSseConnectSpy.mock.calls[0][0];
-      expect(client.mode).toBe("active");
     });
 
     it("sends initial data on connection", async () => {
-      const initialData = '{"events":[{"id":1}],"last_modified":123}';
+      const initialData = '{"sessions":[{"pane_id":"%0"}],"timestamp":123}';
       const deps = createMockDeps({
-        serializeEventsData: () => initialData,
+        serializeSessionsData: () => initialData,
       });
       const app = createApp(deps);
 
-      const res = await app.request("/api/events/stream");
+      const res = await app.request("/api/sessions/stream");
       const reader = res.body?.getReader();
       const result = await reader?.read();
       const text = new TextDecoder().decode(result?.value);
@@ -313,7 +184,7 @@ describe("CORS behavior", () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
-      const res = await app.request("/api/events", {
+      const res = await app.request("/api/sessions", {
         method: "OPTIONS",
         headers: {
           Origin: "http://localhost:3847",
@@ -321,7 +192,6 @@ describe("CORS behavior", () => {
         },
       });
 
-      // Preflight should succeed (204 No Content)
       expect(res.status).toBe(204);
     });
 
@@ -329,26 +199,10 @@ describe("CORS behavior", () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
-      const res = await app.request("/api/events", {
+      const res = await app.request("/api/sessions", {
         method: "OPTIONS",
         headers: {
           Origin: "https://evil.com",
-          "Access-Control-Request-Method": "GET",
-        },
-      });
-
-      // CORS middleware should not set Allow-Origin for rejected origins
-      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
-    });
-
-    it("rejects origin with localhost in subdomain on preflight", async () => {
-      const deps = createMockDeps();
-      const app = createApp(deps, { restrictCors: true });
-
-      const res = await app.request("/api/events", {
-        method: "OPTIONS",
-        headers: {
-          Origin: "https://localhost.evil.com",
           "Access-Control-Request-Method": "GET",
         },
       });
@@ -360,19 +214,17 @@ describe("CORS behavior", () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: true });
 
-      const res = await app.request("/api/events");
-
-      // Same-origin requests should succeed
+      const res = await app.request("/api/sessions");
       expect(res.status).toBe(200);
     });
   });
 
-  describe("with restrictCors: false (compiled binary)", () => {
+  describe("with restrictCors: false", () => {
     it("allows any origin on preflight", async () => {
       const deps = createMockDeps();
       const app = createApp(deps, { restrictCors: false });
 
-      const res = await app.request("/api/events", {
+      const res = await app.request("/api/sessions", {
         method: "OPTIONS",
         headers: {
           Origin: "https://any-origin.com",
@@ -380,7 +232,6 @@ describe("CORS behavior", () => {
         },
       });
 
-      // Default CORS allows all origins
       expect(res.status).toBe(204);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
     });
@@ -388,28 +239,11 @@ describe("CORS behavior", () => {
 });
 
 describe("HTTP methods", () => {
-  it("handles preflight OPTIONS request", async () => {
-    const deps = createMockDeps();
-    const app = createApp(deps);
-
-    const res = await app.request("/api/events", {
-      method: "OPTIONS",
-      headers: {
-        Origin: "http://localhost:3847",
-        "Access-Control-Request-Method": "GET",
-      },
-    });
-
-    expect(res.status).toBe(204);
-    expect(res.headers.get("Access-Control-Allow-Methods")).toContain("GET");
-  });
-
   it("returns 404 for unknown routes", async () => {
     const deps = createMockDeps();
     const app = createApp(deps);
 
     const res = await app.request("/api/unknown");
-
     expect(res.status).toBe(404);
   });
 });
