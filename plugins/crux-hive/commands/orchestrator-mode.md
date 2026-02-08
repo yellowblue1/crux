@@ -30,7 +30,7 @@ If any prerequisite is not met, inform the user before proceeding.
 │  2. Discuss task with user → start_worktree_session          │
 │     (with teamName → worker joins as teammate)               │
 │  3. Worker uses built-in SendMessage → auto-delivered         │
-│  4. Review PR → Merge/Close → Shutdown worker → Cleanup      │
+│  4. Review PR → Merge/Close → Cleanup                        │
 │  (repeat 2-4 for additional tasks)                           │
 └─────────────────────────────────────────────────────────────┘
          │                          ▲
@@ -73,9 +73,10 @@ Use the repository name as the team name (e.g., `"crux"`). One team per conversa
 When the user describes what they want to accomplish:
 
 1. **Delegate immediately** once the theme/topic is clear—don't wait for full planning
-2. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
-3. **Include what you know** in the handoff prompt; workers handle the rest
-4. **Hand off with a complete prompt** containing:
+2. **One task per worker**—each task gets its own worktree and PR; don't add unrelated work to a running worker
+3. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
+4. **Include what you know** in the handoff prompt; workers handle the rest
+5. **Hand off with a complete prompt** containing:
    - **Objective**: What needs to be accomplished
    - **Context**: Why this task is needed
    - **Findings**: What has been discovered so far
@@ -187,23 +188,9 @@ When notified that a PR is ready:
    git fetch origin && git pull origin main
    ```
 
-## Phase 4: Worker Shutdown and Cleanup
+## Phase 4: Cleanup
 
-### Step 1: Shut Down the Worker
-
-Send a shutdown request before removing the worktree:
-
-```
-SendMessage({
-  type: "shutdown_request",
-  recipient: "worker-auth",
-  content: "Task complete, please shut down."
-})
-```
-
-Wait for the `shutdown_approved` response. If no response, resend once. If still unresponsive, proceed to Step 2 — `git gtr rm` will terminate the worker process via the cleanup hook.
-
-### Step 2: Remove the Worktree
+### Step 1: Remove the Worktree
 
 When a worktree is removed via `git gtr rm`, the cleanup hook automatically deregisters the worker from the Agent Teams config (`~/.claude/teams/{teamName}/config.json`). This means `TeamDelete` will not fail due to stale active members.
 
@@ -233,7 +220,7 @@ git gtr rm <branch> --yes --force  # Safe after PR is merged/closed
 
 Note: Always use `git gtr rm` instead of `git worktree remove`. The latter skips the cleanup hook and leaves orphaned tmux sessions.
 
-### Step 3: Delete the Remote Branch
+### Step 2: Delete the Remote Branch
 
 ```bash
 git push origin --delete <branch>
@@ -254,7 +241,6 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 | Create team | `TeamCreate` |
 | Create worktree + worker | `mcp__plugin_crux-hive_crux__start_worktree_session` |
 | Send message to worker | `SendMessage` |
-| Request worker shutdown | `SendMessage` (type: `shutdown_request`) |
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
 | Merge PR | `gh pr merge <number> --squash` |
@@ -268,6 +254,7 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 ## Important Notes
 
 - Always use `planMode: true` when starting worker sessions
+- When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins (via `plan_approval_request`/`plan_approval_response`)
 - Workers should create PRs, not push directly to main
 - Review PRs and ask user before merging
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself

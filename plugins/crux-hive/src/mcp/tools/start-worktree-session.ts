@@ -44,8 +44,9 @@ function buildAgentTeamsFlags(args: {
   leadSessionId: string;
   agentColor?: string;
   model?: string;
+  planMode?: boolean;
 }): string {
-  const { teamName, agentName, leadSessionId, agentColor, model } = args;
+  const { teamName, agentName, leadSessionId, agentColor, model, planMode } = args;
   const agentId = `${agentName}@${teamName}`;
 
   const flags = [
@@ -62,6 +63,10 @@ function buildAgentTeamsFlags(args: {
 
   if (model) {
     flags.push(`--model ${shellEscape(model)}`);
+  }
+
+  if (planMode) {
+    flags.push("--plan-mode-required");
   }
 
   return flags.join(" ");
@@ -158,6 +163,7 @@ export async function startWorktreeSession(
       leadSessionId,
       agentColor,
       model,
+      planMode,
     });
   }
 
