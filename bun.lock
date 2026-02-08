@@ -15,7 +15,7 @@
     },
     "plugins/crux-hive": {
       "name": "crux-hive",
-      "version": "5.2.0",
+      "version": "5.3.0",
       "bin": {
         "crux-hive-mcp": "./src/mcp/server.ts",
       },
