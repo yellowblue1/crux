@@ -70,3 +70,7 @@ claude plugin uninstall crux-hive
 claude plugin uninstall crux-monitor  # if installed
 claude plugin marketplace remove crux
 ```
+
+## Contributors
+
+Thanks to all contributors!
