@@ -55,7 +55,9 @@ function initializeSchema(db: Database): void {
       tmux_window_id TEXT,
       date_part TEXT,
       git_branch TEXT,
-      process_pid INTEGER
+      process_pid INTEGER,
+      context_window_used REAL,
+      context_window_remaining REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
@@ -98,6 +100,8 @@ function insertTestEvent(
     tmuxWindowId?: string | null;
     gitBranch?: string;
     processPid?: number | null;
+    contextWindowUsed?: number | null;
+    contextWindowRemaining?: number | null;
   },
 ): void {
   const eventId = crypto.randomUUID();
@@ -115,8 +119,9 @@ function insertTestEvent(
   db.prepare(
     `INSERT INTO events (
       event_id, session_id, event_type, created_at,
-      project_dir, summary, tmux_window_id, date_part, git_branch, project_name, process_pid
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      project_dir, summary, tmux_window_id, date_part, git_branch, project_name, process_pid,
+      context_window_used, context_window_remaining
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     eventId,
     options.sessionId,
@@ -129,6 +134,8 @@ function insertTestEvent(
     options.gitBranch || "main",
     projectName,
     options.processPid ?? null,
+    options.contextWindowUsed ?? null,
+    options.contextWindowRemaining ?? null,
   );
 }
 
@@ -353,6 +360,48 @@ describe("recordEvent", () => {
     expect(events.length).toBe(1);
     expect(events[0].session_id).toBe("");
     expect(events[0].project_dir).toBe("");
+  });
+
+  it("should insert event with context window data", () => {
+    recordEvent({
+      eventType: "Stop",
+      summary: "Task completed",
+      input: { session_id: "sess-ctx", cwd: "/test" },
+      contextWindowUsed: 45.2,
+      contextWindowRemaining: 54.8,
+    });
+
+    const db = getDb(true);
+    const events = db.query("SELECT * FROM events").all() as Array<{
+      session_id: string;
+      context_window_used: number | null;
+      context_window_remaining: number | null;
+    }>;
+    db.close();
+
+    expect(events.length).toBe(1);
+    expect(events[0].context_window_used).toBe(45.2);
+    expect(events[0].context_window_remaining).toBe(54.8);
+  });
+
+  it("should handle null context window data", () => {
+    recordEvent({
+      eventType: "Stop",
+      summary: "Task completed",
+      input: { session_id: "sess-no-ctx", cwd: "/test" },
+    });
+
+    const db = getDb(true);
+    const events = db.query("SELECT * FROM events").all() as Array<{
+      session_id: string;
+      context_window_used: number | null;
+      context_window_remaining: number | null;
+    }>;
+    db.close();
+
+    expect(events.length).toBe(1);
+    expect(events[0].context_window_used).toBeNull();
+    expect(events[0].context_window_remaining).toBeNull();
   });
 });
 
@@ -611,6 +660,46 @@ describe("getActiveEvents", () => {
 
     expect(events.length).toBe(1);
     expect(events[0].project_name).toBe("my-awesome-project");
+  });
+
+  it("should include context_window fields in response", () => {
+    const db = getDb();
+    initializeSchema(db);
+
+    insertTestEvent(db, {
+      sessionId: "ctx-response-test",
+      eventType: "Stop",
+      createdAt: "2024-01-01T10:00:00.000Z",
+      contextWindowUsed: 72.5,
+      contextWindowRemaining: 27.5,
+    });
+
+    db.close();
+
+    const events = getActiveEvents("waiting");
+
+    expect(events.length).toBe(1);
+    expect(events[0].context_window_used).toBe(72.5);
+    expect(events[0].context_window_remaining).toBe(27.5);
+  });
+
+  it("should return null context_window fields when not set", () => {
+    const db = getDb();
+    initializeSchema(db);
+
+    insertTestEvent(db, {
+      sessionId: "no-ctx-response-test",
+      eventType: "Stop",
+      createdAt: "2024-01-01T10:00:00.000Z",
+    });
+
+    db.close();
+
+    const events = getActiveEvents("waiting");
+
+    expect(events.length).toBe(1);
+    expect(events[0].context_window_used).toBeNull();
+    expect(events[0].context_window_remaining).toBeNull();
   });
 
   it("should use default summary if not provided", () => {

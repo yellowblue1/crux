@@ -161,6 +161,8 @@ async function handleEventLog(args: string[]): Promise<void> {
     tmuxWindowId,
     gitBranch,
     projectName,
+    contextWindowUsed: input.context_window?.used_percentage ?? null,
+    contextWindowRemaining: input.context_window?.remaining_percentage ?? null,
   });
 }
 
@@ -216,6 +218,8 @@ async function handleNotificationCommand(args: string[]): Promise<void> {
         gitBranch,
         projectName,
         processPid: evtType === "SessionStart" ? processPid : null,
+        contextWindowUsed: input.context_window?.used_percentage ?? null,
+        contextWindowRemaining: input.context_window?.remaining_percentage ?? null,
       });
     };
 

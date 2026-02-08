@@ -9,6 +9,7 @@ import { setReadStatus } from "../storage";
 import type { EventResponse } from "../types";
 import { copyToClipboard, showConfirmDialog, showToast } from "../ui";
 import { escapeHtml, formatTime, isAiSummary } from "../utils";
+import "./context-gauge";
 import "./status-badge";
 
 @customElement("event-row")
@@ -118,6 +119,13 @@ export class EventRow extends LitElement {
         </td>
         <td class="col-time">
           <span class="time">${formatTime(event.created_at)}</span>
+        </td>
+        <td class="col-context">
+          ${
+            event.context_window_used != null
+              ? html`<context-gauge .percentage=${event.context_window_used}></context-gauge>`
+              : html`<span class="no-data">-</span>`
+          }
         </td>
         <td class="col-summary">
           <div class="summary-wrapper">

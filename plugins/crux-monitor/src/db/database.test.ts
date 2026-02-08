@@ -46,6 +46,8 @@ describe("database test helpers", () => {
       expect(columnNames).toContain("tmux_window_id");
       expect(columnNames).toContain("date_part");
       expect(columnNames).toContain("git_branch");
+      expect(columnNames).toContain("context_window_used");
+      expect(columnNames).toContain("context_window_remaining");
     });
 
     it("should create indexes", () => {

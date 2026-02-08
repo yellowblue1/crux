@@ -8,6 +8,10 @@ export interface NotificationInput {
   transcript_path?: string;
   reason?: string;
   notification_type?: string;
+  context_window?: {
+    used_percentage?: number;
+    remaining_percentage?: number;
+  };
 }
 
 /**

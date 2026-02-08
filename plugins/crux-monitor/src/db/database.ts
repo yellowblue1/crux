@@ -69,7 +69,9 @@ function buildActiveEventsQuery(mode: FilterMode): string {
       project_dir,
       project_name,
       tmux_window_id,
-      git_branch
+      git_branch,
+      context_window_used,
+      context_window_remaining
     FROM events e1
     WHERE e1.session_id != ''
     AND created_at = (
@@ -94,6 +96,8 @@ function mapEventToResponse(row: Event): EventResponse {
     summary: row.summary || getDefaultSummary(row.event_type),
     tmux_command: getTmuxCommand(row),
     tmux_window_id: row.tmux_window_id || null,
+    context_window_used: row.context_window_used ?? null,
+    context_window_remaining: row.context_window_remaining ?? null,
   };
 }
 
@@ -163,10 +167,22 @@ export interface RecordEventOptions {
   gitBranch?: string | null;
   projectName?: string | null;
   processPid?: number | null;
+  contextWindowUsed?: number | null;
+  contextWindowRemaining?: number | null;
 }
 
 export function recordEvent(options: RecordEventOptions): void {
-  const { eventType, summary, input, tmuxWindowId, gitBranch, projectName, processPid } = options;
+  const {
+    eventType,
+    summary,
+    input,
+    tmuxWindowId,
+    gitBranch,
+    projectName,
+    processPid,
+    contextWindowUsed,
+    contextWindowRemaining,
+  } = options;
 
   ensureDbDir();
   const db = getDb();
@@ -179,8 +195,9 @@ export function recordEvent(options: RecordEventOptions): void {
     db.prepare(
       `INSERT INTO events (
         event_id, session_id, event_type, created_at,
-        project_dir, summary, tmux_window_id, date_part, git_branch, project_name, process_pid
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        project_dir, summary, tmux_window_id, date_part, git_branch, project_name, process_pid,
+        context_window_used, context_window_remaining
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       eventId,
       input.session_id || "",
@@ -193,6 +210,8 @@ export function recordEvent(options: RecordEventOptions): void {
       gitBranch || "",
       projectName || null,
       processPid || null,
+      contextWindowUsed ?? null,
+      contextWindowRemaining ?? null,
     );
   } finally {
     db.close();

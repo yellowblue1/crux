@@ -12,6 +12,8 @@ export interface EventResponse {
   summary: string;
   tmux_command: string | null;
   tmux_window_id: string | null;
+  context_window_used: number | null;
+  context_window_remaining: number | null;
 }
 
 export type FilterMode = "waiting" | "active" | "all";

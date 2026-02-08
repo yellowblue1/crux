@@ -24,7 +24,9 @@ export function createTestDatabase(): Database {
       tmux_window_id TEXT,
       date_part TEXT,
       git_branch TEXT,
-      process_pid INTEGER
+      process_pid INTEGER,
+      context_window_used REAL,
+      context_window_remaining REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
@@ -46,6 +48,8 @@ export interface SeedEventOptions {
   tmuxWindowId?: string;
   gitBranch?: string;
   processPid?: number | null;
+  contextWindowUsed?: number | null;
+  contextWindowRemaining?: number | null;
 }
 
 /**
@@ -63,6 +67,8 @@ export function seedEvent(db: Database, options: SeedEventOptions = {}): number 
     tmuxWindowId = null,
     gitBranch = "main",
     processPid = null,
+    contextWindowUsed = null,
+    contextWindowRemaining = null,
   } = options;
 
   const datePart = createdAt.split("T")[0];
@@ -71,8 +77,9 @@ export function seedEvent(db: Database, options: SeedEventOptions = {}): number 
     .prepare(
       `INSERT INTO events (
         event_id, session_id, event_type, created_at,
-        project_dir, project_name, summary, tmux_window_id, date_part, git_branch, process_pid
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        project_dir, project_name, summary, tmux_window_id, date_part, git_branch, process_pid,
+        context_window_used, context_window_remaining
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       eventId,
@@ -86,6 +93,8 @@ export function seedEvent(db: Database, options: SeedEventOptions = {}): number 
       datePart,
       gitBranch,
       processPid,
+      contextWindowUsed,
+      contextWindowRemaining,
     );
 
   return Number(result.lastInsertRowid);

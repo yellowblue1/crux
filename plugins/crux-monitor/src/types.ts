@@ -14,9 +14,15 @@ export interface Event {
   project_name: string | null;
   tmux_window_id: string | null;
   git_branch: string | null;
+  context_window_used: number | null;
+  context_window_remaining: number | null;
 }
 
 export interface EventInput {
   session_id?: string;
   cwd?: string;
+  context_window?: {
+    used_percentage?: number;
+    remaining_percentage?: number;
+  };
 }

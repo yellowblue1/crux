@@ -127,6 +127,9 @@
 .col-time {
   width: 80px;
 }
+.col-context {
+  width: 120px;
+}
 .col-summary {
   min-width: 200px;
 }
@@ -228,6 +231,10 @@
 }
 
 .no-tmux {
+  @apply text-text-muted italic text-sm opacity-70;
+}
+
+.no-data {
   @apply text-text-muted italic text-sm opacity-70;
 }
 
@@ -376,6 +383,35 @@
   @apply outline-2 outline-accent-blue outline-offset-2;
 }
 
+/* Context window gauge */
+.context-gauge {
+  @apply flex items-center gap-2;
+}
+
+.context-gauge-bar {
+  @apply flex-1 h-1.5 bg-bg-tertiary rounded-full overflow-hidden;
+}
+
+.context-gauge-fill {
+  @apply h-full rounded-full transition-all;
+}
+
+.context-gauge-label {
+  @apply text-xs tabular-nums text-text-muted whitespace-nowrap;
+}
+
+.context-gauge--low .context-gauge-fill {
+  @apply bg-accent-green;
+}
+
+.context-gauge--medium .context-gauge-fill {
+  @apply bg-accent-yellow;
+}
+
+.context-gauge--high .context-gauge-fill {
+  @apply bg-accent-red;
+}
+
 /* AI Summary indicator */
 .summary-wrapper {
   @apply flex items-center gap-1.5 min-w-0;
@@ -426,7 +462,8 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .col-copy {
+  .col-copy,
+  .col-context {
     display: none;
   }
 
