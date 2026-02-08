@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import type { FSWatcher } from "node:fs";
-import type { ClaudeProcess, TmuxPane } from "../types";
+import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 import { SessionManager, type SessionManagerDeps } from "./manager";
 
 /**
@@ -33,17 +33,22 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
   ];
   const defaultProcesses: ClaudeProcess[] = [{ pid: 2000, ppid: 1000 }];
+  const defaultProcessTable: ProcessInfo[] = [
+    { pid: 1000, ppid: 1, command: "-bash" },
+    { pid: 2000, ppid: 1000, command: "claude" },
+  ];
   const watchers = new Map<string, MockFSWatcher>();
 
   const deps: SessionManagerDeps = {
     isTmuxAvailable: () => true,
     getAllTmuxPanes: () => defaultPanes,
+    getProcessTable: () => defaultProcessTable,
     getClaudeProcesses: () => defaultProcesses,
     getProcessCwd: () => "/home/user/project",
     getProjectName: () => "my-project",
     getGitBranch: () => "main",
     buildTmuxTarget: (pane) => `${pane.session_name}:${pane.window_index}.${pane.pane_index}`,
-    matchProcessesToPanes: (processes, panes) => {
+    matchProcessesToPanes: (processes, panes, _processTable) => {
       const paneByPid = new Map<number, TmuxPane>();
       for (const pane of panes) paneByPid.set(pane.pane_pid, pane);
       const result = new Map<string, { process: ClaudeProcess; pane: TmuxPane }>();

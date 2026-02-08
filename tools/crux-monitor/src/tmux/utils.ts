@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ClaudeProcess, TmuxPane } from "../types";
+import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 
 /**
  * Escape a string for safe use in shell commands.
@@ -62,32 +62,50 @@ export function getAllTmuxPanes(exec: ExecFn = defaultExec): TmuxPane[] {
 }
 
 /**
- * Find all Claude Code processes.
- * Matches processes named "claude" (the CLI binary).
+ * Get the full process table from ps.
+ * Returns all processes with PID, PPID, and command.
  */
-export function getClaudeProcesses(exec: ExecFn = defaultExec): ClaudeProcess[] {
+export function getProcessTable(exec: ExecFn = defaultExec): ProcessInfo[] {
   try {
     const output = exec("ps -eo pid,ppid,command");
     return output
       .split("\n")
-      .filter((line) => {
-        const trimmed = line.trim();
-        // Match lines where the command is "claude" (standalone binary)
-        // Avoid matching "grep claude" or other false positives
-        return /\bclaude\b/.test(trimmed) && !/grep/.test(trimmed);
-      })
+      .slice(1) // skip header line
+      .filter(Boolean)
       .map((line) => {
         const parts = line.trim().split(/\s+/);
         if (parts.length < 3) return null;
         const pid = Number.parseInt(parts[0], 10);
         const ppid = Number.parseInt(parts[1], 10);
         if (Number.isNaN(pid) || Number.isNaN(ppid)) return null;
-        return { pid, ppid };
+        return { pid, ppid, command: parts.slice(2).join(" ") };
       })
-      .filter((p): p is ClaudeProcess => p !== null);
+      .filter((p): p is ProcessInfo => p !== null);
   } catch {
     return [];
   }
+}
+
+/**
+ * Check if a command string is a Claude CLI binary.
+ * Matches only the actual `claude` binary name (case-sensitive),
+ * not processes that happen to have "claude" in their arguments or paths.
+ */
+export function isClaudeBinary(command: string): boolean {
+  const firstWord = command.split(/\s+/)[0] || "";
+  const binaryName = firstWord.split("/").pop() || "";
+  return binaryName === "claude";
+}
+
+/**
+ * Find all Claude Code CLI processes from a process table.
+ * Only matches the `claude` binary itself, filtering out Claude Desktop app,
+ * editors with .claude/ paths, and other false positives.
+ */
+export function getClaudeProcesses(processTable: ProcessInfo[]): ClaudeProcess[] {
+  return processTable
+    .filter((p) => isClaudeBinary(p.command))
+    .map((p) => ({ pid: p.pid, ppid: p.ppid }));
 }
 
 /**
@@ -283,22 +301,47 @@ export function switchToPane(paneId: string, exec: ExecFn = defaultExec): boolea
 }
 
 /**
- * Match Claude processes to tmux panes by PPID → pane_pid
+ * Match Claude processes to tmux panes by walking the process tree.
+ * For each Claude process, walks up the PPID chain to find an ancestor
+ * that is a tmux pane's initial process (pane_pid).
+ * This handles cases where claude is launched through intermediate processes
+ * (e.g., shell → wrapper script → claude).
  */
 export function matchProcessesToPanes(
   processes: ClaudeProcess[],
   panes: TmuxPane[],
+  processTable: ProcessInfo[] = [],
 ): Map<string, { process: ClaudeProcess; pane: TmuxPane }> {
   const paneByPid = new Map<number, TmuxPane>();
   for (const pane of panes) {
     paneByPid.set(pane.pane_pid, pane);
   }
 
+  // Build PID → ProcessInfo lookup for ancestor walking
+  const processById = new Map<number, ProcessInfo>();
+  for (const p of processTable) {
+    processById.set(p.pid, p);
+  }
+
   const result = new Map<string, { process: ClaudeProcess; pane: TmuxPane }>();
+
   for (const proc of processes) {
-    const pane = paneByPid.get(proc.ppid);
-    if (pane) {
-      result.set(pane.pane_id, { process: proc, pane });
+    // Walk up the process tree from claude's parent
+    let currentPid = proc.ppid;
+    const visited = new Set<number>();
+
+    while (currentPid > 1 && !visited.has(currentPid)) {
+      visited.add(currentPid);
+
+      const pane = paneByPid.get(currentPid);
+      if (pane) {
+        result.set(pane.pane_id, { process: proc, pane });
+        break;
+      }
+
+      const parent = processById.get(currentPid);
+      if (!parent) break;
+      currentPid = parent.ppid;
     }
   }
 

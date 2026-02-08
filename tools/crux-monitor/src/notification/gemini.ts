@@ -104,6 +104,9 @@ export async function generatePaneSummary(
   const prompt = buildConversationPrompt(conversationTail);
 
   try {
+    const startTime = Date.now();
+    console.log(`[Gemini] Requesting summary (input: ${conversationTail.length} chars)`);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -125,6 +128,7 @@ export async function generatePaneSummary(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      console.log(`[Gemini] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`);
       return null;
     }
 
@@ -132,12 +136,16 @@ export async function generatePaneSummary(
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
+      console.log(`[Gemini] Empty response (${Date.now() - startTime}ms)`);
       return null;
     }
 
-    // Truncate to max length
-    return text.slice(0, MAX_SUMMARY_LENGTH).trim();
-  } catch {
+    const summary = text.slice(0, MAX_SUMMARY_LENGTH).trim();
+    console.log(`[Gemini] Summary received (${Date.now() - startTime}ms): ${summary}`);
+    return summary;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown error";
+    console.log(`[Gemini] Request error: ${message}`);
     return null;
   }
 }

@@ -1,6 +1,6 @@
 import { type FSWatcher, watch } from "node:fs";
 import * as tmux from "../tmux/utils.js";
-import type { SessionResponse, SessionState, TmuxPane } from "../types";
+import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
 
 /**
  * Dependencies for the SessionManager.
@@ -9,12 +9,17 @@ import type { SessionResponse, SessionState, TmuxPane } from "../types";
 export interface SessionManagerDeps {
   isTmuxAvailable: () => boolean;
   getAllTmuxPanes: () => TmuxPane[];
-  getClaudeProcesses: () => ReturnType<typeof tmux.getClaudeProcesses>;
+  getProcessTable: () => ProcessInfo[];
+  getClaudeProcesses: (processTable: ProcessInfo[]) => ClaudeProcess[];
   getProcessCwd: (pid: number) => string | null;
   getProjectName: (cwd: string) => string;
   getGitBranch: (cwd: string) => string | null;
   buildTmuxTarget: (pane: TmuxPane) => string;
-  matchProcessesToPanes: typeof tmux.matchProcessesToPanes;
+  matchProcessesToPanes: (
+    processes: ClaudeProcess[],
+    panes: TmuxPane[],
+    processTable: ProcessInfo[],
+  ) => Map<string, { process: ClaudeProcess; pane: TmuxPane }>;
   findSessionJsonlPath: (cwd: string) => string | null;
   extractJsonlConversation: (jsonlPath: string) => string | null;
   generateSummary: (content: string) => Promise<string | null>;
@@ -51,6 +56,7 @@ export class SessionManager {
     this.deps = {
       isTmuxAvailable: deps?.isTmuxAvailable ?? tmux.isTmuxAvailable,
       getAllTmuxPanes: deps?.getAllTmuxPanes ?? tmux.getAllTmuxPanes,
+      getProcessTable: deps?.getProcessTable ?? tmux.getProcessTable,
       getClaudeProcesses: deps?.getClaudeProcesses ?? tmux.getClaudeProcesses,
       getProcessCwd: deps?.getProcessCwd ?? tmux.getProcessCwd,
       getProjectName: deps?.getProjectName ?? tmux.getProjectName,
@@ -154,8 +160,9 @@ export class SessionManager {
     }
 
     const panes = this.deps.getAllTmuxPanes();
-    const processes = this.deps.getClaudeProcesses();
-    const matches = this.deps.matchProcessesToPanes(processes, panes);
+    const processTable = this.deps.getProcessTable();
+    const processes = this.deps.getClaudeProcesses(processTable);
+    const matches = this.deps.matchProcessesToPanes(processes, panes, processTable);
 
     const foundPanes = new Set<string>();
     let changed = false;

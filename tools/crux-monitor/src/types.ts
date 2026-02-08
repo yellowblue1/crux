@@ -30,3 +30,9 @@ export interface ClaudeProcess {
   pid: number;
   ppid: number;
 }
+
+export interface ProcessInfo {
+  pid: number;
+  ppid: number;
+  command: string;
+}
