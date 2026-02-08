@@ -18,12 +18,12 @@ You are now in **Orchestrator Mode**. Your role is to orchestrate ALL tasks—im
 ┌─────────────────────────────────────────────────────────────┐
 │  Orchestrator Mode (this session)                           │
 │                                                             │
-│  1. TeamCreate → creates team + config.json                 │
+│  1. TeamCreate → creates team (once per conversation)        │
 │  2. Discuss task with user → start_worktree_session          │
 │     (with teamName → worker joins as teammate)               │
 │  3. Worker uses built-in SendMessage → auto-delivered         │
-│  4. Review PR → Merge → Update main → Cleanup                │
-│  5. TeamDelete when all work is done                         │
+│  4. Review PR → Merge/Close → Shutdown worker → Cleanup      │
+│  (repeat 2-4 for additional tasks)                           │
 └─────────────────────────────────────────────────────────────┘
          │                          ▲
          │ delegate                 │ SendMessage (built-in, auto-delivered)
@@ -57,6 +57,8 @@ TeamCreate({ team_name: "my-project" })
 ```
 
 This creates the team config at `~/.claude/teams/my-project/config.json` with your session as the team lead.
+
+**One team per conversation is sufficient.** You don't need to delete and recreate teams between tasks. Workers can be added and removed independently while the team persists. Think of the team as a lightweight session context, not a per-task resource.
 
 ## Phase 1: Task Delegation
 
@@ -177,33 +179,52 @@ When notified that a PR is ready:
    git fetch origin && git pull origin main
    ```
 
-## Phase 4: Cleanup
+## Phase 4: Worker Shutdown and Cleanup
 
-After merging, clean up the worktree (this also deletes the local branch):
+**IMPORTANT**: Always shut down workers before removing worktrees. This ensures clean process termination.
 
-1. **Check for merged worktrees**
-   ```bash
-   git gtr clean --merged -n
-   ```
+### Step 1: Shut Down the Worker
 
-2. **Remove individually** (do NOT use `git gtr clean --merged` directly)
-   ```bash
-   git gtr rm <branch> --yes
-   ```
+Send a shutdown request and **wait for approval** before proceeding:
 
-3. **Delete remote branch**
-   ```bash
-   git push origin --delete <branch>
-   ```
+```
+SendMessage({
+  type: "shutdown_request",
+  recipient: "worker-auth",
+  content: "Task complete, please shut down."
+})
+```
 
-4. **When all work is done**, clean up the team:
-   ```
-   TeamDelete()
-   ```
+Wait for the `shutdown_approved` message. If the worker doesn't respond (e.g., it was busy monitoring CI), resend the request.
+
+### Step 2: Remove the Worktree
+
+**After merging a PR:**
+
+```bash
+# Verify the worktree is eligible for cleanup
+git gtr clean --merged -n
+
+# Remove individually (do NOT use `git gtr clean --merged` directly)
+git gtr rm <branch> --yes
+```
+
+**After closing a PR (no merge):**
+
+```bash
+# Directly remove — `git gtr clean --merged` won't detect closed PRs
+git gtr rm <branch> --yes
+```
+
+### Step 3: Delete the Remote Branch
+
+```bash
+git push origin --delete <branch>
+```
 
 ### Handling Uncommitted Changes
 
-If `git gtr clean --merged -n` shows `[!] Skipping <branch> (has uncommitted changes)`:
+If `git gtr rm` or `git gtr clean --merged -n` shows `[!] Skipping <branch> (has uncommitted changes)`:
 
 1. **Inspect the changes** using `git gtr run`:
    ```bash
@@ -220,7 +241,11 @@ If `git gtr clean --merged -n` shows `[!] Skipping <branch> (has uncommitted cha
 
 > **WARNING**: NEVER use `git worktree remove` directly—always use `git gtr rm`. The `git gtr rm` command runs the preRemove hook which cleans up the associated tmux session. Using `git worktree remove` directly will leave orphaned tmux sessions.
 
-This automatically cleans up the tmux window via the preRemove hook.
+### About TeamDelete
+
+`TeamDelete` only removes lightweight files (`~/.claude/teams/` and `~/.claude/tasks/`). It does **not** clean up any actual resources — worktrees, tmux sessions, and branches are all cleaned up individually in the steps above.
+
+Use `TeamDelete` only when you need to create a **new team** in the same conversation (since `TeamCreate` requires no existing team). At the end of a conversation, leftover team files are harmless and will not affect future sessions.
 
 ## Quick Reference
 
@@ -229,6 +254,7 @@ This automatically cleans up the tmux window via the preRemove hook.
 | Create team | `TeamCreate` |
 | Create worktree + worker | `mcp__plugin_crux-hive_crux__start_worktree_session` |
 | Send message to worker | `SendMessage` |
+| Request worker shutdown | `SendMessage` (type: `shutdown_request`) |
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
 | Merge PR | `gh pr merge <number> --squash` |
@@ -237,14 +263,15 @@ This automatically cleans up the tmux window via the preRemove hook.
 | Run command in worktree | `git gtr run <branch> <cmd>` |
 | Remove worktree | `git gtr rm <branch> --yes` |
 | Delete remote branch | `git push origin --delete <branch>` |
-| Clean up team | `TeamDelete` |
+| Reset team (optional) | `TeamDelete` |
 
 ## Important Notes
 
-- **Create team first**: Always call `TeamCreate` before delegating tasks
+- **Create team once**: Call `TeamCreate` once at the start of a conversation. One team is sufficient for all tasks.
 - **Always pass `teamName` + `agentName`**: This registers the worker as a teammate
 - **No watcher needed**: Messages are auto-delivered via Agent Teams
 - **Bidirectional**: You can send messages to workers using `SendMessage`
+- **Shutdown before cleanup**: Always send a shutdown request and wait for approval before removing worktrees
 - Always use `planMode: true` when starting worker sessions
 - Workers should create PRs, not push directly to main
 - Review PRs and ask user before merging
@@ -252,4 +279,4 @@ This automatically cleans up the tmux window via the preRemove hook.
 - The orchestrator session stays on the main branch
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
-- Call `TeamDelete` when all work is complete
+- `TeamDelete` is optional—only needed if you want to create a new team in the same conversation
