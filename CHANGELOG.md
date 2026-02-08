@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.3.0] - 2026-02-08
+
+### Added
+
+- feat: Add `--plan-mode-required` flag support for Agent Teams workers ([#72](https://github.com/yellowblue1/crux/pull/72))
+
+### Changed
+
+- refactor: Simplify worker cleanup by removing `shutdown_request` step from orchestrator workflow ([#72](https://github.com/yellowblue1/crux/pull/72))
+- refactor: Replace `.crux-hive-worker.json` with team config cwd lookup ([#74](https://github.com/yellowblue1/crux/pull/74))
+
+## [5.2.0] - 2026-02-08
+
+### Changed
+
+- docs: Improve orchestrator-mode clarity, add prerequisites and delegation-failure guidance ([#62](https://github.com/yellowblue1/crux/pull/62))
+
+## [5.1.0] - 2026-02-08
+
+### Added
+
+- feat: Auto-deregister Agent Teams members on worktree removal ([#62](https://github.com/yellowblue1/crux/pull/62))
+
+## [5.0.0] - 2026-02-08
+
+### Changed
+
+- feat: Replace custom file-based messaging with Agent Teams built-in tools ([#62](https://github.com/yellowblue1/crux/pull/62))
+- Remove 9 obsolete files (orchestrator sessions, poll-notifications, send_message MCP tool)
+- Workers launched as Agent Teams teammates via `--agent-id`, `--team-name`, `--parent-session-id` flags
+
 ## [4.5.0] - 2026-02-06
 
 ### Changed
