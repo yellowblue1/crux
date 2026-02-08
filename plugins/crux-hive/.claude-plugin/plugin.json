@@ -1,6 +1,6 @@
 {
   "name": "crux-hive",
-  "version": "5.3.0",
+  "version": "5.3.1",
   "description": "Git worktree workflow with tmux integration for parallel Claude Code sessions",
   "hooks": {
     "SessionStart": [
