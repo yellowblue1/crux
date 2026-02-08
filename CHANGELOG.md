@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.3.1] - 2026-02-08
+
+### Fixed
+
+- fix: Replace hardcoded "main" with generic default branch in orchestrator-mode ([#78](https://github.com/yellowblue1/crux/pull/78))
+
 ## [5.3.0] - 2026-02-08
 
 ### Added
