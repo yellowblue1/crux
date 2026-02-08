@@ -7,6 +7,12 @@ set -euo pipefail
 # Hook runs in the worktree directory
 worktree_path="$PWD"
 
+# Deregister worker from Agent Teams config (if applicable)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if command -v bun >/dev/null 2>&1; then
+    bun run "$SCRIPT_DIR/deregister-worker.ts" "$worktree_path" 2>/dev/null || true
+fi
+
 # Skip if tmux is not running
 if ! tmux info >/dev/null 2>&1; then
     exit 0

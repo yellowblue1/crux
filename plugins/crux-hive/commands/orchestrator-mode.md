@@ -199,6 +199,8 @@ Wait for the `shutdown_approved` message. If the worker doesn't respond (e.g., i
 
 ### Step 2: Remove the Worktree
 
+When a worktree is removed via `git gtr rm`, the cleanup hook automatically deregisters the worker from the Agent Teams config (`~/.claude/teams/{teamName}/config.json`). This means `TeamDelete` will not fail due to stale active members.
+
 **After merging a PR:**
 
 ```bash
@@ -244,6 +246,8 @@ If `git gtr rm` or `git gtr clean --merged -n` shows `[!] Skipping <branch> (has
 ### About TeamDelete
 
 `TeamDelete` only removes lightweight files (`~/.claude/teams/` and `~/.claude/tasks/`). It does **not** clean up any actual resources — worktrees, tmux sessions, and branches are all cleaned up individually in the steps above.
+
+Workers are automatically deregistered from the team config when their worktrees are removed (via the cleanup hook), so `TeamDelete` should succeed without manual intervention.
 
 Use `TeamDelete` only when you need to create a **new team** in the same conversation (since `TeamCreate` requires no existing team). At the end of a conversation, leftover team files are harmless and will not affect future sessions.
 

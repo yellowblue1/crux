@@ -4,9 +4,11 @@ import { join } from "node:path";
 import type { TeamConfig } from "./agent-teams.js";
 import {
   createInbox,
+  deregisterTeamMember,
   getLeadSessionId,
   readTeamConfig,
   registerTeamMember,
+  removeInbox,
 } from "./agent-teams.js";
 
 // Use a temp directory to avoid modifying the real ~/.claude/teams
@@ -231,5 +233,101 @@ describe("createInbox", () => {
     createInbox(teamName, "worker-b");
 
     expect(existsSync(join(teamDir, "inboxes"))).toBe(true);
+  });
+});
+
+describe("deregisterTeamMember", () => {
+  it("should remove a member from the team config", () => {
+    const teamName = "deregister-test";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-a@${teamName}`,
+      name: "worker-a",
+      agentType: "Bash",
+      isActive: true,
+    });
+    writeTestConfig(teamName, config);
+
+    const result = deregisterTeamMember(teamName, "worker-a");
+
+    expect(result).toBe(true);
+    const updated = readTeamConfig(teamName);
+    expect(updated?.members).toHaveLength(1);
+    expect(updated?.members[0].name).toBe("team-lead");
+  });
+
+  it("should return false for non-existent team", () => {
+    const result = deregisterTeamMember("nonexistent", "worker-a");
+    expect(result).toBe(false);
+  });
+
+  it("should return false for non-existent member", () => {
+    const teamName = "deregister-missing";
+    writeTestConfig(teamName, createValidConfig(teamName));
+
+    const result = deregisterTeamMember(teamName, "no-such-worker");
+    expect(result).toBe(false);
+  });
+
+  it("should be idempotent — second call returns false", () => {
+    const teamName = "deregister-idempotent";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-a@${teamName}`,
+      name: "worker-a",
+      agentType: "Bash",
+      isActive: true,
+    });
+    writeTestConfig(teamName, config);
+
+    expect(deregisterTeamMember(teamName, "worker-a")).toBe(true);
+    expect(deregisterTeamMember(teamName, "worker-a")).toBe(false);
+  });
+
+  it("should clean up lock file after success", () => {
+    const teamName = "deregister-lock";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-a@${teamName}`,
+      name: "worker-a",
+      agentType: "Bash",
+    });
+    writeTestConfig(teamName, config);
+
+    deregisterTeamMember(teamName, "worker-a");
+
+    const lockPath = join(getTeamDir(teamName), "config.json.lock");
+    expect(existsSync(lockPath)).toBe(false);
+  });
+});
+
+describe("removeInbox", () => {
+  it("should remove an existing inbox file", () => {
+    const teamName = "remove-inbox-test";
+    const teamDir = getTeamDir(teamName);
+    const inboxDir = join(teamDir, "inboxes");
+    mkdirSync(inboxDir, { recursive: true });
+    writeFileSync(join(inboxDir, "worker-a.json"), "[]");
+
+    const result = removeInbox(teamName, "worker-a");
+
+    expect(result).toBe(true);
+    expect(existsSync(join(inboxDir, "worker-a.json"))).toBe(false);
+  });
+
+  it("should return false for non-existent inbox", () => {
+    const result = removeInbox("nonexistent-team", "worker-a");
+    expect(result).toBe(false);
+  });
+
+  it("should be idempotent — second call returns false", () => {
+    const teamName = "remove-inbox-idempotent";
+    const teamDir = getTeamDir(teamName);
+    const inboxDir = join(teamDir, "inboxes");
+    mkdirSync(inboxDir, { recursive: true });
+    writeFileSync(join(inboxDir, "worker-a.json"), "[]");
+
+    expect(removeInbox(teamName, "worker-a")).toBe(true);
+    expect(removeInbox(teamName, "worker-a")).toBe(false);
   });
 });

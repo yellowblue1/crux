@@ -114,6 +114,68 @@ export function registerTeamMember(teamName: string, member: TeamMember): void {
 }
 
 /**
+ * Deregisters a team member from the team config.json.
+ * Uses a lock file to prevent concurrent writes.
+ * Returns true if the member was found and removed, false otherwise (idempotent).
+ */
+export function deregisterTeamMember(teamName: string, agentName: string): boolean {
+  const config = readTeamConfig(teamName);
+  if (!config) {
+    return false;
+  }
+
+  const configPath = getConfigPath(teamName);
+  const lockPath = `${configPath}.lock`;
+
+  // Acquire lock
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: "wx" });
+  } catch {
+    throw new Error(`Failed to acquire lock for team config: ${lockPath}`);
+  }
+
+  try {
+    // Re-read config inside lock to avoid TOCTOU
+    const freshContent = readFileSync(configPath, "utf-8");
+    const freshConfig: TeamConfig = JSON.parse(freshContent);
+
+    const index = freshConfig.members.findIndex((m) => m.name === agentName);
+    if (index < 0) {
+      return false;
+    }
+
+    freshConfig.members.splice(index, 1);
+    writeFileSync(configPath, JSON.stringify(freshConfig, null, 2));
+    return true;
+  } finally {
+    // Release lock
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      // Ignore lock cleanup failures
+    }
+  }
+}
+
+/**
+ * Removes the inbox file for a teammate.
+ * Returns true if the file was found and removed, false otherwise (idempotent).
+ */
+export function removeInbox(teamName: string, agentName: string): boolean {
+  const inboxPath = join(getTeamDir(teamName), "inboxes", `${agentName}.json`);
+  if (!existsSync(inboxPath)) {
+    return false;
+  }
+
+  try {
+    unlinkSync(inboxPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Creates the inbox file for a teammate.
  * Agent Teams uses these files for message delivery.
  */

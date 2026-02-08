@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { createInbox, getLeadSessionId, registerTeamMember } from "../utils/agent-teams.js";
 import { getMcpServersFromProject, updateClaudeConfig } from "../utils/claude-config.js";
@@ -218,6 +220,12 @@ export async function startWorktreeSession(
         isActive: true,
       });
       createInbox(teamName, agentName);
+
+      // Write worker metadata for cleanup hook to deregister on worktree removal
+      writeFileSync(
+        join(worktreePath, ".crux-hive-worker.json"),
+        JSON.stringify({ teamName, agentName }, null, 2),
+      );
     } catch (e) {
       return {
         content: [
