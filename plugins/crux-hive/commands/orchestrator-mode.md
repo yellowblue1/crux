@@ -268,6 +268,7 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 ## Important Notes
 
 - Always use `planMode: true` when starting worker sessions
+- When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins (via `plan_approval_request`/`plan_approval_response`)
 - Workers should create PRs, not push directly to main
 - Review PRs and ask user before merging
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself
