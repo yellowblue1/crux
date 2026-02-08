@@ -6,6 +6,10 @@ allowed-tools:
   - TeamCreate
   - SendMessage
   - TeamDelete
+  - TaskCreate
+  - TaskUpdate
+  - TaskList
+  - TaskGet
 ---
 
 # Orchestrator Mode
@@ -28,9 +32,11 @@ If any prerequisite is not met, inform the user before proceeding.
 │                                                             │
 │  1. TeamCreate → creates team (once per conversation)        │
 │  2. Discuss task with user → start_worktree_session          │
+│     → TaskCreate (track each worker's task)                  │
 │     (with teamName → worker joins as teammate)               │
 │  3. Worker uses built-in SendMessage → auto-delivered         │
-│  4. Review PR → Merge/Close → Cleanup                        │
+│     → TaskUpdate (track progress/completion)                 │
+│  4. Review PR → Merge/Close → TaskUpdate(completed)          │
 │  (repeat 2-4 for additional tasks)                           │
 └─────────────────────────────────────────────────────────────┘
          │                          ▲
@@ -55,6 +61,12 @@ Workers are launched as **Agent Teams teammates** using Claude Code's built-in t
 2. **start_worktree_session** (with `teamName`) launches the worker with Agent Teams flags
 3. The worker automatically has access to **SendMessage** (built-in) for bidirectional communication
 4. Messages are **auto-delivered** — no polling or watcher needed
+
+The orchestrator also uses **task tracking** for visibility across all delegated work:
+
+- **TaskCreate** records each delegated task with its objective and worker assignment
+- **TaskUpdate** reflects progress as workers report status
+- **TaskList** provides a dashboard of all active, pending, and completed work
 
 ## Phase 0: Create Team
 
@@ -136,6 +148,49 @@ mcp__plugin_crux-hive_crux__start_worktree_session({
 
 This creates a worktree, opens a new tmux window, and starts Claude Code as a teammate.
 
+### Track the Task
+
+After launching a worker, create a corresponding task to track it:
+
+```
+TaskCreate({
+  subject: "Add user authentication",
+  description: "Implement OAuth2 login flow with JWT tokens. Worker: worker-auth, Branch: feat/add-auth",
+  activeForm: "Implementing user authentication"
+})
+```
+
+Then assign the task to the worker and mark it in progress:
+
+```
+TaskUpdate({
+  taskId: "<id>",
+  status: "in_progress",
+  owner: "worker-auth"
+})
+```
+
+**Task creation rules:**
+- One task per worker — mirrors the "one task per worker" delegation rule
+- The `subject` should match the delegation objective (imperative form)
+- The `description` should include the worker name and branch for traceability
+- The `activeForm` should be present continuous (e.g., "Implementing authentication")
+- Set `owner` to the worker's `agentName` for clear assignment
+
+**Task dependencies** — when one task depends on another:
+
+```
+# Example: frontend task depends on API task
+TaskUpdate({
+  taskId: "<ui-task-id>",
+  status: "in_progress",
+  owner: "worker-ui",
+  addBlockedBy: ["<api-task-id>"]
+})
+```
+
+Use `addBlockedBy` when a task cannot be completed until another finishes (e.g., frontend blocked by API). Use `addBlocks` to express the same relationship from the other direction. Dependencies are informational for tracking — blocked tasks can still be started.
+
 ### When Delegation Fails
 
 If `start_worktree_session` fails, report the error to the user and ask how to proceed. If the user asks you to work directly instead of delegating, you may do so.
@@ -150,6 +205,21 @@ SendMessage({
   content: "Please also add rate limiting to the login endpoint",
   summary: "Add rate limiting request"
 })
+```
+
+### Update Task Status
+
+When a worker reports progress or completion, update the corresponding task:
+
+```
+# Worker reports PR is ready
+TaskUpdate({ taskId: "<id>", status: "completed" })
+```
+
+Use `TaskList` at any time to see the status of all tasks:
+
+```
+TaskList()
 ```
 
 ## Phase 3: PR Review and Merge
@@ -186,6 +256,11 @@ When notified that a PR is ready:
 6. **Update default branch**
    ```bash
    git fetch origin && git pull origin <default-branch>
+   ```
+
+7. **Mark the task as completed**
+   ```
+   TaskUpdate({ taskId: "<id>", status: "completed" })
    ```
 
 ## Phase 4: Cleanup
@@ -240,6 +315,10 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 |--------|--------------|
 | Create team | `TeamCreate` |
 | Create worktree + worker | `mcp__plugin_crux-hive_crux__start_worktree_session` |
+| Create task | `TaskCreate` |
+| Update task status | `TaskUpdate` |
+| List all tasks | `TaskList` |
+| Get task details | `TaskGet` |
 | Send message to worker | `SendMessage` |
 | List PRs | `gh pr list` |
 | View PR | `gh pr view <number>` |
@@ -258,4 +337,5 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 - Workers should create PRs, not push directly to the default branch
 - Review PRs and ask user before merging
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself
+- **Track every delegation with TaskCreate**—use `TaskList` to monitor progress across all workers
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
