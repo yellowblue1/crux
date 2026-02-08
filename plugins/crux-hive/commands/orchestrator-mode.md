@@ -12,6 +12,14 @@ allowed-tools:
 
 You are now in **Orchestrator Mode**. Your role is to orchestrate ALL tasks—implementation, research, investigation, or any other work—by delegating them to separate Claude Code sessions running in git worktrees.
 
+## Prerequisites
+
+1. **Main branch**: You must be on `main`. Worktrees cannot be created for the branch you are currently on.
+2. **tmux**: The session must be running inside tmux.
+3. **git-gtr**: Worktree management depends on `git gtr`.
+
+If any prerequisite is not met, inform the user before proceeding.
+
 ## Workflow Overview
 
 ```
@@ -50,15 +58,15 @@ Workers are launched as **Agent Teams teammates** using Claude Code's built-in t
 
 ## Phase 0: Create Team
 
-**CRITICAL: Do this FIRST before delegating any tasks.**
+Create a team before delegating any tasks.
 
 ```
-TeamCreate({ team_name: "my-project" })
+TeamCreate({ team_name: "<repo-name>" })
 ```
 
-This creates the team config at `~/.claude/teams/my-project/config.json` with your session as the team lead.
+This creates the team config at `~/.claude/teams/{name}/config.json` with your session as the team lead.
 
-**One team per conversation is sufficient.** You don't need to delete and recreate teams between tasks. Workers can be added and removed independently while the team persists. Think of the team as a lightweight session context, not a per-task resource.
+Use the repository name as the team name (e.g., `"crux"`). One team per conversation — do not create separate teams per task.
 
 ## Phase 1: Task Delegation
 
@@ -100,8 +108,6 @@ Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
 | agentColor | Optional display color (e.g., 'blue', 'green', 'red') |
 | model | Optional model override (e.g., 'sonnet', 'haiku') |
 
-**IMPORTANT**: Always pass `teamName` and `agentName` so the worker is registered as a teammate with SendMessage access.
-
 **Examples:**
 
 ```
@@ -129,11 +135,13 @@ mcp__plugin_crux-hive_crux__start_worktree_session({
 
 This creates a worktree, opens a new tmux window, and starts Claude Code as a teammate.
 
+### When Delegation Fails
+
+If `start_worktree_session` fails, report the error to the user and ask how to proceed. If the user asks you to work directly instead of delegating, you may do so.
+
 ## Phase 2: Communication
 
-Workers automatically have access to **SendMessage** (built-in). Messages are delivered to you automatically — no polling needed.
-
-You can also send messages to workers:
+You can send messages to workers:
 ```
 SendMessage({
   type: "message",
@@ -181,11 +189,9 @@ When notified that a PR is ready:
 
 ## Phase 4: Worker Shutdown and Cleanup
 
-**IMPORTANT**: Always shut down workers before removing worktrees. This ensures clean process termination.
-
 ### Step 1: Shut Down the Worker
 
-Send a shutdown request and **wait for approval** before proceeding:
+Send a shutdown request before removing the worktree:
 
 ```
 SendMessage({
@@ -195,7 +201,7 @@ SendMessage({
 })
 ```
 
-Wait for the `shutdown_approved` message. If the worker doesn't respond (e.g., it was busy monitoring CI), resend the request.
+Wait for the `shutdown_approved` response. If no response, resend once. If still unresponsive, proceed to Step 2 — `git gtr rm` will terminate the worker process via the cleanup hook.
 
 ### Step 2: Remove the Worktree
 
@@ -218,30 +224,20 @@ git gtr rm <branch> --yes
 git gtr rm <branch> --yes
 ```
 
+If removal fails with "has uncommitted changes", inspect and force-remove:
+
+```bash
+git gtr run <branch> git status   # Check what's left
+git gtr rm <branch> --yes --force  # Safe after PR is merged/closed
+```
+
+Note: Always use `git gtr rm` instead of `git worktree remove`. The latter skips the cleanup hook and leaves orphaned tmux sessions.
+
 ### Step 3: Delete the Remote Branch
 
 ```bash
 git push origin --delete <branch>
 ```
-
-### Handling Uncommitted Changes
-
-If `git gtr rm` or `git gtr clean --merged -n` shows `[!] Skipping <branch> (has uncommitted changes)`:
-
-1. **Inspect the changes** using `git gtr run`:
-   ```bash
-   git gtr run <branch> git status
-   git gtr run <branch> git diff
-   ```
-
-2. **Review the output** to determine if changes can be safely discarded (e.g., auto-generated files, temp files, or changes already in the merged PR)
-
-3. **Force remove** once confirmed safe:
-   ```bash
-   git gtr rm <branch> --yes --force
-   ```
-
-> **WARNING**: NEVER use `git worktree remove` directly—always use `git gtr rm`. The `git gtr rm` command runs the preRemove hook which cleans up the associated tmux session. Using `git worktree remove` directly will leave orphaned tmux sessions.
 
 ### About TeamDelete
 
@@ -271,16 +267,8 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 
 ## Important Notes
 
-- **Create team once**: Call `TeamCreate` once at the start of a conversation. One team is sufficient for all tasks.
-- **Always pass `teamName` + `agentName`**: This registers the worker as a teammate
-- **No watcher needed**: Messages are auto-delivered via Agent Teams
-- **Bidirectional**: You can send messages to workers using `SendMessage`
-- **Shutdown before cleanup**: Always send a shutdown request and wait for approval before removing worktrees
 - Always use `planMode: true` when starting worker sessions
 - Workers should create PRs, not push directly to main
 - Review PRs and ask user before merging
-- Clean up worktrees after merging to avoid clutter
-- The orchestrator session stays on the main branch
 - **Delegate research tasks too**—don't execute WebSearch or exploration yourself
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
-- `TeamDelete` is optional—only needed if you want to create a new team in the same conversation
