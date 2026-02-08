@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Monitoring</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body class="font-sans bg-bg-primary text-text-primary min-h-screen text-base leading-relaxed">
+  <div class="max-w-[1400px] mx-auto p-6 max-md:p-4">
+    <header class="flex justify-between items-center mb-6 pb-4 border-b border-border-default max-md:flex-wrap max-md:gap-3">
+      <h1 class="text-[1.75rem] font-semibold text-text-primary max-md:text-2xl">Claude Monitoring</h1>
+      <div class="flex items-center gap-2.5 text-[0.9375rem] text-text-muted">
+        <span id="connection-status" class="status-indicator disconnected"></span>
+        <span id="connection-text">Connecting...</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- Warning banner for auth issues -->
+      <div id="warning-banner" class="warning-banner hidden">
+        <svg class="warning-icon" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M8.22 1.754a.25.25 0 00-.44 0L1.698 13.132a.25.25 0 00.22.368h12.164a.25.25 0 00.22-.368L8.22 1.754zm-1.763-.707c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575L6.457 1.047zM9 11a1 1 0 11-2 0 1 1 0 012 0zm-.25-5.25a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z"/>
+        </svg>
+        <span id="warning-message"></span>
+        <button id="warning-dismiss" class="warning-dismiss" aria-label="Dismiss warning">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <p>No active Claude sessions found.</p>
+        <p class="hint">Sessions will appear here when Claude Code is running in tmux.</p>
+      </div>
+
+      <table id="sessions-table" class="sessions-table hidden">
+        <thead>
+          <tr>
+            <th class="col-project">Project</th>
+            <th class="col-branch">Branch</th>
+            <th class="col-status">Status</th>
+            <th class="col-summary">Summary</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="sessions-body">
+        </tbody>
+      </table>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script type="module" src="./app.ts"></script>
+</body>
+</html>

@@ -23,13 +23,13 @@
         "@modelcontextprotocol/sdk": "^1.26.0",
       },
     },
-    "plugins/crux-monitor": {
+    "tools/crux-monitor": {
       "name": "crux-monitor",
-      "version": "2.1.0",
+      "version": "3.0.0",
     },
-    "plugins/crux-monitor/web": {
+    "tools/crux-monitor/web": {
       "name": "crux-monitor-web",
-      "version": "2.1.0",
+      "version": "3.0.0",
       "dependencies": {
         "hono": "^4.7.0",
         "lit": "^3.3.2",
@@ -338,9 +338,9 @@
 
     "crux-hive": ["crux-hive@workspace:plugins/crux-hive"],
 
-    "crux-monitor": ["crux-monitor@workspace:plugins/crux-monitor"],
+    "crux-monitor": ["crux-monitor@workspace:tools/crux-monitor"],
 
-    "crux-monitor-web": ["crux-monitor-web@workspace:plugins/crux-monitor/web"],
+    "crux-monitor-web": ["crux-monitor-web@workspace:tools/crux-monitor/web"],
 
     "debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 

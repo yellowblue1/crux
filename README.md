@@ -23,11 +23,8 @@ CRUX enables a powerful orchestrator-worker pattern for Claude Code:
 # Add marketplace
 claude plugin marketplace add git@github.com:yellowblue1/crux.git
 
-# Install plugins
+# Install plugin
 claude plugin install crux-hive
-
-# Optional: Install companion monitoring plugin
-claude plugin install crux-monitor
 ```
 
 ## Usage
@@ -42,22 +39,22 @@ claude plugin install crux-monitor
 
 Example: "Add a login page and also fix the header layout bug" → The orchestrator spins up two workers, each handling one task in parallel.
 
-## Available Plugins
+## Components
 
-| Plugin | Description | Requirements |
-|--------|-------------|--------------|
-| [crux-hive](./plugins/crux-hive/) | Orchestrate parallel Claude Code sessions—delegate tasks to workers that create PRs automatically | tmux, [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) |
-| [crux-monitor](./plugins/crux-monitor/) | (Optional) Get browser notifications when tasks complete and monitor all sessions | - |
+| Component | Type | Description | Requirements |
+|-----------|------|-------------|--------------|
+| [crux-hive](./plugins/crux-hive/) | Plugin | Orchestrate parallel Claude Code sessions—delegate tasks to workers that create PRs automatically | tmux, [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) |
+| [crux-monitor](./tools/crux-monitor/) | Standalone tool | Real-time tmux-based session monitoring with browser notifications | tmux |
 
-## Crux Monitor Web UI (Optional)
+## Crux Monitor (Optional)
+
+crux-monitor is a standalone tool (not a Claude Code plugin) that monitors Claude Code sessions running in tmux.
 
 ```bash
 git clone https://github.com/yellowblue1/crux
 cd crux && bun install
-bun run --cwd plugins/crux-monitor/web start  # starts on port 3847
+bun run --cwd tools/crux-monitor/web start  # starts on port 3847
 ```
-
-Or download pre-built binary from [Releases](https://github.com/yellowblue1/crux/releases).
 
 ## Tips
 
@@ -67,6 +64,5 @@ Or download pre-built binary from [Releases](https://github.com/yellowblue1/crux
 
 ```bash
 claude plugin uninstall crux-hive
-claude plugin uninstall crux-monitor  # if installed
 claude plugin marketplace remove crux
 ```

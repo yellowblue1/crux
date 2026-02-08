@@ -11,6 +11,6 @@
     "types": ["bun-types"],
     "lib": ["ESNext", "DOM"]
   },
-  "include": ["plugins/**/*.ts"],
-  "exclude": ["node_modules", "**/node_modules", "plugins/crux-monitor/web/**"]
+  "include": ["plugins/**/*.ts", "tools/**/*.ts"],
+  "exclude": ["node_modules", "**/node_modules", "tools/crux-monitor/web/**"]
 }

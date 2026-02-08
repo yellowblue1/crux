@@ -1,0 +1,249 @@
+/**
+ * Hono API integration tests.
+ *
+ * Tests all API endpoints using app.request() without starting an HTTP server.
+ * Dependencies are mocked for isolation.
+ */
+
+import { describe, expect, it, mock } from "bun:test";
+import type { SessionResponse } from "../shared/types";
+import { type AppDependencies, createApp, type SseClient } from "./server-app";
+
+function createMockDeps(overrides: Partial<AppDependencies> = {}): AppDependencies {
+  return {
+    getSessions: () => [],
+    switchToPane: () => true,
+    getAccessToken: () => "mock-token",
+    getGcpProject: () => "mock-project",
+    ...overrides,
+  };
+}
+
+const sampleSession: SessionResponse = {
+  pane_id: "%0",
+  project_name: "my-project",
+  git_branch: "main",
+  status: "busy",
+  summary: null,
+  tmux_target: "main:0.0",
+  last_activity: new Date().toISOString(),
+};
+
+describe("Hono API endpoints", () => {
+  describe("GET /api/sessions", () => {
+    it("returns sessions with timestamp", async () => {
+      const deps = createMockDeps({
+        getSessions: () => [sampleSession],
+      });
+      const app = createApp(deps);
+      const res = await app.request("/api/sessions");
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.sessions).toHaveLength(1);
+      expect(data.sessions[0].pane_id).toBe("%0");
+      expect(data.timestamp).toBeGreaterThan(0);
+    });
+
+    it("returns empty array when no sessions", async () => {
+      const deps = createMockDeps({ getSessions: () => [] });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions");
+      const data = await res.json();
+
+      expect(data.sessions).toEqual([]);
+    });
+  });
+
+  describe("POST /api/sessions/:pane_id/jump", () => {
+    it("returns success when pane switch succeeds", async () => {
+      const switchSpy = mock(() => true);
+      const deps = createMockDeps({ switchToPane: switchSpy });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/jump", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(switchSpy).toHaveBeenCalledWith("%0");
+    });
+
+    it("returns 500 when pane switch fails", async () => {
+      const deps = createMockDeps({ switchToPane: () => false });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/jump", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+    });
+  });
+
+  describe("GET /api/auth/status", () => {
+    it("returns all true when both authenticated and configured", async () => {
+      const deps = createMockDeps({
+        getAccessToken: () => "valid-token",
+        getGcpProject: () => "my-project",
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/auth/status");
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.gcloud_authenticated).toBe(true);
+      expect(data.gcp_project_configured).toBe(true);
+      expect(data.ai_summary_available).toBe(true);
+    });
+
+    it("returns false when not authenticated", async () => {
+      const deps = createMockDeps({
+        getAccessToken: () => null,
+        getGcpProject: () => "my-project",
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/auth/status");
+      const data = await res.json();
+
+      expect(data.gcloud_authenticated).toBe(false);
+      expect(data.ai_summary_available).toBe(false);
+    });
+
+    it("returns false when project not configured", async () => {
+      const deps = createMockDeps({
+        getAccessToken: () => "valid-token",
+        getGcpProject: () => null,
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/auth/status");
+      const data = await res.json();
+
+      expect(data.gcp_project_configured).toBe(false);
+      expect(data.ai_summary_available).toBe(false);
+    });
+  });
+
+  describe("GET /api/sessions/stream (SSE)", () => {
+    it("returns SSE response headers", async () => {
+      const deps = createMockDeps({
+        serializeSessionsData: () => '{"sessions":[],"timestamp":0}',
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/stream");
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+      expect(res.headers.get("Cache-Control")).toBe("no-cache");
+      expect(res.headers.get("Connection")).toBe("keep-alive");
+    });
+
+    it("calls onSseConnect with client info", async () => {
+      const onSseConnectSpy = mock((_client: SseClient) => {});
+      const deps = createMockDeps({
+        onSseConnect: onSseConnectSpy,
+        serializeSessionsData: () => "{}",
+      });
+      const app = createApp(deps);
+
+      await app.request("/api/sessions/stream");
+
+      expect(onSseConnectSpy).toHaveBeenCalled();
+    });
+
+    it("sends initial data on connection", async () => {
+      const initialData = '{"sessions":[{"pane_id":"%0"}],"timestamp":123}';
+      const deps = createMockDeps({
+        serializeSessionsData: () => initialData,
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/stream");
+      const reader = res.body?.getReader();
+      const result = await reader?.read();
+      const text = new TextDecoder().decode(result?.value);
+
+      expect(text).toContain(`data: ${initialData}`);
+      expect(text).toContain("\n\n");
+    });
+  });
+});
+
+describe("CORS behavior", () => {
+  describe("with restrictCors: true (default)", () => {
+    it("handles preflight for localhost origin", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps, { restrictCors: true });
+
+      const res = await app.request("/api/sessions", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "http://localhost:3847",
+          "Access-Control-Request-Method": "GET",
+        },
+      });
+
+      expect(res.status).toBe(204);
+    });
+
+    it("rejects external origin on preflight", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps, { restrictCors: true });
+
+      const res = await app.request("/api/sessions", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://evil.com",
+          "Access-Control-Request-Method": "GET",
+        },
+      });
+
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    });
+
+    it("allows requests with no origin (same-origin/curl)", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps, { restrictCors: true });
+
+      const res = await app.request("/api/sessions");
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("with restrictCors: false", () => {
+    it("allows any origin on preflight", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps, { restrictCors: false });
+
+      const res = await app.request("/api/sessions", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://any-origin.com",
+          "Access-Control-Request-Method": "GET",
+        },
+      });
+
+      expect(res.status).toBe(204);
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    });
+  });
+});
+
+describe("HTTP methods", () => {
+  it("returns 404 for unknown routes", async () => {
+    const deps = createMockDeps();
+    const app = createApp(deps);
+
+    const res = await app.request("/api/unknown");
+    expect(res.status).toBe(404);
+  });
+});
