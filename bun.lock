@@ -25,11 +25,11 @@
     },
     "plugins/crux-monitor": {
       "name": "crux-monitor",
-      "version": "2.0.0",
+      "version": "2.1.0",
     },
     "plugins/crux-monitor/web": {
       "name": "crux-monitor-web",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "dependencies": {
         "hono": "^4.7.0",
         "lit": "^3.3.2",

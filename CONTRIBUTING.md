@@ -130,7 +130,7 @@ git push origin crux-hive-v4.4.0
 
 Examples:
 - `crux-hive-v4.3.0`
-- `crux-monitor-v2.0.0`
+- `crux-monitor-v2.1.0`
 
 ### 4. Automated Release
 
