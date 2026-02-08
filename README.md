@@ -63,6 +63,10 @@ Or download pre-built binary from [Releases](https://github.com/yellowblue1/crux
 
 **Serena users**: Include `.serena` in worktrees: `git config --global --add gtr.copy.includeDirs .serena`
 
+## Community
+
+We welcome contributions from the community! Check out our contributing guidelines and join the discussion.
+
 ## Uninstalling
 
 ```bash
