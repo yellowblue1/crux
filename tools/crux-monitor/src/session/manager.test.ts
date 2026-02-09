@@ -66,6 +66,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
       watchers.set(path, watcher);
       return watcher as unknown as FSWatcher;
     },
+    capturePaneContent: () => null,
     ...overrides,
   };
 
@@ -416,6 +417,138 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(generateSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("dual-condition idle detection (pane diff + JSONL idle)", () => {
+    it("triggers summary immediately when pane is static and session is WAITING", async () => {
+      const generateSpy = mock(async () => "Waiting for approval");
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static pane content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 5000, // Intentionally long — should NOT be needed
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for: idle threshold (50ms) + pane checks to detect static (2x30ms)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Summary should have been triggered via pane check, NOT the 5s delay
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Waiting for approval");
+    });
+
+    it("does not trigger immediate summary when pane content is changing", async () => {
+      const generateSpy = mock(async () => "test");
+      let callCount = 0;
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => `pane content ${callCount++}`,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait well past idle threshold but not near summaryDelay
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Pane content keeps changing, so dual-condition not met — no immediate trigger
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("falls back to summaryDelay when capturePaneContent returns null", async () => {
+      const generateSpy = mock(async () => "Fallback summary");
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => null,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 150,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // After idle threshold but before summaryDelay: no summary yet
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(generateSpy).not.toHaveBeenCalled();
+
+      // After summaryDelay fires: summary generated via fallback
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not trigger on first pane check (previousPaneContent is null)", async () => {
+      const generateSpy = mock(async () => "test");
+      let firstCall = true;
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        // Return same content but first capture should not count as "static"
+        capturePaneContent: () => {
+          if (firstCall) {
+            firstCall = false;
+            return "initial content";
+          }
+          // Return different content after first call to prevent trigger
+          return `changing ${Date.now()}`;
+        },
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should NOT have triggered — first check has null previousPaneContent,
+      // and subsequent checks return different content
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("cancels summary timer when pane check triggers early", async () => {
+      const generateSpy = mock(async () => "Early trigger");
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 300,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for pane check to trigger (well before summaryDelay of 300ms)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Wait past summaryDelay — should NOT trigger again
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
     });
   });
 

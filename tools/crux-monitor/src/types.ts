@@ -15,6 +15,7 @@ export interface SessionState {
   jsonl_path: string | null;
   last_changed: number;
   last_activity: string;
+  previousPaneContent: string | null;
   summary_pending: boolean;
 }
 
