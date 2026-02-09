@@ -18,6 +18,9 @@ import { hideElement, showElement, showWarningBanner } from "./ui";
 // Track previous session states for notification management
 const previousStatuses = new Map<string, string>();
 
+// Guard against concurrent renderSessions calls (async interleaving via IndexedDB)
+let renderGeneration = 0;
+
 /**
  * Render sessions using Lit components
  */
@@ -34,18 +37,23 @@ async function renderSessions(sessions: SessionResponse[]): Promise<void> {
     return;
   }
 
+  // Fetch all read statuses before touching the DOM to avoid yielding mid-render
+  const thisGeneration = ++renderGeneration;
+  const readStatuses = await Promise.all(sessions.map((s) => getReadStatus(s.pane_id)));
+
+  // If a newer renderSessions call started while we were awaiting, abort this one
+  if (thisGeneration !== renderGeneration) return;
+
   showElement(table);
   hideElement(emptyState);
 
-  // Clear existing rows
+  // Clear and rebuild DOM synchronously (no awaits from here)
   tbody.innerHTML = "";
 
-  // Create session-row elements for each session
-  for (const session of sessions) {
-    const isRead = await getReadStatus(session.pane_id);
+  for (let i = 0; i < sessions.length; i++) {
     const sessionRow = document.createElement("session-row") as SessionRow;
-    sessionRow.session = session;
-    sessionRow.isRead = isRead;
+    sessionRow.session = sessions[i];
+    sessionRow.isRead = readStatuses[i];
     tbody.appendChild(sessionRow);
   }
 }
