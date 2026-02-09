@@ -314,6 +314,33 @@ export function capturePaneContent(paneId: string, exec: ExecFn = defaultExec): 
 }
 
 /**
+ * Start piping a tmux pane's output to a target (e.g., a FIFO).
+ * Uses -o flag for output-only mode (excludes keyboard input).
+ * Calling this again on the same pane replaces the existing pipe.
+ */
+export function startPipePane(paneId: string, target: string, exec: ExecFn = defaultExec): boolean {
+  try {
+    exec(`tmux pipe-pane -o -t ${shellEscape(paneId)} ${shellEscape(`cat > ${target}`)}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stop piping a tmux pane's output.
+ * Calling pipe-pane with no command argument cancels the existing pipe.
+ */
+export function stopPipePane(paneId: string, exec: ExecFn = defaultExec): boolean {
+  try {
+    exec(`tmux pipe-pane -t ${shellEscape(paneId)}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Match Claude processes to tmux panes by walking the process tree.
  * For each Claude process, walks up the PPID chain to find an ancestor
  * that is a tmux pane's initial process (pane_pid).

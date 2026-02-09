@@ -1,4 +1,8 @@
-import { type FSWatcher, watch } from "node:fs";
+import type { ChildProcess } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { existsSync, type FSWatcher, unlinkSync, watch } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as tmux from "../tmux/utils.js";
 import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
 
@@ -25,6 +29,10 @@ export interface SessionManagerDeps {
   generateSummary: (content: string) => Promise<string | null>;
   watchFile: (path: string, callback: () => void) => FSWatcher;
   capturePaneContent: (paneId: string) => string | null;
+  startPipePane: (paneId: string, target: string) => boolean;
+  stopPipePane: (paneId: string) => boolean;
+  createFifo: (path: string) => boolean;
+  spawnFifoReader: (path: string) => ChildProcess;
 }
 
 export interface SessionManagerOptions {
@@ -39,12 +47,20 @@ const DEFAULT_IDLE_THRESHOLD_MS = 3000;
 const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
 const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
 
+/** State for a single FIFO-based pipe-pane monitor */
+interface PipePaneState {
+  fifoPath: string;
+  readerProcess: ChildProcess;
+}
+
 /**
  * Manages Claude Code session state via tmux polling + JSONL file watching.
  *
  * Session discovery: polls ps + tmux list-panes periodically.
  * Idle detection: watches JSONL files with fs.watch — file changes mean BUSY,
  * no changes for idleThresholdMs means WAITING.
+ * Activity detection: FIFO-based pipe-pane provides real-time pane output events
+ * for instant WAITING → BUSY transitions (~13ms latency vs ~1s polling).
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
@@ -54,6 +70,7 @@ export class SessionManager {
   private watchers = new Map<string, FSWatcher>();
   private idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private summaryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pipePanes = new Map<string, PipePaneState>();
   private deps: SessionManagerDeps;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private paneCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -79,6 +96,10 @@ export class SessionManager {
       generateSummary: deps?.generateSummary ?? (async () => null),
       watchFile: deps?.watchFile ?? defaultWatchFile,
       capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
+      startPipePane: deps?.startPipePane ?? tmux.startPipePane,
+      stopPipePane: deps?.stopPipePane ?? tmux.stopPipePane,
+      createFifo: deps?.createFifo ?? defaultCreateFifo,
+      spawnFifoReader: deps?.spawnFifoReader ?? defaultSpawnFifoReader,
     };
     this.pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.idleThresholdMs = options?.idleThresholdMs ?? DEFAULT_IDLE_THRESHOLD_MS;
@@ -127,6 +148,9 @@ export class SessionManager {
       clearTimeout(timer);
     }
     this.summaryTimers.clear();
+    for (const paneId of this.pipePanes.keys()) {
+      this.teardownPipePane(paneId);
+    }
   }
 
   /**
@@ -203,6 +227,13 @@ export class SessionManager {
         this.removeSession(paneId);
         const didCreate = this.createSession(paneId, process.pid, pane);
         if (didCreate) changed = true;
+      } else if (!existing.jsonl_path) {
+        // Retry finding JSONL path — file may not have existed at session creation
+        const jsonlPath = this.deps.findSessionJsonlPath(existing.cwd);
+        if (jsonlPath) {
+          existing.jsonl_path = jsonlPath;
+          this.startWatching(paneId, jsonlPath);
+        }
       }
     }
 
@@ -242,12 +273,16 @@ export class SessionManager {
       last_activity: new Date().toISOString(),
       previousPaneContent: null,
       summary_pending: false,
+      pipePaneActive: false,
     });
 
     // Start watching the JSONL file for idle detection
     if (jsonlPath) {
       this.startWatching(paneId, jsonlPath);
     }
+
+    // Set up pipe-pane for real-time activity detection
+    this.setupPipePane(paneId);
 
     // Start idle timer (in case JSONL is never updated)
     this.resetIdleTimer(paneId);
@@ -261,6 +296,7 @@ export class SessionManager {
   private removeSession(paneId: string): void {
     this.sessions.delete(paneId);
     this.stopWatching(paneId);
+    this.teardownPipePane(paneId);
     const idleTimer = this.idleTimers.get(paneId);
     if (idleTimer) {
       clearTimeout(idleTimer);
@@ -275,6 +311,7 @@ export class SessionManager {
   private cleanupAllSessions(): void {
     for (const paneId of this.sessions.keys()) {
       this.stopWatching(paneId);
+      this.teardownPipePane(paneId);
       const idleTimer = this.idleTimers.get(paneId);
       if (idleTimer) clearTimeout(idleTimer);
     }
@@ -432,6 +469,94 @@ export class SessionManager {
   }
 
   /**
+   * Set up FIFO-based pipe-pane for real-time activity detection.
+   * Creates a named pipe, starts a reader process, then starts tmux pipe-pane.
+   */
+  private setupPipePane(paneId: string): void {
+    // Clean up any existing pipe for this pane
+    this.teardownPipePane(paneId);
+
+    const id = paneId.replace("%", "");
+    const fifoPath = join(tmpdir(), `crux-pipe-${id}-${Date.now()}.fifo`);
+
+    // Create FIFO
+    if (!this.deps.createFifo(fifoPath)) {
+      return; // FIFO creation failed — fall back to polling
+    }
+
+    // Open reader FIRST to prevent writer blocking
+    const readerProcess = this.deps.spawnFifoReader(fifoPath);
+
+    readerProcess.stdout?.on("data", () => {
+      this.onPipePaneActivity(paneId);
+    });
+
+    readerProcess.on("error", () => {
+      // Reader failed — clean up and fall back to polling
+      this.teardownPipePane(paneId);
+    });
+
+    this.pipePanes.set(paneId, { fifoPath, readerProcess });
+
+    // Start pipe-pane → FIFO
+    const started = this.deps.startPipePane(paneId, fifoPath);
+    if (started) {
+      const session = this.sessions.get(paneId);
+      if (session) session.pipePaneActive = true;
+    } else {
+      // pipe-pane failed — clean up
+      this.teardownPipePane(paneId);
+    }
+  }
+
+  /**
+   * Tear down pipe-pane and clean up FIFO for a session.
+   */
+  private teardownPipePane(paneId: string): void {
+    const state = this.pipePanes.get(paneId);
+    if (!state) return;
+
+    // Cancel tmux pipe-pane
+    this.deps.stopPipePane(paneId);
+
+    // Kill reader process
+    state.readerProcess.kill("SIGTERM");
+
+    // Remove FIFO
+    try {
+      if (existsSync(state.fifoPath)) {
+        unlinkSync(state.fifoPath);
+      }
+    } catch {
+      // Best effort cleanup
+    }
+
+    this.pipePanes.delete(paneId);
+
+    const session = this.sessions.get(paneId);
+    if (session) session.pipePaneActive = false;
+  }
+
+  /**
+   * Called when pipe-pane receives any output — session is active.
+   * Triggers the same WAITING → BUSY transition as pane content change detection.
+   */
+  private onPipePaneActivity(paneId: string): void {
+    const session = this.sessions.get(paneId);
+    if (!session) return;
+
+    if (session.status === "waiting") {
+      session.status = "busy";
+      session.last_activity = new Date().toISOString();
+      session.summary_pending = false;
+      session.summary = null;
+      this.cancelSummaryTimer(paneId);
+      this.resetIdleTimer(paneId);
+      this.notifyChange();
+    }
+  }
+
+  /**
    * Check pane content for all sessions — dual-condition idle detection.
    * If a WAITING session's pane content hasn't changed since the last check,
    * the session is confirmed idle and summary generation is triggered immediately.
@@ -475,4 +600,19 @@ export class SessionManager {
 
 function defaultWatchFile(path: string, callback: () => void): FSWatcher {
   return watch(path, () => callback());
+}
+
+function defaultCreateFifo(path: string): boolean {
+  try {
+    execSync(`mkfifo '${path}'`, { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function defaultSpawnFifoReader(path: string): ChildProcess {
+  return spawn("cat", [path], {
+    stdio: ["ignore", "pipe", "ignore"],
+  });
 }

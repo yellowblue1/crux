@@ -15,6 +15,8 @@ import {
   isClaudeBinary,
   isTmuxAvailable,
   matchProcessesToPanes,
+  startPipePane,
+  stopPipePane,
   switchToPane,
 } from "./utils";
 
@@ -470,5 +472,54 @@ describe("extractJsonlConversation", () => {
     } finally {
       rmSync(tmpDir, { recursive: true });
     }
+  });
+});
+
+describe("startPipePane", () => {
+  it("calls tmux pipe-pane with output-only flag", () => {
+    let executedCommand = "";
+    const exec = (cmd: string) => {
+      executedCommand = cmd;
+      return "";
+    };
+
+    const result = startPipePane("%0", "/tmp/test.fifo", exec);
+    expect(result).toBe(true);
+    expect(executedCommand).toContain("tmux pipe-pane -o");
+    expect(executedCommand).toContain("%0");
+    expect(executedCommand).toContain("/tmp/test.fifo");
+  });
+
+  it("returns false on failure", () => {
+    const exec = () => {
+      throw new Error("pane not found");
+    };
+
+    expect(startPipePane("%99", "/tmp/test.fifo", exec)).toBe(false);
+  });
+});
+
+describe("stopPipePane", () => {
+  it("calls tmux pipe-pane with no command to cancel", () => {
+    let executedCommand = "";
+    const exec = (cmd: string) => {
+      executedCommand = cmd;
+      return "";
+    };
+
+    const result = stopPipePane("%0", exec);
+    expect(result).toBe(true);
+    expect(executedCommand).toContain("tmux pipe-pane");
+    expect(executedCommand).toContain("%0");
+    // Should NOT contain -o (no output flag when cancelling)
+    expect(executedCommand).not.toContain("-o");
+  });
+
+  it("returns false on failure", () => {
+    const exec = () => {
+      throw new Error("pane not found");
+    };
+
+    expect(stopPipePane("%99", exec)).toBe(false);
   });
 });
