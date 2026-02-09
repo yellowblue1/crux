@@ -671,6 +671,130 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("pane-based BUSY detection (pane content change triggers WAITING → BUSY)", () => {
+    it("transitions from WAITING to BUSY when pane content changes", async () => {
+      let paneContent = "initial content";
+      const { deps } = createMockDeps({
+        capturePaneContent: () => paneContent,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 200,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for idle threshold to expire → WAITING
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Simulate pane content change (Claude is thinking)
+      paneContent = "thinking... spinner frame 1";
+      // Wait for pane check to detect change, but less than idleThresholdMs (200ms)
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("clears summary when pane content change triggers BUSY", async () => {
+      let paneContent = "static content";
+      const generateSpy = mock(async () => "Some summary");
+
+      const { deps } = createMockDeps({
+        capturePaneContent: () => paneContent,
+        generateSummary: generateSpy,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 200,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING + pane static → summary generation
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(manager.getSessions()[0]?.summary).toBe("Some summary");
+
+      // Pane content changes → should clear summary
+      paneContent = "new output from claude";
+      // Wait for pane check to detect change, but less than idleThresholdMs (200ms)
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+      expect(manager.getSessions()[0]?.summary).toBeNull();
+    });
+
+    it("fires onChange when pane content change triggers WAITING → BUSY", async () => {
+      let paneContent = "initial";
+      const onChangeSpy = mock(() => {});
+
+      const { deps } = createMockDeps({
+        capturePaneContent: () => paneContent,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 200,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.onChange(onChangeSpy);
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const countAfterWaiting = onChangeSpy.mock.calls.length;
+
+      // Pane content changes
+      paneContent = "changed content";
+      // Wait for pane check to detect change, but less than idleThresholdMs (200ms)
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      expect(onChangeSpy.mock.calls.length).toBeGreaterThan(countAfterWaiting);
+    });
+
+    it("does not transition to BUSY when pane content is static", async () => {
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "always the same",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("does not false-trigger BUSY on first pane capture", async () => {
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "some content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // First capture has null previousPaneContent — should not trigger BUSY
+      // Session should still proceed to WAITING via idle timer
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+  });
+
   describe("stop", () => {
     it("closes all watchers on stop", () => {
       const { deps, watchers } = createMockDeps();

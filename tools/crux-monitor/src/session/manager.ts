@@ -443,7 +443,21 @@ export class SessionManager {
 
       const isStatic =
         session.previousPaneContent !== null && content === session.previousPaneContent;
+      const isContentChanged =
+        session.previousPaneContent !== null && content !== session.previousPaneContent;
       session.previousPaneContent = content;
+
+      // Pane content changed while WAITING → Claude is active (e.g., thinking/streaming)
+      if (isContentChanged && session.status === "waiting") {
+        session.status = "busy";
+        session.last_activity = new Date().toISOString();
+        session.summary_pending = false;
+        session.summary = null;
+        this.cancelSummaryTimer(paneId);
+        this.resetIdleTimer(paneId);
+        this.notifyChange();
+        continue;
+      }
 
       // Dual-condition: pane static AND WAITING → trigger summary immediately
       if (isStatic && session.status === "waiting" && !session.summary_pending) {
