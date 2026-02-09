@@ -53,14 +53,15 @@ export function getConversationTail(conversation: string): string {
 }
 
 /**
- * Build the prompt for Gemini to summarize a Claude Code conversation
+ * Build the prompt for Gemini to summarize a Claude Code session.
+ * The content may be terminal pane output or a JSONL conversation extract.
  */
 export function buildConversationPrompt(conversationTail: string): string {
-  const languageInstruction = `IMPORTANT: Analyze the messages in this conversation to determine what language the user is using. Your response MUST be in the same language as the user's messages.
+  const languageInstruction = `IMPORTANT: Analyze the content to determine what language the user is using. Your response MUST be in the same language as the user's messages.
 
 `;
 
-  return `${languageInstruction}The following is a conversation from a Claude Code session.
+  return `${languageInstruction}The following is the terminal output from a Claude Code session.
 Claude appears to be idle and waiting for user input.
 Summarize what Claude is waiting for or what it last completed in 15 words or less.
 Examples: "Asking which database to use", "Waiting for confirmation to proceed", "Completed refactoring auth module"
