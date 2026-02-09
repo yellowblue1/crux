@@ -126,7 +126,7 @@
 
 /* Status badge */
 .status-badge {
-  @apply inline-block py-1 px-2.5 rounded-xl text-[0.8125rem] font-medium;
+  @apply inline-flex items-center justify-center w-8 h-8 rounded-full text-base leading-none;
 }
 
 .status-badge--busy {

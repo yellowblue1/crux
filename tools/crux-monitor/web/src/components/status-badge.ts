@@ -18,8 +18,9 @@ export class StatusBadge extends LitElement {
         ? "status-badge status-badge--busy"
         : "status-badge status-badge--waiting";
     const label = this.status === "busy" ? "Busy" : "Waiting";
+    const icon = this.status === "busy" ? "\u26A1" : "\u2615";
 
-    return html`<span class="${cssClass}">${label}</span>`;
+    return html`<span class="${cssClass}" title="${label}">${icon}</span>`;
   }
 }
 
