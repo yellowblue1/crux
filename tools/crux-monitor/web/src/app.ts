@@ -11,7 +11,7 @@ import {
   showBrowserNotification,
 } from "./notifications";
 import { connectSSE, setOnSessionsCallback } from "./sse";
-import { getReadStatus, initDb } from "./storage";
+import { getReadStatus, initDb, setReadStatus } from "./storage";
 import type { SessionResponse } from "./types";
 import { hideElement, showElement, showWarningBanner } from "./ui";
 
@@ -89,7 +89,7 @@ async function init(): Promise<void> {
   }
 
   // Set up SSE sessions callback
-  setOnSessionsCallback((data) => {
+  setOnSessionsCallback(async (data) => {
     // Handle notification tracking
     const currentPaneIds = new Set<string>();
     for (const session of data.sessions) {
@@ -99,6 +99,8 @@ async function init(): Promise<void> {
       // Show notification on transition to WAITING
       if (session.status === "waiting" && prevStatus !== "waiting") {
         showBrowserNotification(session);
+        // Reset read status so copy button becomes clickable again
+        await setReadStatus(session.pane_id, false);
       }
 
       // Clear notification tracking when back to BUSY
@@ -117,7 +119,7 @@ async function init(): Promise<void> {
       }
     }
 
-    renderSessions(data.sessions);
+    await renderSessions(data.sessions);
   });
 
   // Start SSE connection
