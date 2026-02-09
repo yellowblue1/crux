@@ -9,6 +9,7 @@ import {
   getAllTmuxPanes,
   getClaudeProcesses,
   getGitBranch,
+  getJsonlMtime,
   getProcessCwd,
   getProcessTable,
   getProjectName,
@@ -521,5 +522,18 @@ describe("stopPipePane", () => {
     };
 
     expect(stopPipePane("%99", exec)).toBe(false);
+  });
+});
+
+describe("getJsonlMtime", () => {
+  it("returns mtime for existing file", () => {
+    // Test with the test file itself (it exists)
+    const mtime = getJsonlMtime(import.meta.path);
+    expect(mtime).toBeNumber();
+    expect(mtime).toBeGreaterThan(0);
+  });
+
+  it("returns null for non-existent file", () => {
+    expect(getJsonlMtime("/nonexistent/path/file.jsonl")).toBeNull();
   });
 });

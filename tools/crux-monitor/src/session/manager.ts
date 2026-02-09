@@ -1,6 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, type FSWatcher, unlinkSync, watch } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as tmux from "../tmux/utils.js";
@@ -27,7 +27,7 @@ export interface SessionManagerDeps {
   findSessionJsonlPath: (cwd: string) => string | null;
   extractJsonlConversation: (jsonlPath: string) => string | null;
   generateSummary: (content: string) => Promise<string | null>;
-  watchFile: (path: string, callback: () => void) => FSWatcher;
+  getJsonlMtime: (jsonlPath: string) => number | null;
   capturePaneContent: (paneId: string) => string | null;
   startPipePane: (paneId: string, target: string) => boolean;
   stopPipePane: (paneId: string) => boolean;
@@ -54,20 +54,20 @@ interface PipePaneState {
 }
 
 /**
- * Manages Claude Code session state via tmux polling + JSONL file watching.
+ * Manages Claude Code session state via tmux polling + pipe-pane activity detection.
  *
  * Session discovery: polls ps + tmux list-panes periodically.
- * Idle detection: watches JSONL files with fs.watch — file changes mean BUSY,
- * no changes for idleThresholdMs means WAITING.
- * Activity detection: FIFO-based pipe-pane provides real-time pane output events
- * for instant WAITING → BUSY transitions (~13ms latency vs ~1s polling).
+ * Status detection: pipe-pane (FIFO) is the sole signal for both directions:
+ *   - WAITING → BUSY: any data on the pipe
+ *   - BUSY → WAITING: no pipe data for idleThresholdMs
+ * Falls back to capture-pane polling when pipe-pane is unavailable.
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
+ * JSONL mtime guard prevents redundant Gemini calls when content hasn't changed.
  */
 export class SessionManager {
   private sessions = new Map<string, SessionState>();
-  private watchers = new Map<string, FSWatcher>();
   private idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private summaryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private pipePanes = new Map<string, PipePaneState>();
@@ -94,7 +94,7 @@ export class SessionManager {
       findSessionJsonlPath: deps?.findSessionJsonlPath ?? tmux.findSessionJsonlPath,
       extractJsonlConversation: deps?.extractJsonlConversation ?? tmux.extractJsonlConversation,
       generateSummary: deps?.generateSummary ?? (async () => null),
-      watchFile: deps?.watchFile ?? defaultWatchFile,
+      getJsonlMtime: deps?.getJsonlMtime ?? tmux.getJsonlMtime,
       capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
       startPipePane: deps?.startPipePane ?? tmux.startPipePane,
       stopPipePane: deps?.stopPipePane ?? tmux.stopPipePane,
@@ -125,7 +125,7 @@ export class SessionManager {
   }
 
   /**
-   * Stop the polling loop and clean up watchers
+   * Stop the polling loop and clean up resources
    */
   stop(): void {
     if (this.pollTimer) {
@@ -136,10 +136,6 @@ export class SessionManager {
       clearInterval(this.paneCheckTimer);
       this.paneCheckTimer = null;
     }
-    for (const watcher of this.watchers.values()) {
-      watcher.close();
-    }
-    this.watchers.clear();
     for (const timer of this.idleTimers.values()) {
       clearTimeout(timer);
     }
@@ -171,7 +167,7 @@ export class SessionManager {
       project_name: s.project_name,
       git_branch: s.git_branch,
       status: s.status,
-      summary: s.summary,
+      summary: s.status === "busy" ? null : s.summary,
       tmux_target: s.tmux_target,
       last_activity: s.last_activity,
     }));
@@ -189,7 +185,7 @@ export class SessionManager {
       project_name: state.project_name,
       git_branch: state.git_branch,
       status: state.status,
-      summary: state.summary,
+      summary: state.status === "busy" ? null : state.summary,
       tmux_target: state.tmux_target,
       last_activity: state.last_activity,
     };
@@ -197,7 +193,7 @@ export class SessionManager {
 
   /**
    * Main polling loop - discover/remove sessions only.
-   * Idle detection is handled by fs.watch on JSONL files.
+   * Status detection is handled by pipe-pane (or capture-pane fallback).
    */
   private poll(): void {
     if (!this.deps.isTmuxAvailable()) {
@@ -232,7 +228,6 @@ export class SessionManager {
         const jsonlPath = this.deps.findSessionJsonlPath(existing.cwd);
         if (jsonlPath) {
           existing.jsonl_path = jsonlPath;
-          this.startWatching(paneId, jsonlPath);
         }
       }
     }
@@ -251,7 +246,7 @@ export class SessionManager {
   }
 
   /**
-   * Create a new session and start watching its JSONL file
+   * Create a new session and set up pipe-pane activity detection
    */
   private createSession(paneId: string, processPid: number, pane: TmuxPane): boolean {
     const cwd = this.deps.getProcessCwd(processPid);
@@ -269,33 +264,27 @@ export class SessionManager {
       summary: null,
       tmux_target: this.deps.buildTmuxTarget(pane),
       jsonl_path: jsonlPath,
-      last_changed: Date.now(),
       last_activity: new Date().toISOString(),
       previousPaneContent: null,
       summary_pending: false,
       pipePaneActive: false,
+      summaryJsonlMtime: null,
     });
-
-    // Start watching the JSONL file for idle detection
-    if (jsonlPath) {
-      this.startWatching(paneId, jsonlPath);
-    }
 
     // Set up pipe-pane for real-time activity detection
     this.setupPipePane(paneId);
 
-    // Start idle timer (in case JSONL is never updated)
+    // Start idle timer
     this.resetIdleTimer(paneId);
 
     return true;
   }
 
   /**
-   * Remove a session and clean up its watcher/timer
+   * Remove a session and clean up its resources
    */
   private removeSession(paneId: string): void {
     this.sessions.delete(paneId);
-    this.stopWatching(paneId);
     this.teardownPipePane(paneId);
     const idleTimer = this.idleTimers.get(paneId);
     if (idleTimer) {
@@ -310,68 +299,16 @@ export class SessionManager {
    */
   private cleanupAllSessions(): void {
     for (const paneId of this.sessions.keys()) {
-      this.stopWatching(paneId);
       this.teardownPipePane(paneId);
       const idleTimer = this.idleTimers.get(paneId);
       if (idleTimer) clearTimeout(idleTimer);
     }
     this.sessions.clear();
-    this.watchers.clear();
     this.idleTimers.clear();
     for (const timer of this.summaryTimers.values()) {
       clearTimeout(timer);
     }
     this.summaryTimers.clear();
-  }
-
-  /**
-   * Start watching a JSONL file for changes
-   */
-  private startWatching(paneId: string, jsonlPath: string): void {
-    this.stopWatching(paneId);
-
-    try {
-      const watcher = this.deps.watchFile(jsonlPath, () => {
-        this.onJsonlChange(paneId);
-      });
-      this.watchers.set(paneId, watcher);
-    } catch {
-      // File may not exist yet or be inaccessible
-    }
-  }
-
-  /**
-   * Stop watching a JSONL file
-   */
-  private stopWatching(paneId: string): void {
-    const watcher = this.watchers.get(paneId);
-    if (watcher) {
-      watcher.close();
-      this.watchers.delete(paneId);
-    }
-  }
-
-  /**
-   * Called when the JSONL file changes — session is active
-   */
-  private onJsonlChange(paneId: string): void {
-    const session = this.sessions.get(paneId);
-    if (!session) return;
-
-    session.last_changed = Date.now();
-    session.last_activity = new Date().toISOString();
-
-    if (session.status === "waiting") {
-      session.status = "busy";
-      session.summary_pending = false;
-      session.summary = null;
-      // Cancel pending summary timer — session is active again
-      this.cancelSummaryTimer(paneId);
-      this.notifyChange();
-    }
-
-    // Reset the idle timer
-    this.resetIdleTimer(paneId);
   }
 
   /**
@@ -444,6 +381,20 @@ export class SessionManager {
       return;
     }
 
+    // JSONL mtime guard: skip Gemini call if content hasn't changed since last summary
+    const currentMtime = this.deps.getJsonlMtime(session.jsonl_path);
+    if (
+      currentMtime !== null &&
+      session.summaryJsonlMtime !== null &&
+      currentMtime === session.summaryJsonlMtime &&
+      session.summary !== null
+    ) {
+      // JSONL unchanged — reuse cached summary, mark as pending to prevent re-triggering
+      session.summary_pending = true;
+      this.notifyChange();
+      return;
+    }
+
     try {
       const conversation = this.deps.extractJsonlConversation(session.jsonl_path);
       if (!conversation) {
@@ -456,6 +407,7 @@ export class SessionManager {
       const current = this.sessions.get(paneId);
       if (current && current.status === "waiting") {
         current.summary = summary;
+        current.summaryJsonlMtime = currentMtime;
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
@@ -539,7 +491,8 @@ export class SessionManager {
 
   /**
    * Called when pipe-pane receives any output — session is active.
-   * Triggers the same WAITING → BUSY transition as pane content change detection.
+   * Resets idle timer on every data event (both BUSY and WAITING).
+   * Summary is preserved internally for cache restoration; API methods filter it.
    */
   private onPipePaneActivity(paneId: string): void {
     const session = this.sessions.get(paneId);
@@ -547,19 +500,19 @@ export class SessionManager {
 
     if (session.status === "waiting") {
       session.status = "busy";
-      session.last_activity = new Date().toISOString();
       session.summary_pending = false;
-      session.summary = null;
       this.cancelSummaryTimer(paneId);
-      this.resetIdleTimer(paneId);
       this.notifyChange();
     }
+    // Always reset idle timer — pipe data resets idle timer even during BUSY
+    this.resetIdleTimer(paneId);
+    session.last_activity = new Date().toISOString();
   }
 
   /**
-   * Check pane content for all sessions — dual-condition idle detection.
-   * If a WAITING session's pane content hasn't changed since the last check,
-   * the session is confirmed idle and summary generation is triggered immediately.
+   * Check pane content for all sessions.
+   * When pipe-pane is active: only checks for static screen to trigger summary.
+   * When pipe-pane is unavailable: also detects content changes for WAITING → BUSY fallback.
    */
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
@@ -572,15 +525,16 @@ export class SessionManager {
         session.previousPaneContent !== null && content !== session.previousPaneContent;
       session.previousPaneContent = content;
 
-      // Pane content changed while WAITING → Claude is active (e.g., thinking/streaming)
-      if (isContentChanged && session.status === "waiting") {
-        session.status = "busy";
-        session.last_activity = new Date().toISOString();
-        session.summary_pending = false;
-        session.summary = null;
-        this.cancelSummaryTimer(paneId);
+      // Fallback: capture-pane activity detection when pipe-pane unavailable
+      if (!session.pipePaneActive && isContentChanged) {
+        if (session.status === "waiting") {
+          session.status = "busy";
+          session.last_activity = new Date().toISOString();
+          session.summary_pending = false;
+          this.cancelSummaryTimer(paneId);
+          this.notifyChange();
+        }
         this.resetIdleTimer(paneId);
-        this.notifyChange();
         continue;
       }
 
@@ -596,10 +550,6 @@ export class SessionManager {
   private notifyChange(): void {
     this.onChangeCallback?.();
   }
-}
-
-function defaultWatchFile(path: string, callback: () => void): FSWatcher {
-  return watch(path, () => callback());
 }
 
 function defaultCreateFifo(path: string): boolean {
