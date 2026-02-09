@@ -5,6 +5,8 @@
  * that accepts dependencies, enabling unit testing with mocked session data.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { SessionResponse } from "../shared/types";
@@ -94,6 +96,24 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
         gcloud_authenticated: gcloudAuthenticated,
         gcp_project_configured: gcpProjectConfigured,
         ai_summary_available: aiSummaryAvailable,
+      });
+    })
+
+    // Favicon routes
+    .get("/favicon.ico", (c) => {
+      const faviconPath = join(import.meta.dirname, "public", "favicon.svg");
+      const favicon = readFileSync(faviconPath);
+      return c.body(favicon, 200, {
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, max-age=86400",
+      });
+    })
+    .get("/favicon.svg", (c) => {
+      const faviconPath = join(import.meta.dirname, "public", "favicon.svg");
+      const favicon = readFileSync(faviconPath);
+      return c.body(favicon, 200, {
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, max-age=86400",
       });
     })
 
