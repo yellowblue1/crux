@@ -126,15 +126,7 @@
 
 /* Status badge */
 .status-badge {
-  @apply inline-block py-1 px-2.5 rounded-xl text-[0.8125rem] font-medium;
-}
-
-.status-badge--busy {
-  @apply bg-badge-busy-bg text-badge-busy-text;
-}
-
-.status-badge--waiting {
-  @apply bg-badge-waiting-bg text-badge-waiting-text;
+  @apply inline-block text-xl leading-none cursor-default;
 }
 
 /* Summary */
