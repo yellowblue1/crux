@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import {
   mockFetchNetworkError,
   mockGeminiEmpty,
@@ -6,6 +6,7 @@ import {
   mockGeminiSuccess,
 } from "../__tests__";
 import { buildConversationPrompt, generatePaneSummary, getConversationTail } from "./gemini";
+import { clearSummaryCache } from "./summary-cache";
 
 describe("gemini", () => {
   describe("getConversationTail", () => {
@@ -60,6 +61,10 @@ describe("gemini", () => {
       getAccessTokenFn: () => "mock-token",
       getGcpProjectFn: () => "mock-project",
       getGcpLocationFn: () => "us-central1",
+    });
+
+    beforeEach(() => {
+      clearSummaryCache();
     });
 
     it("returns summary on successful API response", async () => {
@@ -121,6 +126,64 @@ describe("gemini", () => {
         mockDeps(mockGeminiSuccess("  Summary with spaces  ")),
       );
       expect(result).toBe("Summary with spaces");
+    });
+
+    describe("caching", () => {
+      it("returns cached summary on second call with same content", async () => {
+        let callCount = 0;
+        const countingFetch: FetchFn = async (url, options) => {
+          callCount++;
+          return mockGeminiSuccess("Cached summary")(url, options);
+        };
+
+        const result1 = await generatePaneSummary("same content", mockDeps(countingFetch));
+        const result2 = await generatePaneSummary("same content", mockDeps(countingFetch));
+
+        expect(result1).toBe("Cached summary");
+        expect(result2).toBe("Cached summary");
+        expect(callCount).toBe(1);
+      });
+
+      it("makes new API call for different content", async () => {
+        let callCount = 0;
+        const countingFetch: FetchFn = async (url, options) => {
+          callCount++;
+          return mockGeminiSuccess("Summary")(url, options);
+        };
+
+        await generatePaneSummary("content A", mockDeps(countingFetch));
+        await generatePaneSummary("content B", mockDeps(countingFetch));
+
+        expect(callCount).toBe(2);
+      });
+
+      it("does not cache when API returns error", async () => {
+        let callCount = 0;
+        const countingErrorFetch: FetchFn = async (url, options) => {
+          callCount++;
+          return mockGeminiError(500)(url, options);
+        };
+
+        const result1 = await generatePaneSummary("content", mockDeps(countingErrorFetch));
+        const result2 = await generatePaneSummary("content", mockDeps(countingErrorFetch));
+
+        expect(result1).toBeNull();
+        expect(result2).toBeNull();
+        expect(callCount).toBe(2);
+      });
+
+      it("does not cache when API returns empty candidates", async () => {
+        let callCount = 0;
+        const countingEmptyFetch: FetchFn = async (url, options) => {
+          callCount++;
+          return mockGeminiEmpty()(url, options);
+        };
+
+        await generatePaneSummary("content", mockDeps(countingEmptyFetch));
+        await generatePaneSummary("content", mockDeps(countingEmptyFetch));
+
+        expect(callCount).toBe(2);
+      });
     });
   });
 });

@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { getGcpLocation, getGcpProject } from "./config";
+import { getCachedSummary, setCachedSummary } from "./summary-cache";
 
 const MODEL_ID = "gemini-2.5-flash";
 const MAX_SUMMARY_LENGTH = 100;
@@ -87,6 +88,14 @@ export async function generatePaneSummary(
     return null;
   }
 
+  const conversationTail = getConversationTail(conversation);
+
+  const cached = getCachedSummary(conversationTail);
+  if (cached !== null) {
+    console.log(`[Gemini] Cache hit (input: ${conversationTail.length} chars): ${cached}`);
+    return cached;
+  }
+
   const projectId = getGcpProjectFn();
   if (!projectId) {
     return null;
@@ -97,7 +106,6 @@ export async function generatePaneSummary(
     return null;
   }
 
-  const conversationTail = getConversationTail(conversation);
   const location = getGcpLocationFn();
   const apiUrl = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${MODEL_ID}:generateContent`;
 
@@ -142,6 +150,7 @@ export async function generatePaneSummary(
 
     const summary = text.slice(0, MAX_SUMMARY_LENGTH).trim();
     console.log(`[Gemini] Summary received (${Date.now() - startTime}ms): ${summary}`);
+    setCachedSummary(conversationTail, summary);
     return summary;
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
