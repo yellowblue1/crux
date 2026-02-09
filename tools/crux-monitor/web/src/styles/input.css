@@ -90,6 +90,10 @@
   @apply bg-bg-secondary;
 }
 
+.sessions-table tbody tr.read {
+  @apply opacity-70;
+}
+
 /* Column widths */
 .col-project {
   width: 180px;
@@ -103,8 +107,8 @@
 .col-summary {
   min-width: 200px;
 }
-.col-actions {
-  width: 50px;
+.col-tmux {
+  width: 100px;
 }
 
 /* Project info */
@@ -148,20 +152,24 @@
   font-size: 0.875rem;
 }
 
-/* Jump button */
-.jump-btn {
-  @apply inline-flex items-center justify-center bg-transparent border border-border-default text-text-muted p-1.5 rounded-md cursor-pointer transition-all;
+/* Copy button */
+.copy-btn {
+  @apply inline-flex items-center gap-1.5 bg-bg-tertiary border border-border-default text-text-secondary py-1.5 px-2.5 rounded-md cursor-pointer transition-all;
 }
 
-.jump-btn:hover {
-  @apply bg-accent-blue border-accent-blue text-white;
+.copy-btn:hover {
+  @apply bg-border-default border-text-muted text-text-primary;
 }
 
-.jump-btn:active {
-  @apply scale-95;
+.copy-btn:active {
+  @apply scale-[0.98];
 }
 
-.jump-btn svg {
+.copy-btn.copied {
+  @apply text-accent-green;
+}
+
+.copy-btn svg {
   @apply w-4 h-4 shrink-0;
 }
 
@@ -219,7 +227,8 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .col-branch {
+  .col-branch,
+  .col-tmux {
     display: none;
   }
 

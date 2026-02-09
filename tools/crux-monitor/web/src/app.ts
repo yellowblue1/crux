@@ -11,6 +11,7 @@ import {
   showBrowserNotification,
 } from "./notifications";
 import { connectSSE, setOnSessionsCallback } from "./sse";
+import { getReadStatus, initDb } from "./storage";
 import type { SessionResponse } from "./types";
 import { hideElement, showElement, showWarningBanner } from "./ui";
 
@@ -20,7 +21,7 @@ const previousStatuses = new Map<string, string>();
 /**
  * Render sessions using Lit components
  */
-function renderSessions(sessions: SessionResponse[]): void {
+async function renderSessions(sessions: SessionResponse[]): Promise<void> {
   const table = document.getElementById("sessions-table");
   const emptyState = document.getElementById("empty-state");
   const tbody = document.getElementById("sessions-body");
@@ -41,8 +42,10 @@ function renderSessions(sessions: SessionResponse[]): void {
 
   // Create session-row elements for each session
   for (const session of sessions) {
+    const isRead = await getReadStatus(session.pane_id);
     const sessionRow = document.createElement("session-row") as SessionRow;
     sessionRow.session = session;
+    sessionRow.isRead = isRead;
     tbody.appendChild(sessionRow);
   }
 }
@@ -54,6 +57,9 @@ const AUTH_DISMISSED_KEY = "crux-auth-warning-dismissed";
 async function init(): Promise<void> {
   // Request notification permission early
   requestNotificationPermission();
+
+  // Initialize IndexedDB
+  await initDb();
 
   // Check auth status for AI summary feature
   const authDismissed = sessionStorage.getItem(AUTH_DISMISSED_KEY) === "true";

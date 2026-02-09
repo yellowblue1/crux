@@ -58,6 +58,18 @@ export function setConnectionStatus(status: ConnectionStatus): void {
 }
 
 /**
+ * Copy text to clipboard and show a toast notification
+ */
+export async function copyToClipboard(text: string, label = "text"): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(`Copied ${label} to clipboard!`);
+  } catch {
+    showToast(`Failed to copy ${label}`, "error");
+  }
+}
+
+/**
  * Show the warning banner with a message
  */
 export function showWarningBanner(message: string): void {

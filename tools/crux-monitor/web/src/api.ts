@@ -18,24 +18,6 @@ export async function fetchSessions(): Promise<SessionsApiResponse | null> {
 }
 
 /**
- * Jump to a tmux pane
- */
-export async function jumpToSession(paneId: string): Promise<boolean> {
-  try {
-    const response = await fetch(`/api/sessions/${encodeURIComponent(paneId)}/jump`, {
-      method: "POST",
-    });
-    if (response.ok) {
-      const data = await response.json();
-      return data.success === true;
-    }
-  } catch (err) {
-    console.error("Failed to jump to session:", err);
-  }
-  return false;
-}
-
-/**
  * Check authentication status for AI summary feature
  */
 export async function checkAuthStatus(): Promise<AuthStatusResponse> {
