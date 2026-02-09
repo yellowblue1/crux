@@ -319,6 +319,7 @@ export class SessionManager {
     if (session.status === "waiting") {
       session.status = "busy";
       session.summary_pending = false;
+      session.summary = null;
       // Cancel pending summary timer — session is active again
       this.cancelSummaryTimer(paneId);
       this.notifyChange();
