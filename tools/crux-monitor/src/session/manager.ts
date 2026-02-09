@@ -140,6 +140,8 @@ export class SessionManager {
       return s.status === filter;
     });
 
+    filtered.sort((a, b) => b.last_activity.localeCompare(a.last_activity));
+
     return filtered.map((s) => ({
       pane_id: s.pane_id,
       project_name: s.project_name,
