@@ -194,7 +194,13 @@ export class SessionManager {
 
     for (const [paneId, { process, pane }] of matches) {
       foundPanes.add(paneId);
-      if (!this.sessions.has(paneId)) {
+      const existing = this.sessions.get(paneId);
+      if (!existing) {
+        const didCreate = this.createSession(paneId, process.pid, pane);
+        if (didCreate) changed = true;
+      } else if (existing.process_pid !== process.pid) {
+        // Claude process changed in this pane — recreate session with fresh metadata
+        this.removeSession(paneId);
         const didCreate = this.createSession(paneId, process.pid, pane);
         if (didCreate) changed = true;
       }
