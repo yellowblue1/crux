@@ -1,31 +1,8 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import type { FSWatcher } from "node:fs";
 import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 import { SessionManager, type SessionManagerDeps } from "./manager";
-
-/**
- * Mock FSWatcher that allows triggering change events manually
- */
-class MockFSWatcher {
-  private callback: (() => void) | null = null;
-  closed = false;
-
-  constructor(callback: () => void) {
-    this.callback = callback;
-  }
-
-  /** Simulate a file change event */
-  triggerChange(): void {
-    this.callback?.();
-  }
-
-  close(): void {
-    this.closed = true;
-    this.callback = null;
-  }
-}
 
 /**
  * Mock FIFO reader process that allows simulating pipe-pane output
@@ -47,7 +24,6 @@ class MockFifoReader extends EventEmitter {
 
 function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
   deps: SessionManagerDeps;
-  watchers: Map<string, MockFSWatcher>;
   fifoReaders: Map<string, MockFifoReader>;
 } {
   const defaultPanes: TmuxPane[] = [
@@ -58,7 +34,6 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     { pid: 1000, ppid: 1, command: "-bash" },
     { pid: 2000, ppid: 1000, command: "claude" },
   ];
-  const watchers = new Map<string, MockFSWatcher>();
   const fifoReaders = new Map<string, MockFifoReader>();
 
   const deps: SessionManagerDeps = {
@@ -83,11 +58,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     findSessionJsonlPath: () => "/home/user/.claude/projects/test/session.jsonl",
     extractJsonlConversation: () => "[user]: Help me fix a bug\n\n[assistant]: I'll help.",
     generateSummary: async () => null,
-    watchFile: (path: string, callback: () => void) => {
-      const watcher = new MockFSWatcher(callback);
-      watchers.set(path, watcher);
-      return watcher as unknown as FSWatcher;
-    },
+    getJsonlMtime: () => 1000,
     capturePaneContent: () => null,
     startPipePane: () => true,
     stopPipePane: () => true,
@@ -100,7 +71,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     ...overrides,
   };
 
-  return { deps, watchers, fifoReaders };
+  return { deps, fifoReaders };
 }
 
 describe("SessionManager", () => {
@@ -135,7 +106,7 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("idle detection via fs.watch", () => {
+  describe("idle detection via pipe-pane", () => {
     it("marks session as WAITING after idle threshold", async () => {
       const { deps } = createMockDeps();
       manager = new SessionManager(deps, {
@@ -150,33 +121,33 @@ describe("SessionManager", () => {
       // Wait for idle threshold to expire
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Should now be WAITING (no JSONL changes happened)
+      // Should now be WAITING (no pipe-pane data)
       expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
 
-    it("stays BUSY when JSONL file keeps changing", async () => {
-      const { deps, watchers } = createMockDeps();
+    it("stays BUSY when pipe-pane keeps receiving data", async () => {
+      const { deps, fifoReaders } = createMockDeps();
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 200,
       });
       manager.start();
 
-      // Simulate JSONL changes every 50ms (faster than idle threshold)
+      // Simulate pipe-pane data every 50ms (faster than idle threshold)
+      const reader = Array.from(fifoReaders.values())[0];
       const interval = setInterval(() => {
-        const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-        watcher?.triggerChange();
+        reader?.simulateData("output");
       }, 50);
 
       await new Promise((resolve) => setTimeout(resolve, 400));
       clearInterval(interval);
 
-      // Should still be BUSY because JSONL keeps updating
+      // Should still be BUSY because pipe-pane keeps receiving data
       expect(manager.getSessions()[0]?.status).toBe("busy");
     });
 
-    it("transitions back to BUSY when JSONL changes after WAITING", async () => {
-      const { deps, watchers } = createMockDeps();
+    it("transitions back to BUSY when pipe-pane data arrives after WAITING", async () => {
+      const { deps, fifoReaders } = createMockDeps();
       const onChangeSpy = mock(() => {});
 
       manager = new SessionManager(deps, {
@@ -190,13 +161,37 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Simulate JSONL change (user starts typing)
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-      watcher?.triggerChange();
+      // Simulate pipe-pane data (Claude starts outputting)
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
 
       // Should be back to BUSY
       expect(manager.getSessions()[0]?.status).toBe("busy");
-      expect(manager.getSessions()[0]?.summary).toBeNull();
+    });
+
+    it("resets idle timer when pipe-pane data arrives during BUSY", async () => {
+      const { deps, fifoReaders } = createMockDeps();
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 150,
+      });
+      manager.start();
+
+      // Initially BUSY
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // At 100ms, send pipe data (before 150ms idle threshold)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+
+      // At 200ms (100ms after last data, still within 150ms threshold)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // At 300ms (200ms after last data, past 150ms threshold)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
   });
 
@@ -217,24 +212,6 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(manager.getSessions()).toHaveLength(0);
-    });
-
-    it("closes watcher when session is removed", async () => {
-      let hasProcess = true;
-      const { deps, watchers } = createMockDeps({
-        getClaudeProcesses: () => (hasProcess ? [{ pid: 2000, ppid: 1000 }] : []),
-      });
-
-      manager = new SessionManager(deps, { pollIntervalMs: 50 });
-      manager.start();
-
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-      expect(watcher).toBeDefined();
-
-      hasProcess = false;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(watcher?.closed).toBe(true);
     });
   });
 
@@ -284,32 +261,6 @@ describe("SessionManager", () => {
 
       // Should have fired at least once more for the PID change
       expect(onChangeSpy.mock.calls.length).toBeGreaterThan(initialCallCount);
-    });
-
-    it("restarts JSONL watcher when PID changes", async () => {
-      let currentPid = 2000;
-      let jsonlPath = "/home/user/.claude/projects/test/session-a.jsonl";
-      const { deps, watchers } = createMockDeps({
-        getClaudeProcesses: () => [{ pid: currentPid, ppid: 1000 }],
-        findSessionJsonlPath: () => jsonlPath,
-      });
-
-      manager = new SessionManager(deps, { pollIntervalMs: 50 });
-      manager.start();
-
-      const oldWatcher = watchers.get("/home/user/.claude/projects/test/session-a.jsonl");
-      expect(oldWatcher).toBeDefined();
-
-      // Change PID and JSONL path
-      currentPid = 3000;
-      jsonlPath = "/home/user/.claude/projects/test/session-b.jsonl";
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Old watcher should be closed
-      expect(oldWatcher?.closed).toBe(true);
-      // New watcher should be created
-      const newWatcher = watchers.get("/home/user/.claude/projects/test/session-b.jsonl");
-      expect(newWatcher).toBeDefined();
     });
 
     it("recreates session with fresh metadata when PID changes during WAITING", async () => {
@@ -364,7 +315,7 @@ describe("SessionManager", () => {
         jsonlAvailable ? "/home/user/.claude/projects/test/session.jsonl" : null,
       );
 
-      const { deps, watchers } = createMockDeps({
+      const { deps } = createMockDeps({
         findSessionJsonlPath: findSessionJsonlPathSpy,
       });
 
@@ -373,15 +324,13 @@ describe("SessionManager", () => {
 
       // Session created with null JSONL path
       expect(manager.getSessions()).toHaveLength(1);
-      expect(watchers.size).toBe(0); // No watcher since no JSONL path
 
       // JSONL becomes available
       jsonlAvailable = true;
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Should have retried and found the JSONL path, setting up a watcher
-      expect(watchers.size).toBe(1);
-      expect(watchers.has("/home/user/.claude/projects/test/session.jsonl")).toBe(true);
+      // Should have retried — findSessionJsonlPath called more than once
+      expect(findSessionJsonlPathSpy.mock.calls.length).toBeGreaterThan(1);
     });
 
     it("generates summary after JSONL path is discovered on retry", async () => {
@@ -543,7 +492,7 @@ describe("SessionManager", () => {
     it("cancels summary when session goes BUSY before delay fires", async () => {
       const generateSpy = mock(async () => "Should not appear");
 
-      const { deps, watchers } = createMockDeps({
+      const { deps, fifoReaders } = createMockDeps({
         generateSummary: generateSpy,
       });
 
@@ -558,9 +507,9 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Go BUSY before summary delay fires (at ~100ms, delay hasn't fired at 50+200=250ms)
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-      watcher?.triggerChange();
+      // Go BUSY before summary delay fires via pipe-pane data
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
       // Wait past the original summary delay
@@ -573,7 +522,7 @@ describe("SessionManager", () => {
     it("does not call Gemini during brief BUSY↔WAITING cycling", async () => {
       const generateSpy = mock(async () => "test");
 
-      const { deps, watchers } = createMockDeps({
+      const { deps, fifoReaders } = createMockDeps({
         generateSummary: generateSpy,
       });
 
@@ -585,18 +534,18 @@ describe("SessionManager", () => {
       manager.start();
 
       // Rapid BUSY↔WAITING cycling: go idle, then active, repeat
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
+      const reader = Array.from(fifoReaders.values())[0];
       for (let i = 0; i < 5; i++) {
         await new Promise((resolve) => setTimeout(resolve, 50)); // idle → WAITING
-        watcher?.triggerChange(); // → BUSY (cancels summary timer)
+        reader?.simulateData("output"); // → BUSY (cancels summary timer)
       }
 
       // Wait past summary delay
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // The final cycle left the session BUSY (last action was triggerChange),
+      // The final cycle left the session BUSY (last action was simulateData),
       // then idle again. Only the LAST sustained WAITING should trigger Gemini.
-      // But since we ended with triggerChange (BUSY) and then waited,
+      // But since we ended with simulateData (BUSY) and then waited,
       // it should have triggered exactly once for the final sustained idle.
       expect(generateSpy).toHaveBeenCalledTimes(1);
     });
@@ -779,10 +728,11 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("pane-based BUSY detection (pane content change triggers WAITING → BUSY)", () => {
+  describe("capture-pane fallback BUSY detection (when pipe-pane unavailable)", () => {
     it("transitions from WAITING to BUSY when pane content changes", async () => {
       let paneContent = "initial content";
       const { deps } = createMockDeps({
+        createFifo: () => false, // pipe-pane unavailable
         capturePaneContent: () => paneContent,
       });
 
@@ -806,35 +756,30 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("busy");
     });
 
-    it("clears summary when pane content change triggers BUSY", async () => {
-      let paneContent = "static content";
-      const generateSpy = mock(async () => "Some summary");
-
+    it("resets idle timer on content change in fallback mode", async () => {
+      let paneContent = "initial content";
       const { deps } = createMockDeps({
+        createFifo: () => false, // pipe-pane unavailable
         capturePaneContent: () => paneContent,
-        generateSummary: generateSpy,
       });
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 200,
+        idleThresholdMs: 150,
         paneCheckIntervalMs: 30,
         summaryDelayMs: 5000,
       });
       manager.start();
 
-      // Wait for WAITING + pane static → summary generation
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      expect(manager.getSessions()[0]?.status).toBe("waiting");
-      expect(manager.getSessions()[0]?.summary).toBe("Some summary");
+      // Initially BUSY, send content changes to keep resetting idle timer
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      paneContent = "content 2";
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      paneContent = "content 3";
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Pane content changes → should clear summary
-      paneContent = "new output from claude";
-      // Wait for pane check to detect change, but less than idleThresholdMs (200ms)
-      await new Promise((resolve) => setTimeout(resolve, 80));
-
+      // Should still be BUSY — content changes keep resetting the idle timer
       expect(manager.getSessions()[0]?.status).toBe("busy");
-      expect(manager.getSessions()[0]?.summary).toBeNull();
     });
 
     it("fires onChange when pane content change triggers WAITING → BUSY", async () => {
@@ -842,6 +787,7 @@ describe("SessionManager", () => {
       const onChangeSpy = mock(() => {});
 
       const { deps } = createMockDeps({
+        createFifo: () => false, // pipe-pane unavailable
         capturePaneContent: () => paneContent,
       });
 
@@ -866,8 +812,36 @@ describe("SessionManager", () => {
       expect(onChangeSpy.mock.calls.length).toBeGreaterThan(countAfterWaiting);
     });
 
+    it("does not trigger BUSY on content change when pipe-pane is active", async () => {
+      let paneContent = "initial content";
+      const { deps } = createMockDeps({
+        // pipe-pane is active (default: createFifo returns true)
+        capturePaneContent: () => paneContent,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Pane content changes — but pipe-pane is active, so capture-pane should NOT trigger BUSY
+      paneContent = "changed content";
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      // Should still be WAITING (capture-pane fallback is disabled when pipe-pane active)
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
     it("does not transition to BUSY when pane content is static", async () => {
       const { deps } = createMockDeps({
+        createFifo: () => false,
         capturePaneContent: () => "always the same",
       });
 
@@ -885,6 +859,7 @@ describe("SessionManager", () => {
 
     it("does not false-trigger BUSY on first pane capture", async () => {
       const { deps } = createMockDeps({
+        createFifo: () => false,
         capturePaneContent: () => "some content",
       });
 
@@ -900,20 +875,6 @@ describe("SessionManager", () => {
       // Session should still proceed to WAITING via idle timer
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
-    });
-  });
-
-  describe("stop", () => {
-    it("closes all watchers on stop", () => {
-      const { deps, watchers } = createMockDeps();
-      manager = new SessionManager(deps);
-      manager.start();
-
-      const watcher = watchers.get("/home/user/.claude/projects/test/session.jsonl");
-      expect(watcher).toBeDefined();
-
-      manager.stop();
-      expect(watcher?.closed).toBe(true);
     });
   });
 
@@ -957,7 +918,7 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("busy");
     });
 
-    it("clears summary when pipe-pane activity triggers BUSY", async () => {
+    it("returns null summary via API when pipe-pane triggers BUSY (cached internally)", async () => {
       const generateSpy = mock(async () => "Some summary");
 
       const { deps, fifoReaders } = createMockDeps({
@@ -978,13 +939,15 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("waiting");
       expect(manager.getSessions()[0]?.summary).toBe("Some summary");
 
-      // Pipe-pane data → BUSY, summary cleared
+      // Pipe-pane data → BUSY, API returns null summary
       const reader = Array.from(fifoReaders.values())[0];
       reader?.simulateData("new output");
 
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(manager.getSessions()[0]?.status).toBe("busy");
+      // API should return null summary for BUSY sessions
       expect(manager.getSessions()[0]?.summary).toBeNull();
+      expect(manager.getSession("%0")?.summary).toBeNull();
     });
 
     it("fires onChange when pipe-pane triggers WAITING → BUSY", async () => {
@@ -1130,6 +1093,158 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(manager.getSessions()[0]?.status).toBe("busy");
       expect(onChangeSpy.mock.calls.length).toBe(countAfterCreate);
+    });
+  });
+
+  describe("JSONL mtime guard", () => {
+    it("skips Gemini when JSONL mtime unchanged since last summary", async () => {
+      const generateSpy = mock(async () => "Summary v1");
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        getJsonlMtime: () => 1000, // mtime never changes
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First cycle: idle → WAITING → static pane → generate summary
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
+
+      // Go BUSY via pipe-pane, then back to WAITING
+      // We need to get the fifoReader to simulate data
+      // Since createMockDeps was called with defaults, fifoReaders exist
+      // but we need to trigger a full BUSY→WAITING→summary cycle
+      // Instead, create a fresh manager with explicit fifoReaders control
+      manager.stop();
+
+      // Second manager: simulate the second cycle where mtime hasn't changed
+      let callCount = 0;
+      const generateSpy2 = mock(async () => `Summary v${++callCount}`);
+      const { deps: deps2, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy2,
+        getJsonlMtime: () => 1000, // mtime stays the same
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps2, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First cycle: generates summary (mtime=1000, summaryJsonlMtime=null)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy2).toHaveBeenCalledTimes(1);
+
+      // Go BUSY via pipe-pane data, then idle → WAITING again
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Wait for idle → WAITING again + static pane check
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Should NOT have called Gemini again — mtime unchanged
+      expect(generateSpy2).toHaveBeenCalledTimes(1);
+      // Summary should still be available (cached)
+      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
+    });
+
+    it("calls Gemini when JSONL mtime has changed", async () => {
+      let currentMtime = 1000;
+      const generateSpy = mock(async () => `Summary at ${currentMtime}`);
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        getJsonlMtime: () => currentMtime,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First summary generation
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Go BUSY, change mtime, then back to WAITING
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      currentMtime = 2000; // JSONL has been modified
+
+      // Wait for idle → WAITING + static pane → summary
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should have called Gemini again because mtime changed
+      expect(generateSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("API summary filtering", () => {
+    it("getSessions returns null summary for BUSY sessions", () => {
+      const { deps } = createMockDeps();
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 5000, // Stay BUSY
+      });
+      manager.start();
+
+      const sessions = manager.getSessions();
+      expect(sessions[0]?.status).toBe("busy");
+      expect(sessions[0]?.summary).toBeNull();
+    });
+
+    it("getSession returns null summary for BUSY sessions", () => {
+      const { deps } = createMockDeps();
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 5000, // Stay BUSY
+      });
+      manager.start();
+
+      const session = manager.getSession("%0");
+      expect(session?.status).toBe("busy");
+      expect(session?.summary).toBeNull();
+    });
+
+    it("getSessions returns summary for WAITING sessions", async () => {
+      const { deps } = createMockDeps({
+        generateSummary: async () => "Test summary",
+        capturePaneContent: () => "static content",
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const sessions = manager.getSessions();
+      expect(sessions[0]?.status).toBe("waiting");
+      expect(sessions[0]?.summary).toBe("Test summary");
     });
   });
 });

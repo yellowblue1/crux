@@ -341,6 +341,18 @@ export function stopPipePane(paneId: string, exec: ExecFn = defaultExec): boolea
 }
 
 /**
+ * Get the modification time (in milliseconds) of a JSONL file.
+ * Used by the summary change guard to skip Gemini calls when content hasn't changed.
+ */
+export function getJsonlMtime(jsonlPath: string): number | null {
+  try {
+    return statSync(jsonlPath).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Match Claude processes to tmux panes by walking the process tree.
  * For each Claude process, walks up the PPID chain to find an ancestor
  * that is a tmux pane's initial process (pane_pid).

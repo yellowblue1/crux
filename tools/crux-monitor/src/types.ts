@@ -13,11 +13,11 @@ export interface SessionState {
   summary: string | null;
   tmux_target: string;
   jsonl_path: string | null;
-  last_changed: number;
   last_activity: string;
   previousPaneContent: string | null;
   summary_pending: boolean;
   pipePaneActive: boolean;
+  summaryJsonlMtime: number | null;
 }
 
 export interface TmuxPane {
