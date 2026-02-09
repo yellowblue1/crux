@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 import {
   buildTmuxTarget,
+  capturePaneContent,
   encodeCwdPath,
   extractJsonlConversation,
   findSessionJsonlPath,
@@ -272,6 +273,20 @@ describe("switchToPane", () => {
       throw new Error("tmux error");
     };
     expect(switchToPane("%0", exec)).toBe(false);
+  });
+});
+
+describe("capturePaneContent", () => {
+  it("returns captured pane output", () => {
+    const exec = () => "line 1\nline 2\n❯ ";
+    expect(capturePaneContent("%0", exec)).toBe("line 1\nline 2\n❯ ");
+  });
+
+  it("returns null on tmux error", () => {
+    const exec = () => {
+      throw new Error("tmux error");
+    };
+    expect(capturePaneContent("%0", exec)).toBeNull();
   });
 });
 

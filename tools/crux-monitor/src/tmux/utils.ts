@@ -301,6 +301,19 @@ export function switchToPane(paneId: string, exec: ExecFn = defaultExec): boolea
 }
 
 /**
+ * Capture the current visible content of a tmux pane.
+ * Used for diff-based idle detection — if content doesn't change between
+ * two consecutive captures, the pane is considered static.
+ */
+export function capturePaneContent(paneId: string, exec: ExecFn = defaultExec): string | null {
+  try {
+    return exec(`tmux capture-pane -p -t ${shellEscape(paneId)}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Match Claude processes to tmux panes by walking the process tree.
  * For each Claude process, walks up the PPID chain to find an ancestor
  * that is a tmux pane's initial process (pane_pid).

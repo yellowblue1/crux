@@ -24,17 +24,20 @@ export interface SessionManagerDeps {
   extractJsonlConversation: (jsonlPath: string) => string | null;
   generateSummary: (content: string) => Promise<string | null>;
   watchFile: (path: string, callback: () => void) => FSWatcher;
+  capturePaneContent: (paneId: string) => string | null;
 }
 
 export interface SessionManagerOptions {
   pollIntervalMs?: number;
   idleThresholdMs?: number;
   summaryDelayMs?: number;
+  paneCheckIntervalMs?: number;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 const DEFAULT_IDLE_THRESHOLD_MS = 3000;
-const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING
+const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
+const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
 
 /**
  * Manages Claude Code session state via tmux polling + JSONL file watching.
@@ -42,8 +45,9 @@ const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING
  * Session discovery: polls ps + tmux list-panes periodically.
  * Idle detection: watches JSONL files with fs.watch — file changes mean BUSY,
  * no changes for idleThresholdMs means WAITING.
- * Summary generation: after sustained WAITING for summaryDelayMs, reads JSONL
- * conversation and calls Gemini. Brief BUSY↔WAITING cycles don't trigger calls.
+ * Summary generation: dual-condition — when WAITING AND tmux pane content is
+ * static (unchanged between consecutive captures), triggers Gemini immediately.
+ * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
  */
 export class SessionManager {
   private sessions = new Map<string, SessionState>();
@@ -52,9 +56,11 @@ export class SessionManager {
   private summaryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private deps: SessionManagerDeps;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private paneCheckTimer: ReturnType<typeof setInterval> | null = null;
   private readonly pollIntervalMs: number;
   private readonly idleThresholdMs: number;
   private readonly summaryDelayMs: number;
+  private readonly paneCheckIntervalMs: number;
   private onChangeCallback: (() => void) | null = null;
 
   constructor(deps?: Partial<SessionManagerDeps>, options?: SessionManagerOptions) {
@@ -72,10 +78,12 @@ export class SessionManager {
       extractJsonlConversation: deps?.extractJsonlConversation ?? tmux.extractJsonlConversation,
       generateSummary: deps?.generateSummary ?? (async () => null),
       watchFile: deps?.watchFile ?? defaultWatchFile,
+      capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
     };
     this.pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.idleThresholdMs = options?.idleThresholdMs ?? DEFAULT_IDLE_THRESHOLD_MS;
     this.summaryDelayMs = options?.summaryDelayMs ?? DEFAULT_SUMMARY_DELAY_MS;
+    this.paneCheckIntervalMs = options?.paneCheckIntervalMs ?? DEFAULT_PANE_CHECK_INTERVAL_MS;
   }
 
   /**
@@ -92,6 +100,7 @@ export class SessionManager {
     if (this.pollTimer) return;
     this.poll();
     this.pollTimer = setInterval(() => this.poll(), this.pollIntervalMs);
+    this.paneCheckTimer = setInterval(() => this.checkPaneContent(), this.paneCheckIntervalMs);
   }
 
   /**
@@ -101,6 +110,10 @@ export class SessionManager {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.paneCheckTimer) {
+      clearInterval(this.paneCheckTimer);
+      this.paneCheckTimer = null;
     }
     for (const watcher of this.watchers.values()) {
       watcher.close();
@@ -219,6 +232,7 @@ export class SessionManager {
       jsonl_path: jsonlPath,
       last_changed: Date.now(),
       last_activity: new Date().toISOString(),
+      previousPaneContent: null,
       summary_pending: false,
     });
 
@@ -396,13 +410,37 @@ export class SessionManager {
       const current = this.sessions.get(paneId);
       if (current && current.status === "waiting") {
         current.summary = summary;
-        current.summary_pending = false;
+        // Keep summary_pending = true to prevent re-triggering in the same
+        // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
       }
     } catch {
       const current = this.sessions.get(paneId);
       if (current) {
         current.summary_pending = false;
+      }
+    }
+  }
+
+  /**
+   * Check pane content for all sessions — dual-condition idle detection.
+   * If a WAITING session's pane content hasn't changed since the last check,
+   * the session is confirmed idle and summary generation is triggered immediately.
+   */
+  private checkPaneContent(): void {
+    for (const [paneId, session] of this.sessions) {
+      const content = this.deps.capturePaneContent(session.pane_id);
+      if (content === null) continue;
+
+      const isStatic =
+        session.previousPaneContent !== null && content === session.previousPaneContent;
+      session.previousPaneContent = content;
+
+      // Dual-condition: pane static AND WAITING → trigger summary immediately
+      if (isStatic && session.status === "waiting" && !session.summary_pending) {
+        session.summary_pending = true;
+        this.cancelSummaryTimer(paneId);
+        this.generateSummaryAsync(paneId);
       }
     }
   }
