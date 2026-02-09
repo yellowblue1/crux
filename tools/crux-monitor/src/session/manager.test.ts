@@ -357,6 +357,84 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("JSONL path retry", () => {
+    it("retries finding JSONL path on subsequent polls when initially null", async () => {
+      let jsonlAvailable = false;
+      const findSessionJsonlPathSpy = mock(() =>
+        jsonlAvailable ? "/home/user/.claude/projects/test/session.jsonl" : null,
+      );
+
+      const { deps, watchers } = createMockDeps({
+        findSessionJsonlPath: findSessionJsonlPathSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      // Session created with null JSONL path
+      expect(manager.getSessions()).toHaveLength(1);
+      expect(watchers.size).toBe(0); // No watcher since no JSONL path
+
+      // JSONL becomes available
+      jsonlAvailable = true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should have retried and found the JSONL path, setting up a watcher
+      expect(watchers.size).toBe(1);
+      expect(watchers.has("/home/user/.claude/projects/test/session.jsonl")).toBe(true);
+    });
+
+    it("generates summary after JSONL path is discovered on retry", async () => {
+      let jsonlAvailable = false;
+      const generateSpy = mock(async () => "Waiting for input");
+
+      const { deps } = createMockDeps({
+        findSessionJsonlPath: () =>
+          jsonlAvailable ? "/home/user/.claude/projects/test/session.jsonl" : null,
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 50,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Initially no summary possible (no JSONL)
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(generateSpy).not.toHaveBeenCalled();
+
+      // JSONL becomes available
+      jsonlAvailable = true;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should now be able to generate summary
+      expect(generateSpy).toHaveBeenCalled();
+    });
+
+    it("does not retry when JSONL path is already set", async () => {
+      const findSessionJsonlPathSpy = mock(() => "/home/user/.claude/projects/test/session.jsonl");
+
+      const { deps } = createMockDeps({
+        findSessionJsonlPath: findSessionJsonlPathSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      const initialCallCount = findSessionJsonlPathSpy.mock.calls.length;
+
+      // Wait for several polls
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should not have called findSessionJsonlPath again
+      expect(findSessionJsonlPathSpy.mock.calls.length).toBe(initialCallCount);
+    });
+  });
+
   describe("tmux unavailable", () => {
     it("returns empty sessions when tmux is not available", () => {
       const { deps } = createMockDeps({

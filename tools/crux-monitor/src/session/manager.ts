@@ -227,6 +227,13 @@ export class SessionManager {
         this.removeSession(paneId);
         const didCreate = this.createSession(paneId, process.pid, pane);
         if (didCreate) changed = true;
+      } else if (!existing.jsonl_path) {
+        // Retry finding JSONL path — file may not have existed at session creation
+        const jsonlPath = this.deps.findSessionJsonlPath(existing.cwd);
+        if (jsonlPath) {
+          existing.jsonl_path = jsonlPath;
+          this.startWatching(paneId, jsonlPath);
+        }
       }
     }
 
