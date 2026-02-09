@@ -208,6 +208,125 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("PID change detection", () => {
+    it("recreates session when Claude process PID changes in same pane", async () => {
+      let currentPid = 2000;
+      const { deps } = createMockDeps({
+        getClaudeProcesses: () => [{ pid: currentPid, ppid: 1000 }],
+        getGitBranch: () => (currentPid === 2000 ? "feature-a" : "feature-b"),
+        getProcessCwd: () =>
+          currentPid === 2000 ? "/home/user/project-a" : "/home/user/project-b",
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      // Initial session
+      expect(manager.getSessions()).toHaveLength(1);
+      expect(manager.getSessions()[0].git_branch).toBe("feature-a");
+
+      // Claude restarts with a different PID in the same pane
+      currentPid = 3000;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Session should be recreated with fresh metadata
+      const sessions = manager.getSessions();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].git_branch).toBe("feature-b");
+      expect(sessions[0].pane_id).toBe("%0");
+    });
+
+    it("fires onChange when PID changes", async () => {
+      let currentPid = 2000;
+      const onChangeSpy = mock(() => {});
+      const { deps } = createMockDeps({
+        getClaudeProcesses: () => [{ pid: currentPid, ppid: 1000 }],
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.onChange(onChangeSpy);
+      manager.start();
+
+      const initialCallCount = onChangeSpy.mock.calls.length;
+
+      currentPid = 3000;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should have fired at least once more for the PID change
+      expect(onChangeSpy.mock.calls.length).toBeGreaterThan(initialCallCount);
+    });
+
+    it("restarts JSONL watcher when PID changes", async () => {
+      let currentPid = 2000;
+      let jsonlPath = "/home/user/.claude/projects/test/session-a.jsonl";
+      const { deps, watchers } = createMockDeps({
+        getClaudeProcesses: () => [{ pid: currentPid, ppid: 1000 }],
+        findSessionJsonlPath: () => jsonlPath,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      const oldWatcher = watchers.get("/home/user/.claude/projects/test/session-a.jsonl");
+      expect(oldWatcher).toBeDefined();
+
+      // Change PID and JSONL path
+      currentPid = 3000;
+      jsonlPath = "/home/user/.claude/projects/test/session-b.jsonl";
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Old watcher should be closed
+      expect(oldWatcher?.closed).toBe(true);
+      // New watcher should be created
+      const newWatcher = watchers.get("/home/user/.claude/projects/test/session-b.jsonl");
+      expect(newWatcher).toBeDefined();
+    });
+
+    it("recreates session with fresh metadata when PID changes during WAITING", async () => {
+      let currentPid = 2000;
+      const { deps } = createMockDeps({
+        getClaudeProcesses: () => [{ pid: currentPid, ppid: 1000 }],
+        getGitBranch: () => (currentPid === 2000 ? "old-branch" : "new-branch"),
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 50,
+        idleThresholdMs: 30,
+      });
+      manager.start();
+
+      // Wait for WAITING status
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(manager.getSessions()[0]?.git_branch).toBe("old-branch");
+
+      // PID change: new Claude starts
+      currentPid = 3000;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Session should be recreated with fresh metadata
+      expect(manager.getSessions()[0]?.git_branch).toBe("new-branch");
+    });
+
+    it("does not recreate session when PID remains the same", async () => {
+      const getProcessCwdSpy = mock(() => "/home/user/project");
+      const { deps } = createMockDeps({
+        getProcessCwd: getProcessCwdSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      const initialCallCount = getProcessCwdSpy.mock.calls.length;
+
+      // Wait for several polls
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // getProcessCwd should not be called again (no recreation)
+      expect(getProcessCwdSpy.mock.calls.length).toBe(initialCallCount);
+    });
+  });
+
   describe("tmux unavailable", () => {
     it("returns empty sessions when tmux is not available", () => {
       const { deps } = createMockDeps({
