@@ -24,6 +24,7 @@ const ICON_CLIPBOARD_CHECK = `<svg width="16" height="16" viewBox="0 0 16 16" fi
 export class SessionRow extends LitElement {
   @property({ type: Object }) session!: SessionResponse;
   @property({ type: Boolean }) isRead = false;
+  @property({ type: Boolean }) showTmuxTarget = false;
 
   // Use light DOM for Tailwind CSS compatibility
   protected createRenderRoot() {
@@ -70,6 +71,10 @@ export class SessionRow extends LitElement {
       <tr class="${rowClass}">
         <td class="col-project">
           <span class="project-name">${escapeHtml(s.project_name)}</span>
+          ${when(
+            this.showTmuxTarget,
+            () => html`<span class="tmux-target">${escapeHtml(s.tmux_target)}</span>`,
+          )}
         </td>
         <td class="col-branch">
           ${when(

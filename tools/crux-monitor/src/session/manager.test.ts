@@ -90,6 +90,35 @@ describe("SessionManager", () => {
       expect(manager.getSessions()).toEqual([]);
     });
 
+    it("returns distinct tmux_target for sessions with same project and branch", () => {
+      const { deps } = createMockDeps({
+        getAllTmuxPanes: () => [
+          { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
+          { pane_id: "%1", pane_pid: 1001, session_name: "main", window_index: 1, pane_index: 0 },
+        ],
+        getClaudeProcesses: () => [
+          { pid: 2000, ppid: 1000 },
+          { pid: 2001, ppid: 1001 },
+        ],
+        getProcessTable: () => [
+          { pid: 1000, ppid: 1, command: "-bash" },
+          { pid: 2000, ppid: 1000, command: "claude" },
+          { pid: 1001, ppid: 1, command: "-bash" },
+          { pid: 2001, ppid: 1001, command: "claude" },
+        ],
+      });
+
+      manager = new SessionManager(deps);
+      manager.start();
+
+      const sessions = manager.getSessions();
+      expect(sessions).toHaveLength(2);
+      expect(sessions[0].project_name).toBe(sessions[1].project_name);
+      expect(sessions[0].git_branch).toBe(sessions[1].git_branch);
+      expect(sessions[0].tmux_target).not.toBe(sessions[1].tmux_target);
+      expect(sessions[0].pane_id).not.toBe(sessions[1].pane_id);
+    });
+
     it("detects a claude session from tmux pane", () => {
       const { deps } = createMockDeps();
       manager = new SessionManager(deps);

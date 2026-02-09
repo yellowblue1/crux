@@ -40,12 +40,23 @@ async function renderSessions(sessions: SessionResponse[]): Promise<void> {
   // Clear existing rows
   tbody.innerHTML = "";
 
+  // Detect duplicate project+branch combinations
+  const keyCounts = new Map<string, number>();
+  for (const session of sessions) {
+    const key = `${session.project_name}\0${session.git_branch ?? ""}`;
+    keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+  }
+
   // Create session-row elements for each session
   for (const session of sessions) {
+    const key = `${session.project_name}\0${session.git_branch ?? ""}`;
+    const isDuplicate = (keyCounts.get(key) ?? 0) > 1;
+
     const isRead = await getReadStatus(session.pane_id);
     const sessionRow = document.createElement("session-row") as SessionRow;
     sessionRow.session = session;
     sessionRow.isRead = isRead;
+    sessionRow.showTmuxTarget = isDuplicate;
     tbody.appendChild(sessionRow);
   }
 }

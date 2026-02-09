@@ -116,6 +116,10 @@
   @apply font-medium text-accent-blue;
 }
 
+.tmux-target {
+  @apply block text-xs text-text-muted font-mono mt-0.5 opacity-70;
+}
+
 .git-branch {
   @apply text-sm text-accent-purple font-mono;
 }
