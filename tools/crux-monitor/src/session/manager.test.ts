@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import type { FSWatcher } from "node:fs";
 import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 import { SessionManager, type SessionManagerDeps } from "./manager";
@@ -25,9 +27,28 @@ class MockFSWatcher {
   }
 }
 
+/**
+ * Mock FIFO reader process that allows simulating pipe-pane output
+ */
+class MockFifoReader extends EventEmitter {
+  stdout: EventEmitter = new EventEmitter();
+  killed = false;
+
+  kill(_signal?: string): boolean {
+    this.killed = true;
+    return true;
+  }
+
+  /** Simulate data arriving from pipe-pane */
+  simulateData(data = "output"): void {
+    this.stdout.emit("data", Buffer.from(data));
+  }
+}
+
 function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
   deps: SessionManagerDeps;
   watchers: Map<string, MockFSWatcher>;
+  fifoReaders: Map<string, MockFifoReader>;
 } {
   const defaultPanes: TmuxPane[] = [
     { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
@@ -38,6 +59,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     { pid: 2000, ppid: 1000, command: "claude" },
   ];
   const watchers = new Map<string, MockFSWatcher>();
+  const fifoReaders = new Map<string, MockFifoReader>();
 
   const deps: SessionManagerDeps = {
     isTmuxAvailable: () => true,
@@ -67,10 +89,18 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
       return watcher as unknown as FSWatcher;
     },
     capturePaneContent: () => null,
+    startPipePane: () => true,
+    stopPipePane: () => true,
+    createFifo: () => true,
+    spawnFifoReader: (path: string) => {
+      const reader = new MockFifoReader();
+      fifoReaders.set(path, reader);
+      return reader as unknown as ChildProcess;
+    },
     ...overrides,
   };
 
-  return { deps, watchers };
+  return { deps, watchers, fifoReaders };
 }
 
 describe("SessionManager", () => {
@@ -806,6 +836,222 @@ describe("SessionManager", () => {
 
       manager.stop();
       expect(watcher?.closed).toBe(true);
+    });
+  });
+
+  describe("pipe-pane activity detection", () => {
+    it("sets up pipe-pane on session creation", () => {
+      const createFifoSpy = mock(() => true);
+      const startPipePaneSpy = mock(() => true);
+
+      const { deps } = createMockDeps({
+        createFifo: createFifoSpy,
+        startPipePane: startPipePaneSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 5000 });
+      manager.start();
+
+      expect(createFifoSpy).toHaveBeenCalledTimes(1);
+      expect(startPipePaneSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("transitions from WAITING to BUSY when pipe-pane receives data", async () => {
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000, // Disable pane polling (long interval)
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Simulate pipe-pane data
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("some output");
+
+      // Should transition to BUSY immediately
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("clears summary when pipe-pane activity triggers BUSY", async () => {
+      const generateSpy = mock(async () => "Some summary");
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING + static pane → summary generated
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(manager.getSessions()[0]?.summary).toBe("Some summary");
+
+      // Pipe-pane data → BUSY, summary cleared
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("new output");
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+      expect(manager.getSessions()[0]?.summary).toBeNull();
+    });
+
+    it("fires onChange when pipe-pane triggers WAITING → BUSY", async () => {
+      const onChangeSpy = mock(() => {});
+
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000,
+      });
+      manager.onChange(onChangeSpy);
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const countAfterWaiting = onChangeSpy.mock.calls.length;
+
+      // Pipe-pane data
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(onChangeSpy.mock.calls.length).toBeGreaterThan(countAfterWaiting);
+    });
+
+    it("tears down pipe-pane on session removal", async () => {
+      let hasProcess = true;
+      const stopPipePaneSpy = mock(() => true);
+
+      const { deps, fifoReaders } = createMockDeps({
+        getClaudeProcesses: () => (hasProcess ? [{ pid: 2000, ppid: 1000 }] : []),
+        stopPipePane: stopPipePaneSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      expect(fifoReaders.size).toBe(1);
+      const reader = Array.from(fifoReaders.values())[0];
+
+      // Remove process
+      hasProcess = false;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(stopPipePaneSpy).toHaveBeenCalled();
+      expect(reader?.killed).toBe(true);
+    });
+
+    it("tears down pipe-pane on stop", () => {
+      const stopPipePaneSpy = mock(() => true);
+
+      const { deps, fifoReaders } = createMockDeps({
+        stopPipePane: stopPipePaneSpy,
+      });
+
+      manager = new SessionManager(deps);
+      manager.start();
+
+      const reader = Array.from(fifoReaders.values())[0];
+
+      manager.stop();
+
+      expect(stopPipePaneSpy).toHaveBeenCalled();
+      expect(reader?.killed).toBe(true);
+    });
+
+    it("falls back gracefully when FIFO creation fails", () => {
+      const { deps } = createMockDeps({
+        createFifo: () => false,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 5000 });
+      manager.start();
+
+      // Session should still be created
+      expect(manager.getSessions()).toHaveLength(1);
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("falls back gracefully when startPipePane fails", () => {
+      const stopPipePaneSpy = mock(() => true);
+
+      const { deps } = createMockDeps({
+        startPipePane: () => false,
+        stopPipePane: stopPipePaneSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 5000 });
+      manager.start();
+
+      // Session should still be created
+      expect(manager.getSessions()).toHaveLength(1);
+      // Cleanup should have been attempted
+      expect(stopPipePaneSpy).toHaveBeenCalled();
+    });
+
+    it("recreates pipe-pane when PID changes", async () => {
+      let currentPid = 2000;
+      const createFifoSpy = mock(() => true);
+
+      const { deps, fifoReaders } = createMockDeps({
+        getClaudeProcesses: () => [{ pid: currentPid, ppid: 1000 }],
+        createFifo: createFifoSpy,
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      expect(createFifoSpy).toHaveBeenCalledTimes(1);
+      const oldReader = Array.from(fifoReaders.values())[0];
+
+      // PID changes
+      currentPid = 3000;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Old reader should be killed, new one created
+      expect(oldReader?.killed).toBe(true);
+      expect(createFifoSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("does not transition when pipe-pane data arrives during BUSY", async () => {
+      const onChangeSpy = mock(() => {});
+
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 5000, // Keep BUSY for a long time
+      });
+      manager.onChange(onChangeSpy);
+      manager.start();
+
+      // Session starts BUSY
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+      const countAfterCreate = onChangeSpy.mock.calls.length;
+
+      // Pipe-pane data while BUSY — should not trigger onChange
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+      expect(onChangeSpy.mock.calls.length).toBe(countAfterCreate);
     });
   });
 });

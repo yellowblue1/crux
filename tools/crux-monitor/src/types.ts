@@ -17,6 +17,7 @@ export interface SessionState {
   last_activity: string;
   previousPaneContent: string | null;
   summary_pending: boolean;
+  pipePaneActive: boolean;
 }
 
 export interface TmuxPane {
