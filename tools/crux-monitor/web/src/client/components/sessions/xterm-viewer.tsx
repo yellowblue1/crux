@@ -35,6 +35,14 @@ const XTERM_THEME = {
   brightWhite: "#ffffff",
 } as const;
 
+function safeFit(fitAddon: FitAddon): void {
+  try {
+    fitAddon.fit();
+  } catch {
+    // Renderer dimensions not yet available; will retry on next resize event
+  }
+}
+
 export function XtermViewer({ content, className }: XtermViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -50,25 +58,29 @@ export function XtermViewer({ content, className }: XtermViewerProps) {
       theme: XTERM_THEME,
       fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace",
       fontSize: 14,
-      lineHeight: 1.5,
+      lineHeight: 1.2,
       cursorBlink: false,
       cursorStyle: "block",
       cursorInactiveStyle: "none",
       disableStdin: true,
       convertEol: true,
-      scrollback: 0,
+      scrollback: 1000,
     });
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
-    fitAddon.fit();
+
+    // Defer fit to next animation frame so the renderer finishes initializing
+    requestAnimationFrame(() => {
+      safeFit(fitAddon);
+    });
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
     const resizeObserver = new ResizeObserver(() => {
       requestAnimationFrame(() => {
-        fitAddon.fit();
+        safeFit(fitAddon);
       });
     });
     resizeObserver.observe(container);

@@ -261,12 +261,12 @@ body {
 
 .pane-viewer {
   @apply bg-bg-primary border border-border-default rounded-lg overflow-hidden m-0;
-  max-height: calc(100vh - 340px);
+  max-height: calc(100vh - 280px);
   min-height: 200px;
 }
 
 .pane-viewer .xterm {
-  padding: 16px;
+  padding: 12px;
 }
 
 /* Send keys input bar */
@@ -403,7 +403,7 @@ body {
   }
 
   .pane-viewer {
-    max-height: calc(100vh - 320px);
+    max-height: calc(100vh - 260px);
     min-height: 150px;
     @apply rounded-none border-x-0;
   }
