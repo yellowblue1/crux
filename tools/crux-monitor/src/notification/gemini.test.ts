@@ -5,7 +5,12 @@ import {
   mockGeminiError,
   mockGeminiSuccess,
 } from "../__tests__";
-import { buildConversationPrompt, generatePaneSummary, getConversationTail } from "./gemini";
+import {
+  buildConversationPrompt,
+  type FetchFn,
+  generatePaneSummary,
+  getConversationTail,
+} from "./gemini";
 import { clearSummaryCache, getInflightSize } from "./summary-cache";
 
 describe("gemini", () => {
@@ -61,13 +66,11 @@ describe("gemini", () => {
   });
 
   describe("generatePaneSummary", () => {
-    type FetchFn = (url: string | URL | Request, options?: RequestInit) => Promise<Response>;
-
-    const mockDeps = (fetchFn: FetchFn) => ({
-      fetchFn,
-      getAccessTokenFn: () => "mock-token",
-      getGcpProjectFn: () => "mock-project",
-      getGcpLocationFn: () => "us-central1",
+    const mockDeps = (fetchImpl: FetchFn) => ({
+      fetch: fetchImpl,
+      getAccessToken: () => "mock-token" as string | null,
+      getGcpProject: () => "mock-project" as string | null,
+      getGcpLocation: () => "us-central1",
     });
 
     beforeEach(() => {
@@ -91,7 +94,7 @@ describe("gemini", () => {
     it("returns null when project is not configured", async () => {
       const result = await generatePaneSummary("content", {
         ...mockDeps(mockGeminiSuccess("test")),
-        getGcpProjectFn: () => null,
+        getGcpProject: () => null,
       });
       expect(result).toBeNull();
     });
@@ -99,7 +102,7 @@ describe("gemini", () => {
     it("returns null when access token is unavailable", async () => {
       const result = await generatePaneSummary("content", {
         ...mockDeps(mockGeminiSuccess("test")),
-        getAccessTokenFn: () => null,
+        getAccessToken: () => null,
       });
       expect(result).toBeNull();
     });

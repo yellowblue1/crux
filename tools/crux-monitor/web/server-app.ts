@@ -15,7 +15,7 @@ import type { PaneContentResponse, SendKeysResponse, SessionResponse } from "../
  * Dependencies for the app factory.
  * All session operations are injected to enable testing.
  */
-export interface AppDependencies {
+export interface AppDeps {
   getSessions: (filter?: string) => SessionResponse[];
   sendKeys?: (paneId: string, text: string) => boolean;
   sendRawKey?: (paneId: string, key: string) => boolean;
@@ -45,14 +45,14 @@ export interface SseClient {
 /**
  * Options for app creation
  */
-export interface CreateAppOptions {
+export interface AppOptions {
   restrictCors?: boolean;
 }
 
 /**
  * Creates a Hono app with injected dependencies.
  */
-export function createApp(deps: AppDependencies, options: CreateAppOptions = {}) {
+export function createApp(deps: AppDeps, options: AppOptions = {}) {
   const { restrictCors = true } = options;
 
   const app = new Hono()

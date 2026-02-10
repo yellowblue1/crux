@@ -7,15 +7,21 @@
 
 import { describe, expect, it, mock } from "bun:test";
 import type { SessionResponse } from "../shared/types";
-import { type AppDependencies, createApp, type SseClient } from "./server-app";
+import { type AppDeps, createApp, type SseClient } from "./server-app";
 
-function createMockDeps(overrides: Partial<AppDependencies> = {}): AppDependencies {
+function createMockDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   return {
     getSessions: () => [],
     sendKeys: () => true,
     sendRawKey: () => true,
+    capturePaneContent: () => null,
     getAccessToken: () => "mock-token",
     getGcpProject: () => "mock-project",
+    onSseConnect: () => {},
+    onSseDisconnect: () => {},
+    serializeSessionsData: () => "{}",
+    onPaneContentSseConnect: () => {},
+    onPaneContentSseDisconnect: () => {},
     ...overrides,
   };
 }
@@ -132,7 +138,7 @@ describe("Hono API endpoints", () => {
 
     it("returns 501 when sendKeys dependency is not provided", async () => {
       const { sendKeys: _, ...depsWithoutSendKeys } = createMockDeps();
-      const app = createApp(depsWithoutSendKeys as AppDependencies);
+      const app = createApp(depsWithoutSendKeys as AppDeps);
 
       const res = await app.request("/api/sessions/%250/send-keys", {
         method: "POST",
@@ -175,7 +181,7 @@ describe("Hono API endpoints", () => {
 
     it("returns 501 when sendRawKey dependency is not provided for raw mode", async () => {
       const { sendRawKey: _, ...depsWithout } = createMockDeps();
-      const app = createApp(depsWithout as AppDependencies);
+      const app = createApp(depsWithout as AppDeps);
 
       const res = await app.request("/api/sessions/%250/send-keys", {
         method: "POST",
@@ -217,7 +223,7 @@ describe("Hono API endpoints", () => {
     });
 
     it("returns 501 when capturePaneContent is not provided", async () => {
-      const deps = createMockDeps();
+      const deps = createMockDeps({ capturePaneContent: undefined });
       const app = createApp(deps);
 
       const res = await app.request("/api/sessions/%250/pane-content");
