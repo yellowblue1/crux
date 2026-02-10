@@ -1,13 +1,8 @@
-// IndexedDB storage for read status tracking
-
 const DB_NAME = "crux-monitor";
 const STORE_NAME = "read-events";
 
 let db: IDBDatabase | null = null;
 
-/**
- * Initialize IndexedDB database
- */
 export async function initDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -26,9 +21,6 @@ export async function initDb(): Promise<IDBDatabase> {
   });
 }
 
-/**
- * Get read status for a session
- */
 export async function getReadStatus(sessionId: string): Promise<boolean> {
   const database = db;
   if (!database) return false;
@@ -41,9 +33,6 @@ export async function getReadStatus(sessionId: string): Promise<boolean> {
   });
 }
 
-/**
- * Set read status for a session
- */
 export async function setReadStatus(sessionId: string, isRead: boolean): Promise<void> {
   const database = db;
   if (!database) return;

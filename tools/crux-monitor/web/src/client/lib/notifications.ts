@@ -1,8 +1,5 @@
-// Browser notification module for Web UI
+import type { SessionResponse } from "@shared/types";
 
-import type { SessionResponse } from "./types";
-
-// Track shown notifications to prevent duplicates within session
 const shownPaneIds = new Set<string>();
 
 export function requestNotificationPermission(): void {
@@ -11,19 +8,11 @@ export function requestNotificationPermission(): void {
   }
 }
 
-/**
- * Show browser notification when a session transitions to WAITING
- */
 export function showBrowserNotification(session: SessionResponse): void {
   if (!("Notification" in window)) return;
-
-  // Only notify for WAITING sessions
   if (session.status !== "waiting") return;
-
-  // Skip if already shown in this browser session
   if (shownPaneIds.has(session.pane_id)) return;
   shownPaneIds.add(session.pane_id);
-
   if (Notification.permission !== "granted") return;
 
   const title = `[Waiting] ${session.project_name}`;
@@ -36,9 +25,6 @@ export function showBrowserNotification(session: SessionResponse): void {
   });
 }
 
-/**
- * Clear notification tracking for a pane (when it goes back to BUSY)
- */
 export function clearNotificationTracking(paneId: string): void {
   shownPaneIds.delete(paneId);
 }
