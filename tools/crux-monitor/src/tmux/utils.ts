@@ -302,10 +302,14 @@ export function switchToPane(paneId: string, exec: ExecFn = defaultExec): boolea
 
 /**
  * Send text to a tmux pane followed by Enter key press.
+ * Uses -l flag to send text literally (avoiding key-name interpretation),
+ * then sends Enter as a separate command to ensure proper submission.
  */
 export function sendKeys(paneId: string, text: string, exec: ExecFn = defaultExec): boolean {
   try {
-    exec(`tmux send-keys -t ${shellEscape(paneId)} ${shellEscape(text)} Enter`);
+    const target = shellEscape(paneId);
+    exec(`tmux send-keys -t ${target} -l ${shellEscape(text)}`);
+    exec(`tmux send-keys -t ${target} Enter`);
     return true;
   } catch {
     return false;
