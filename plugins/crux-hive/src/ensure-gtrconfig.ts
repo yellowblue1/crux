@@ -1,18 +1,10 @@
 #!/usr/bin/env bun
-import { execSync } from "node:child_process";
+import { exec, execOrThrow, shellEscape } from "./mcp/utils/exec.js";
 
 /**
  * Configure gtr hooks via git config --local
  * Called by SessionStart hook to set up git-gtr integration
  */
-
-/**
- * Escape a string for safe use in shell commands.
- * Uses single quotes and escapes any embedded single quotes.
- */
-function shellEscape(str: string): string {
-  return `'${str.replace(/'/g, "'\\''")}'`;
-}
 
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
 
@@ -22,22 +14,12 @@ if (!pluginRoot) {
 }
 
 function getGitConfig(key: string): string | null {
-  try {
-    return execSync(`git config --local ${shellEscape(key)}`, {
-      encoding: "utf-8",
-      timeout: 1000,
-      stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
-  } catch {
-    return null;
-  }
+  const result = exec(`git config --local ${shellEscape(key)}`, { timeout: 1000 });
+  return result.success ? result.stdout || null : null;
 }
 
 function setGitConfig(key: string, value: string): void {
-  execSync(`git config --local ${shellEscape(key)} ${shellEscape(value)}`, {
-    encoding: "utf-8",
-    timeout: 1000,
-  });
+  execOrThrow(`git config --local ${shellEscape(key)} ${shellEscape(value)}`, { timeout: 1000 });
 }
 
 // Configure preRemove hook (cleanup tmux windows)

@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -14,12 +13,18 @@ function shellEscape(str: string): string {
 
 type ExecFn = (command: string) => string;
 
-const defaultExec: ExecFn = (command: string) =>
-  execSync(command, {
-    encoding: "utf-8",
+const defaultExec: ExecFn = (command: string) => {
+  const result = Bun.spawnSync(["sh", "-c", command], {
+    stdout: "pipe",
+    stderr: "pipe",
     timeout: 5000,
-    stdio: ["pipe", "pipe", "pipe"],
-  }).trim();
+  });
+  if (!result.success) {
+    const stderr = result.stderr.toString().trim();
+    throw new Error(stderr || `Command failed with exit code ${result.exitCode}`);
+  }
+  return result.stdout.toString().trim();
+};
 
 /**
  * Check if tmux is available and running

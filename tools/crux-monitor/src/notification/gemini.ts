@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { getGcpLocation, getGcpProject } from "./config";
 import {
   deleteInflightRequest,
@@ -39,13 +38,13 @@ export interface SummaryDeps {
  */
 export function getAccessToken(): string | null {
   try {
-    return (
-      execSync("gcloud auth print-access-token", {
-        encoding: "utf-8",
-        timeout: 5000,
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim() || null
-    );
+    const result = Bun.spawnSync(["sh", "-c", "gcloud auth print-access-token"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 5000,
+    });
+    if (!result.success) return null;
+    return result.stdout.toString().trim() || null;
   } catch {
     return null;
   }
