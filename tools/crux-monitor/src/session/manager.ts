@@ -353,8 +353,7 @@ export class SessionManager {
     const timer = setTimeout(() => {
       this.summaryTimers.delete(paneId);
       const session = this.sessions.get(paneId);
-      if (session?.status === "waiting" && !session.summary_pending) {
-        session.summary_pending = true;
+      if (session?.status === "waiting") {
         this.generateSummaryAsync(paneId);
       }
     }, this.summaryDelayMs);
@@ -376,10 +375,17 @@ export class SessionManager {
   /**
    * Generate AI summary in background for a waiting session.
    * Uses pane content as primary source, falls back to JSONL conversation.
+   * Guards against duplicate invocations via summary_pending flag.
    */
   private async generateSummaryAsync(paneId: string): Promise<void> {
     const session = this.sessions.get(paneId);
     if (!session) return;
+
+    // Atomic guard: if already pending, skip. Otherwise claim the slot.
+    // This prevents duplicate Gemini calls when both the summary delay timer
+    // and checkPaneContent trigger generateSummaryAsync near-simultaneously.
+    if (session.summary_pending) return;
+    session.summary_pending = true;
 
     // Try pane content first, fall back to JSONL
     let content = this.deps.capturePaneContent(session.pane_id);
@@ -549,7 +555,6 @@ export class SessionManager {
 
       // Dual-condition: pane static AND WAITING → trigger summary immediately
       if (isStatic && session.status === "waiting" && !session.summary_pending) {
-        session.summary_pending = true;
         this.cancelSummaryTimer(paneId);
         this.generateSummaryAsync(paneId);
       }

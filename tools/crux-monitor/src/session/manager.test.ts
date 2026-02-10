@@ -613,6 +613,33 @@ describe("SessionManager", () => {
 
       expect(generateSpy).not.toHaveBeenCalled();
     });
+
+    it("does not call generateSummary twice when both timer and pane check trigger", async () => {
+      const generateSpy = mock(async () => {
+        // Simulate slow Gemini response
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return "Summary result";
+      });
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 60, // Close to pane check timing to maximize overlap chance
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for idle + both triggers to have a chance to fire + Gemini response
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should only call Gemini once despite two trigger paths
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("dual-condition idle detection (pane diff + JSONL idle)", () => {
