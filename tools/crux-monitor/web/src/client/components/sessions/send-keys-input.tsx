@@ -99,9 +99,9 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
           onClick={() => setNoEnter(!noEnter)}
           title={noEnter ? "Enter key will NOT be sent" : "Enter key will be sent after text"}
           className={cn(
-            "action-btn border rounded-lg min-h-[44px] min-w-[44px]",
+            "inline-flex items-center justify-center border rounded-lg min-h-[44px] min-w-[44px] cursor-pointer transition-all",
             noEnter
-              ? "border-accent-yellow text-accent-yellow bg-bg-secondary"
+              ? "border-accent-yellow text-accent-yellow bg-accent-yellow/15"
               : "border-border-default text-text-muted bg-bg-secondary",
           )}
         >
