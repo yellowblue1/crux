@@ -14,6 +14,7 @@ function createMockDeps(overrides: Partial<AppDependencies> = {}): AppDependenci
     getSessions: () => [],
     switchToPane: () => true,
     sendKeys: () => true,
+    sendRawKey: () => true,
     getAccessToken: () => "mock-token",
     getGcpProject: () => "mock-project",
     ...overrides,
@@ -168,6 +169,49 @@ describe("Hono API endpoints", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "hello" }),
+      });
+
+      expect(res.status).toBe(501);
+    });
+
+    it("sends raw key when raw flag is true", async () => {
+      const sendRawKeySpy = mock((_paneId: string, _key: string) => true);
+      const deps = createMockDeps({ sendRawKey: sendRawKeySpy });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Escape", raw: true }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(sendRawKeySpy).toHaveBeenCalledWith("%0", "Escape");
+    });
+
+    it("returns 500 when sendRawKey fails", async () => {
+      const deps = createMockDeps({ sendRawKey: () => false });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Escape", raw: true }),
+      });
+
+      expect(res.status).toBe(500);
+    });
+
+    it("returns 501 when sendRawKey dependency is not provided for raw mode", async () => {
+      const { sendRawKey: _, ...depsWithout } = createMockDeps();
+      const app = createApp(depsWithout as AppDependencies);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Escape", raw: true }),
       });
 
       expect(res.status).toBe(501);

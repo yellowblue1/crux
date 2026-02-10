@@ -32,6 +32,8 @@ export interface PaneContentResponse {
 
 export interface SendKeysRequest {
   text: string;
+  /** When true, sends text as a raw tmux key name (no literal mode, no Enter). */
+  raw?: boolean;
 }
 
 export interface SendKeysResponse {

@@ -5,15 +5,17 @@ import { toast } from "sonner";
 interface SendKeysInput {
   paneId: string;
   text: string;
+  /** When true, sends text as a raw tmux key name (no literal mode, no Enter). */
+  raw?: boolean;
 }
 
 export function useSendKeys() {
   return useMutation({
-    mutationFn: async ({ paneId, text }: SendKeysInput) => {
+    mutationFn: async ({ paneId, text, raw }: SendKeysInput) => {
       const res = await fetch(`/api/sessions/${encodeURIComponent(paneId)}/send-keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, ...(raw ? { raw: true } : {}) }),
       });
 
       const data = (await res.json()) as SendKeysResponse;

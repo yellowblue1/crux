@@ -19,6 +19,7 @@ export interface AppDependencies {
   getSessions: (filter?: string) => SessionResponse[];
   switchToPane: (paneId: string) => boolean;
   sendKeys?: (paneId: string, text: string) => boolean;
+  sendRawKey?: (paneId: string, key: string) => boolean;
   capturePaneContent?: (paneId: string) => string | null;
 
   // Auth status
@@ -94,10 +95,6 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
 
     // POST /api/sessions/:pane_id/send-keys
     .post("/api/sessions/:pane_id/send-keys", async (c) => {
-      if (!deps.sendKeys) {
-        return c.json({ success: false, error: "Not available" } satisfies SendKeysResponse, 501);
-      }
-
       const body = await c.req.json().catch(() => null);
       if (!body || typeof body.text !== "string" || body.text.length === 0) {
         return c.json(
@@ -110,8 +107,26 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
       }
 
       const paneId = c.req.param("pane_id");
-      const success = deps.sendKeys(paneId, body.text);
+      const raw = body.raw === true;
 
+      if (raw) {
+        if (!deps.sendRawKey) {
+          return c.json({ success: false, error: "Not available" } satisfies SendKeysResponse, 501);
+        }
+        const success = deps.sendRawKey(paneId, body.text);
+        if (success) {
+          return c.json({ success: true } satisfies SendKeysResponse);
+        }
+        return c.json(
+          { success: false, error: "Failed to send key to pane" } satisfies SendKeysResponse,
+          500,
+        );
+      }
+
+      if (!deps.sendKeys) {
+        return c.json({ success: false, error: "Not available" } satisfies SendKeysResponse, 501);
+      }
+      const success = deps.sendKeys(paneId, body.text);
       if (success) {
         return c.json({ success: true } satisfies SendKeysResponse);
       }

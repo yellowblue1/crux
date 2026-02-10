@@ -41,12 +41,26 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
     }
   };
 
+  /** Send text with Enter (y, n, etc.) */
   const handleQuickAction = (value: string) => {
     sendKeys.mutate(
       { paneId, text: value },
       {
         onSuccess: () => {
           toast.success(`Sent: ${value}`);
+          inputRef.current?.focus();
+        },
+      },
+    );
+  };
+
+  /** Send a raw tmux key name (Escape, i, etc.) without Enter */
+  const handleRawKey = (key: string, label: string) => {
+    sendKeys.mutate(
+      { paneId, text: key, raw: true },
+      {
+        onSuccess: () => {
+          toast.success(`Sent: ${label}`);
           inputRef.current?.focus();
         },
       },
@@ -73,6 +87,25 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
           disabled={sendKeys.isPending}
         >
           n
+        </button>
+        <span className="text-border-default">|</span>
+        <button
+          type="button"
+          className="quick-action-btn"
+          onClick={() => handleRawKey("Escape", "Esc")}
+          disabled={sendKeys.isPending}
+          title="Send Escape key (vi normal mode)"
+        >
+          Esc
+        </button>
+        <button
+          type="button"
+          className="quick-action-btn"
+          onClick={() => handleRawKey("i", "i")}
+          disabled={sendKeys.isPending}
+          title="Send i key (vi insert mode)"
+        >
+          i
         </button>
       </div>
 
