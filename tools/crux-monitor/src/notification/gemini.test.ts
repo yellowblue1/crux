@@ -30,7 +30,7 @@ describe("gemini", () => {
   describe("buildConversationPrompt", () => {
     it("includes language instruction", () => {
       const prompt = buildConversationPrompt("test content");
-      expect(prompt).toContain("IMPORTANT: Analyze the messages");
+      expect(prompt).toContain("IMPORTANT: Analyze the content");
       expect(prompt).toContain("Your response MUST be in the same language");
     });
 
@@ -46,9 +46,16 @@ describe("gemini", () => {
       expect(prompt.endsWith(content)).toBe(true);
     });
 
-    it("mentions conversation context", () => {
+    it("mentions terminal output context", () => {
       const prompt = buildConversationPrompt("test");
-      expect(prompt).toContain("conversation from a Claude Code session");
+      expect(prompt).toContain("terminal output from a Claude Code session");
+    });
+
+    it("includes attention detection instructions with bell emoji", () => {
+      const prompt = buildConversationPrompt("test");
+      expect(prompt).toContain("ATTENTION DETECTION");
+      expect(prompt).toContain("\u{1F514}");
+      expect(prompt).not.toContain("\u{1F64B}");
     });
   });
 

@@ -333,15 +333,13 @@ describe("SessionManager", () => {
       expect(findSessionJsonlPathSpy.mock.calls.length).toBeGreaterThan(1);
     });
 
-    it("generates summary after JSONL path is discovered on retry", async () => {
-      let jsonlAvailable = false;
+    it("generates summary using pane content even without JSONL path", async () => {
       const generateSpy = mock(async () => "Waiting for input");
 
       const { deps } = createMockDeps({
-        findSessionJsonlPath: () =>
-          jsonlAvailable ? "/home/user/.claude/projects/test/session.jsonl" : null,
+        findSessionJsonlPath: () => null,
         generateSummary: generateSpy,
-        capturePaneContent: () => "static content",
+        capturePaneContent: () => "static pane content",
       });
 
       manager = new SessionManager(deps, {
@@ -352,15 +350,8 @@ describe("SessionManager", () => {
       });
       manager.start();
 
-      // Initially no summary possible (no JSONL)
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      expect(generateSpy).not.toHaveBeenCalled();
-
-      // JSONL becomes available
-      jsonlAvailable = true;
+      // Pane content is available, so summary should be generated even without JSONL
       await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Should now be able to generate summary
       expect(generateSpy).toHaveBeenCalled();
     });
 
@@ -550,11 +541,38 @@ describe("SessionManager", () => {
       expect(generateSpy).toHaveBeenCalledTimes(1);
     });
 
-    it("passes JSONL conversation to generateSummary", async () => {
+    it("passes pane content to generateSummary as primary source", async () => {
+      const paneText = "$ claude\n> Fix the bug\nDone. Waiting for input.";
+      const receivedContents: string[] = [];
+
+      const { deps } = createMockDeps({
+        capturePaneContent: () => paneText,
+        generateSummary: async (content) => {
+          receivedContents.push(content);
+          return "Fixed a bug";
+        },
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 50,
+        paneCheckIntervalMs: 5000, // Disable pane check to use summaryDelay
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      expect(receivedContents).toHaveLength(1);
+      expect(receivedContents[0]).toBe(paneText);
+    });
+
+    it("falls back to JSONL when pane content is null", async () => {
       const conversationText = "[user]: Fix the bug\n\n[assistant]: Done.";
       const receivedContents: string[] = [];
 
       const { deps } = createMockDeps({
+        capturePaneContent: () => null, // Pane gone
         extractJsonlConversation: () => conversationText,
         generateSummary: async (content) => {
           receivedContents.push(content);
@@ -575,11 +593,12 @@ describe("SessionManager", () => {
       expect(receivedContents[0]).toBe(conversationText);
     });
 
-    it("does not generate summary when no JSONL path", async () => {
+    it("does not generate summary when both pane content and JSONL are null", async () => {
       const generateSpy = mock(async () => "test");
 
       const { deps } = createMockDeps({
         findSessionJsonlPath: () => null,
+        capturePaneContent: () => null,
         generateSummary: generateSpy,
       });
 
@@ -593,6 +612,33 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not call generateSummary twice when both timer and pane check trigger", async () => {
+      const generateSpy = mock(async () => {
+        // Simulate slow Gemini response
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return "Summary result";
+      });
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 60, // Close to pane check timing to maximize overlap chance
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for idle + both triggers to have a chance to fire + Gemini response
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should only call Gemini once despite two trigger paths
+      expect(generateSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1096,14 +1142,13 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("JSONL mtime guard", () => {
-    it("skips Gemini when JSONL mtime unchanged since last summary", async () => {
-      const generateSpy = mock(async () => "Summary v1");
-
-      const { deps } = createMockDeps({
-        generateSummary: generateSpy,
-        getJsonlMtime: () => 1000, // mtime never changes
-        capturePaneContent: () => "static content",
+  describe("content hash guard", () => {
+    it("skips Gemini when pane content unchanged since last summary", async () => {
+      let callCount = 0;
+      const generateSpy2 = mock(async () => `Summary v${++callCount}`);
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy2,
+        capturePaneContent: () => "static content", // content never changes
       });
 
       manager = new SessionManager(deps, {
@@ -1114,36 +1159,7 @@ describe("SessionManager", () => {
       });
       manager.start();
 
-      // First cycle: idle → WAITING → static pane → generate summary
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(generateSpy).toHaveBeenCalledTimes(1);
-      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
-
-      // Go BUSY via pipe-pane, then back to WAITING
-      // We need to get the fifoReader to simulate data
-      // Since createMockDeps was called with defaults, fifoReaders exist
-      // but we need to trigger a full BUSY→WAITING→summary cycle
-      // Instead, create a fresh manager with explicit fifoReaders control
-      manager.stop();
-
-      // Second manager: simulate the second cycle where mtime hasn't changed
-      let callCount = 0;
-      const generateSpy2 = mock(async () => `Summary v${++callCount}`);
-      const { deps: deps2, fifoReaders } = createMockDeps({
-        generateSummary: generateSpy2,
-        getJsonlMtime: () => 1000, // mtime stays the same
-        capturePaneContent: () => "static content",
-      });
-
-      manager = new SessionManager(deps2, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 30,
-        summaryDelayMs: 5000,
-        paneCheckIntervalMs: 30,
-      });
-      manager.start();
-
-      // First cycle: generates summary (mtime=1000, summaryJsonlMtime=null)
+      // First cycle: generates summary (hash=null → new hash)
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy2).toHaveBeenCalledTimes(1);
 
@@ -1157,20 +1173,19 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Should NOT have called Gemini again — mtime unchanged
+      // Should NOT have called Gemini again — content hash unchanged
       expect(generateSpy2).toHaveBeenCalledTimes(1);
       // Summary should still be available (cached)
       expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
     });
 
-    it("calls Gemini when JSONL mtime has changed", async () => {
-      let currentMtime = 1000;
-      const generateSpy = mock(async () => `Summary at ${currentMtime}`);
+    it("calls Gemini when pane content has changed", async () => {
+      let paneContent = "initial pane content";
+      const generateSpy = mock(async () => `Summary for: ${paneContent}`);
 
       const { deps, fifoReaders } = createMockDeps({
         generateSummary: generateSpy,
-        getJsonlMtime: () => currentMtime,
-        capturePaneContent: () => "static content",
+        capturePaneContent: () => paneContent,
       });
 
       manager = new SessionManager(deps, {
@@ -1185,17 +1200,17 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
-      // Go BUSY, change mtime, then back to WAITING
+      // Go BUSY, change pane content, then back to WAITING
       const reader = Array.from(fifoReaders.values())[0];
       reader?.simulateData("output");
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      currentMtime = 2000; // JSONL has been modified
+      paneContent = "updated pane content"; // Content changed
 
       // Wait for idle → WAITING + static pane → summary
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Should have called Gemini again because mtime changed
+      // Should have called Gemini again because content changed
       expect(generateSpy).toHaveBeenCalledTimes(2);
     });
   });

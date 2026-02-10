@@ -64,7 +64,8 @@ interface PipePaneState {
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
- * JSONL mtime guard prevents redundant Gemini calls when content hasn't changed.
+ * Uses pane content as primary source for summaries, with JSONL as fallback.
+ * Content hash guard prevents redundant Gemini calls when content hasn't changed.
  */
 export class SessionManager {
   private sessions = new Map<string, SessionState>();
@@ -269,6 +270,7 @@ export class SessionManager {
       summary_pending: false,
       pipePaneActive: false,
       summaryJsonlMtime: null,
+      summaryContentHash: null,
     });
 
     // Set up pipe-pane for real-time activity detection
@@ -351,8 +353,7 @@ export class SessionManager {
     const timer = setTimeout(() => {
       this.summaryTimers.delete(paneId);
       const session = this.sessions.get(paneId);
-      if (session?.status === "waiting" && !session.summary_pending) {
-        session.summary_pending = true;
+      if (session?.status === "waiting") {
         this.generateSummaryAsync(paneId);
       }
     }, this.summaryDelayMs);
@@ -372,42 +373,56 @@ export class SessionManager {
   }
 
   /**
-   * Generate AI summary in background for a waiting session
+   * Generate AI summary in background for a waiting session.
+   * Uses pane content as primary source, falls back to JSONL conversation.
+   * Guards against duplicate invocations via summary_pending flag.
    */
   private async generateSummaryAsync(paneId: string): Promise<void> {
     const session = this.sessions.get(paneId);
-    if (!session?.jsonl_path) {
-      if (session) session.summary_pending = false;
+    if (!session) return;
+
+    // Atomic guard: if already pending, skip. Otherwise claim the slot.
+    // This prevents duplicate Gemini calls when both the summary delay timer
+    // and checkPaneContent trigger generateSummaryAsync near-simultaneously.
+    if (session.summary_pending) return;
+    session.summary_pending = true;
+
+    // Try pane content first, fall back to JSONL
+    let content = this.deps.capturePaneContent(session.pane_id);
+    let contentSource: "pane" | "jsonl" = "pane";
+
+    if (!content && session.jsonl_path) {
+      content = this.deps.extractJsonlConversation(session.jsonl_path);
+      contentSource = "jsonl";
+    }
+
+    if (!content) {
+      session.summary_pending = false;
       return;
     }
 
-    // JSONL mtime guard: skip Gemini call if content hasn't changed since last summary
-    const currentMtime = this.deps.getJsonlMtime(session.jsonl_path);
+    // Content hash guard: skip Gemini call if content hasn't changed since last summary
+    const currentHash = simpleHash(content);
     if (
-      currentMtime !== null &&
-      session.summaryJsonlMtime !== null &&
-      currentMtime === session.summaryJsonlMtime &&
+      session.summaryContentHash !== null &&
+      currentHash === session.summaryContentHash &&
       session.summary !== null
     ) {
-      // JSONL unchanged — reuse cached summary, mark as pending to prevent re-triggering
       session.summary_pending = true;
       this.notifyChange();
       return;
     }
 
     try {
-      const conversation = this.deps.extractJsonlConversation(session.jsonl_path);
-      if (!conversation) {
-        session.summary_pending = false;
-        return;
-      }
-
-      const summary = await this.deps.generateSummary(conversation);
+      const summary = await this.deps.generateSummary(content);
       // Re-check session still exists and is still waiting
       const current = this.sessions.get(paneId);
       if (current && current.status === "waiting") {
         current.summary = summary;
-        current.summaryJsonlMtime = currentMtime;
+        current.summaryContentHash = currentHash;
+        if (contentSource === "jsonl" && current.jsonl_path) {
+          current.summaryJsonlMtime = this.deps.getJsonlMtime(current.jsonl_path);
+        }
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
@@ -540,7 +555,6 @@ export class SessionManager {
 
       // Dual-condition: pane static AND WAITING → trigger summary immediately
       if (isStatic && session.status === "waiting" && !session.summary_pending) {
-        session.summary_pending = true;
         this.cancelSummaryTimer(paneId);
         this.generateSummaryAsync(paneId);
       }
@@ -565,4 +579,16 @@ function defaultSpawnFifoReader(path: string): ChildProcess {
   return spawn("cat", [path], {
     stdio: ["ignore", "pipe", "ignore"],
   });
+}
+
+/**
+ * Simple string hash for content deduplication (DJB2 algorithm).
+ * Not cryptographic — only used to detect content changes.
+ */
+function simpleHash(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return hash >>> 0; // Convert to unsigned 32-bit integer
 }

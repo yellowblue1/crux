@@ -53,18 +53,32 @@ export function getConversationTail(conversation: string): string {
 }
 
 /**
- * Build the prompt for Gemini to summarize a Claude Code conversation
+ * Build the prompt for Gemini to summarize a Claude Code session.
+ * The content may be terminal pane output or a JSONL conversation extract.
+ * Includes attention detection to prefix summaries with emoji when user action is needed.
  */
 export function buildConversationPrompt(conversationTail: string): string {
-  const languageInstruction = `IMPORTANT: Analyze the messages in this conversation to determine what language the user is using. Your response MUST be in the same language as the user's messages.
+  return `IMPORTANT: Analyze the content to determine what language the user is using. Your response MUST be in the same language as the user's messages.
 
-`;
+The following is the terminal output from a Claude Code session. Claude appears to be idle.
 
-  return `${languageInstruction}The following is a conversation from a Claude Code session.
-Claude appears to be idle and waiting for user input.
-Summarize what Claude is waiting for or what it last completed in 15 words or less.
-Examples: "Asking which database to use", "Waiting for confirmation to proceed", "Completed refactoring auth module"
-Output only the summary.
+Your task: determine whether Claude needs the user's attention, then write a short summary (15 words or less).
+
+ATTENTION DETECTION — prefix with 🔔 when Claude is waiting for user action:
+- Permission request (file delete, git push, command execution, tool use approval) → prefix with 🔔
+- Question asking user to choose between options → prefix with 🔔
+- Question asking for information or clarification → prefix with 🔔
+- No user action needed (just completed work, status report) → NO emoji prefix
+
+Examples:
+- "🔔 Waiting for permission to delete 3 files"
+- "🔔 Requesting approval to run git push"
+- "🔔 Asking which database to use"
+- "🔔 Needs clarification on auth method"
+- "Completed refactoring auth module"
+- "Tests passing, ready for next task"
+
+Output ONLY the summary line, nothing else.
 
 ${conversationTail}`;
 }
