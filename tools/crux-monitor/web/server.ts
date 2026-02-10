@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { serveStatic } from "hono/bun";
 import { getGcpProject } from "../src/notification/config";
 import { generatePaneSummary, getAccessToken } from "../src/notification/gemini";
@@ -76,8 +78,13 @@ const app = createApp(
   { restrictCors: true },
 );
 
-// Add static file serving
-const appWithStatic = app.use("/*", serveStatic({ root: "./dist" }));
+// Add static file serving and SPA fallback
+const indexHtml = readFileSync(join(import.meta.dirname, "dist", "index.html"));
+const appWithStatic = app.use("/*", serveStatic({ root: "./dist" })).get("/*", (c) => {
+  return c.body(indexHtml, 200, {
+    "Content-Type": "text/html; charset=utf-8",
+  });
+});
 
 // Export type for future RPC client
 export type { AppType };
