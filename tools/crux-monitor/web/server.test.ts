@@ -12,7 +12,6 @@ import { type AppDependencies, createApp, type SseClient } from "./server-app";
 function createMockDeps(overrides: Partial<AppDependencies> = {}): AppDependencies {
   return {
     getSessions: () => [],
-    switchToPane: () => true,
     sendKeys: () => true,
     sendRawKey: () => true,
     getAccessToken: () => "mock-token",
@@ -55,36 +54,6 @@ describe("Hono API endpoints", () => {
       const data = await res.json();
 
       expect(data.sessions).toEqual([]);
-    });
-  });
-
-  describe("POST /api/sessions/:pane_id/jump", () => {
-    it("returns success when pane switch succeeds", async () => {
-      const switchSpy = mock(() => true);
-      const deps = createMockDeps({ switchToPane: switchSpy });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/%250/jump", {
-        method: "POST",
-      });
-
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.success).toBe(true);
-      expect(switchSpy).toHaveBeenCalledWith("%0");
-    });
-
-    it("returns 500 when pane switch fails", async () => {
-      const deps = createMockDeps({ switchToPane: () => false });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/%250/jump", {
-        method: "POST",
-      });
-
-      expect(res.status).toBe(500);
-      const data = await res.json();
-      expect(data.success).toBe(false);
     });
   });
 
@@ -212,47 +181,6 @@ describe("Hono API endpoints", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "Escape", raw: true }),
-      });
-
-      expect(res.status).toBe(501);
-    });
-  });
-
-  describe("POST /api/sessions/:pane_id/regenerate-summary", () => {
-    it("returns success when regeneration is triggered", async () => {
-      const regenerateSpy = mock((_paneId: string) => true);
-      const deps = createMockDeps({ regenerateSummary: regenerateSpy });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/%250/regenerate-summary", {
-        method: "POST",
-      });
-
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.success).toBe(true);
-      expect(regenerateSpy).toHaveBeenCalledWith("%0");
-    });
-
-    it("returns 404 when session not found", async () => {
-      const deps = createMockDeps({ regenerateSummary: () => false });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/%250/regenerate-summary", {
-        method: "POST",
-      });
-
-      expect(res.status).toBe(404);
-      const data = await res.json();
-      expect(data.success).toBe(false);
-    });
-
-    it("returns 501 when regenerateSummary dependency is not provided", async () => {
-      const deps = createMockDeps();
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/%250/regenerate-summary", {
-        method: "POST",
       });
 
       expect(res.status).toBe(501);

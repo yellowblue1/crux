@@ -30,7 +30,6 @@ Starts Vite dev server (frontend) and Bun API server with watch mode.
 |--------|------|-------------|
 | GET | `/api/sessions` | Get current sessions |
 | GET | `/api/sessions/stream` | SSE for real-time updates |
-| POST | `/api/sessions/:pane_id/jump` | Switch tmux to pane |
 | GET | `/api/auth/status` | GCP auth status |
 | GET | `/*` | Static files (Vite build) |
 

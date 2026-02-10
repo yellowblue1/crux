@@ -1377,46 +1377,6 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("regenerateSummary", () => {
-    it("forces a new summary generation", async () => {
-      const generateSpy = mock(async () => "Regenerated summary");
-
-      const { deps } = createMockDeps({
-        generateSummary: generateSpy,
-        capturePaneContent: () => "static content",
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 30,
-        summaryDelayMs: 30,
-        paneCheckIntervalMs: 30,
-      });
-      manager.start();
-
-      // Wait for WAITING + initial summary via pane static detection
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      expect(manager.getSessions()[0]?.summary).toBe("Regenerated summary");
-
-      // Manually regenerate (resets hash, allowing re-generation)
-      const result = manager.regenerateSummary("%0");
-      expect(result).toBe(true);
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      // Should have been called at least once more for the regeneration
-      expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it("returns false for unknown pane ID", () => {
-      const { deps } = createMockDeps();
-      manager = new SessionManager(deps);
-      manager.start();
-
-      expect(manager.regenerateSummary("%99")).toBe(false);
-    });
-  });
-
   describe("API summary filtering", () => {
     it("getSessions returns null summary for BUSY sessions", () => {
       const { deps } = createMockDeps();
