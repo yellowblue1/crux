@@ -22,16 +22,16 @@ interface GeminiResponse {
   }>;
 }
 
-type FetchFn = (url: string | URL | Request, options?: RequestInit) => Promise<Response>;
+export type FetchFn = (url: string | URL | Request, options?: RequestInit) => Promise<Response>;
 
 /**
  * Dependencies that can be injected for testing
  */
-export interface GenerateSummaryDeps {
-  fetchFn?: FetchFn;
-  getAccessTokenFn?: () => string | null;
-  getGcpProjectFn?: () => string | null;
-  getGcpLocationFn?: () => string;
+export interface SummaryDeps {
+  fetch: FetchFn;
+  getAccessToken: () => string | null;
+  getGcpProject: () => string | null;
+  getGcpLocation: () => string;
 }
 
 /**
@@ -97,12 +97,15 @@ ${conversationTail}`;
  */
 export async function generatePaneSummary(
   conversation: string,
-  deps?: GenerateSummaryDeps,
+  deps?: Partial<SummaryDeps>,
 ): Promise<string | null> {
-  const fetchFn = deps?.fetchFn ?? fetch;
-  const getAccessTokenFn = deps?.getAccessTokenFn ?? getAccessToken;
-  const getGcpProjectFn = deps?.getGcpProjectFn ?? getGcpProject;
-  const getGcpLocationFn = deps?.getGcpLocationFn ?? getGcpLocation;
+  const resolved: SummaryDeps = {
+    fetch: globalThis.fetch,
+    getAccessToken,
+    getGcpProject,
+    getGcpLocation,
+    ...deps,
+  };
 
   if (!conversation.trim()) {
     return null;
@@ -125,17 +128,17 @@ export async function generatePaneSummary(
     return existing;
   }
 
-  const projectId = getGcpProjectFn();
+  const projectId = resolved.getGcpProject();
   if (!projectId) {
     return null;
   }
 
-  const accessToken = getAccessTokenFn();
+  const accessToken = resolved.getAccessToken();
   if (!accessToken) {
     return null;
   }
 
-  const location = getGcpLocationFn();
+  const location = resolved.getGcpLocation();
   const apiUrl = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${MODEL_ID}:generateContent`;
 
   const prompt = buildConversationPrompt(conversationTail);
@@ -148,7 +151,7 @@ export async function generatePaneSummary(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetchFn(apiUrl, {
+      const response = await resolved.fetch(apiUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
