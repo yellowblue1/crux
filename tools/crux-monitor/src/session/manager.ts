@@ -203,22 +203,6 @@ export class SessionManager {
   }
 
   /**
-   * Force regeneration of a session's summary.
-   * Resets all summary state and triggers a new Gemini call.
-   * Returns false if the session doesn't exist.
-   */
-  regenerateSummary(paneId: string): boolean {
-    const session = this.sessions.get(paneId);
-    if (!session) return false;
-
-    session.summary_pending = false;
-    session.summaryContentHash = null;
-    this.cancelSummaryTimer(paneId);
-    this.generateSummaryAsync(paneId);
-    return true;
-  }
-
-  /**
    * Main polling loop - discover/remove sessions only.
    * Status detection is handled by pipe-pane (or capture-pane fallback).
    */
