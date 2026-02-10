@@ -18,7 +18,7 @@ import type { PaneContentResponse, SendKeysResponse, SessionResponse } from "../
 export interface AppDependencies {
   getSessions: (filter?: string) => SessionResponse[];
   switchToPane: (paneId: string) => boolean;
-  sendKeys?: (paneId: string, text: string, options?: { noEnter?: boolean }) => boolean;
+  sendKeys?: (paneId: string, text: string) => boolean;
   capturePaneContent?: (paneId: string) => string | null;
 
   // Auth status
@@ -110,8 +110,7 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
       }
 
       const paneId = c.req.param("pane_id");
-      const noEnter = body.noEnter === true;
-      const success = deps.sendKeys(paneId, body.text, { noEnter });
+      const success = deps.sendKeys(paneId, body.text);
 
       if (success) {
         return c.json({ success: true } satisfies SendKeysResponse);

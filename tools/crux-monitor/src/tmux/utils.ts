@@ -301,18 +301,11 @@ export function switchToPane(paneId: string, exec: ExecFn = defaultExec): boolea
 }
 
 /**
- * Send keys (text input) to a tmux pane.
- * Optionally appends Enter key press after the text.
+ * Send text to a tmux pane followed by Enter key press.
  */
-export function sendKeys(
-  paneId: string,
-  text: string,
-  options: { noEnter?: boolean } = {},
-  exec: ExecFn = defaultExec,
-): boolean {
+export function sendKeys(paneId: string, text: string, exec: ExecFn = defaultExec): boolean {
   try {
-    const enterSuffix = options.noEnter ? "" : " Enter";
-    exec(`tmux send-keys -t ${shellEscape(paneId)} ${shellEscape(text)}${enterSuffix}`);
+    exec(`tmux send-keys -t ${shellEscape(paneId)} ${shellEscape(text)} Enter`);
     return true;
   } catch {
     return false;

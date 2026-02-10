@@ -32,7 +32,6 @@ export interface PaneContentResponse {
 
 export interface SendKeysRequest {
   text: string;
-  noEnter?: boolean;
 }
 
 export interface SendKeysResponse {

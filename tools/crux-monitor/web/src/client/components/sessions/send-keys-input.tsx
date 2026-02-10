@@ -1,4 +1,4 @@
-import { CornerDownLeft, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSendKeys } from "@/hooks/use-send-keys";
@@ -10,16 +10,15 @@ interface SendKeysInputProps {
 
 export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const [text, setText] = useState("");
-  const [noEnter, setNoEnter] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendKeys = useSendKeys();
 
-  const handleSubmit = (value: string) => {
+  const handleSend = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
 
     sendKeys.mutate(
-      { paneId, text: trimmed, noEnter },
+      { paneId, text: trimmed },
       {
         onSuccess: () => {
           setText("");
@@ -32,19 +31,19 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
 
   const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault();
-    handleSubmit(text);
+    handleSend(text);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(text);
+      handleSend(text);
     }
   };
 
   const handleQuickAction = (value: string) => {
     sendKeys.mutate(
-      { paneId, text: value, noEnter: false },
+      { paneId, text: value },
       {
         onSuccess: () => {
           toast.success(`Sent: ${value}`);
@@ -94,19 +93,6 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
             "min-h-[44px]",
           )}
         />
-        <button
-          type="button"
-          onClick={() => setNoEnter(!noEnter)}
-          title={noEnter ? "Enter key will NOT be sent" : "Enter key will be sent after text"}
-          className={cn(
-            "inline-flex items-center justify-center border rounded-lg min-h-[44px] min-w-[44px] cursor-pointer transition-all",
-            noEnter
-              ? "border-accent-yellow text-accent-yellow bg-accent-yellow/15"
-              : "border-border-default text-text-muted bg-bg-secondary",
-          )}
-        >
-          <CornerDownLeft size={18} />
-        </button>
         <button
           type="submit"
           disabled={sendKeys.isPending || !text.trim()}

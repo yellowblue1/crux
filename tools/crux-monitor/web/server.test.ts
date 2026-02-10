@@ -89,9 +89,7 @@ describe("Hono API endpoints", () => {
 
   describe("POST /api/sessions/:pane_id/send-keys", () => {
     it("returns success when sendKeys succeeds", async () => {
-      const sendKeysSpy = mock(
-        (_paneId: string, _text: string, _options?: { noEnter?: boolean }) => true,
-      );
+      const sendKeysSpy = mock((_paneId: string, _text: string) => true);
       const deps = createMockDeps({ sendKeys: sendKeysSpy });
       const app = createApp(deps);
 
@@ -104,24 +102,7 @@ describe("Hono API endpoints", () => {
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.success).toBe(true);
-      expect(sendKeysSpy).toHaveBeenCalledWith("%0", "hello", { noEnter: false });
-    });
-
-    it("passes noEnter option when specified", async () => {
-      const sendKeysSpy = mock(
-        (_paneId: string, _text: string, _options?: { noEnter?: boolean }) => true,
-      );
-      const deps = createMockDeps({ sendKeys: sendKeysSpy });
-      const app = createApp(deps);
-
-      const res = await app.request("/api/sessions/%250/send-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "y", noEnter: true }),
-      });
-
-      expect(res.status).toBe(200);
-      expect(sendKeysSpy).toHaveBeenCalledWith("%0", "y", { noEnter: true });
+      expect(sendKeysSpy).toHaveBeenCalledWith("%0", "hello");
     });
 
     it("returns 400 when text is missing", async () => {

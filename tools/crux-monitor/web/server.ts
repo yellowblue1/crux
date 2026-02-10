@@ -109,7 +109,7 @@ const app = createApp(
   {
     getSessions: (filter) => sessionManager.getSessions(filter),
     switchToPane,
-    sendKeys: (paneId, text, options) => sendKeys(paneId, text, options),
+    sendKeys: (paneId, text) => sendKeys(paneId, text),
     capturePaneContent: capturePaneContentEscaped,
     getAccessToken,
     getGcpProject,
