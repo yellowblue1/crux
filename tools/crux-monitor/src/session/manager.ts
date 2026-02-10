@@ -80,6 +80,7 @@ export class SessionManager {
   private readonly summaryDelayMs: number;
   private readonly paneCheckIntervalMs: number;
   private onChangeCallback: (() => void) | null = null;
+  private paneActivityCallback: ((paneId: string) => void) | null = null;
 
   constructor(deps?: Partial<SessionManagerDeps>, options?: SessionManagerOptions) {
     this.deps = {
@@ -113,6 +114,14 @@ export class SessionManager {
    */
   onChange(callback: () => void): void {
     this.onChangeCallback = callback;
+  }
+
+  /**
+   * Register a callback to be notified when a pane has output activity.
+   * Fires on every pipe-pane data event (callers should debounce as needed).
+   */
+  onPaneActivity(callback: (paneId: string) => void): void {
+    this.paneActivityCallback = callback;
   }
 
   /**
@@ -540,6 +549,7 @@ export class SessionManager {
     // Always reset idle timer — pipe data resets idle timer even during BUSY
     this.resetIdleTimer(paneId);
     session.last_activity = new Date().toISOString();
+    this.paneActivityCallback?.(paneId);
   }
 
   /**

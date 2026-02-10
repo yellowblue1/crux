@@ -24,10 +24,14 @@ export interface AppDependencies {
   getAccessToken?: () => string | null;
   getGcpProject?: () => string | null;
 
-  // SSE callbacks
+  // SSE callbacks (session list)
   onSseConnect?: (client: SseClient) => void;
   onSseDisconnect?: (client: SseClient) => void;
   serializeSessionsData?: () => string;
+
+  // SSE callbacks (pane content)
+  onPaneContentSseConnect?: (paneId: string, client: SseClient) => void;
+  onPaneContentSseDisconnect?: (paneId: string, client: SseClient) => void;
 }
 
 /**
@@ -139,7 +143,7 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
       });
     })
 
-    // SSE endpoint
+    // SSE endpoint (session list)
     .get("/api/sessions/stream", (_c) => {
       let client: SseClient;
 
@@ -154,6 +158,39 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
         },
         cancel() {
           deps.onSseDisconnect?.(client);
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    })
+
+    // SSE endpoint (pane content — per-pane streaming)
+    .get("/api/sessions/:pane_id/pane-content/stream", (c) => {
+      const paneId = c.req.param("pane_id");
+      let client: SseClient;
+
+      const stream = new ReadableStream({
+        start(controller) {
+          client = { controller };
+          deps.onPaneContentSseConnect?.(paneId, client);
+
+          // Send initial content immediately
+          const content = deps.capturePaneContent?.(paneId) ?? null;
+          const initial = JSON.stringify({
+            pane_id: paneId,
+            content,
+            timestamp: Date.now(),
+          } satisfies PaneContentResponse);
+          controller.enqueue(new TextEncoder().encode(`data: ${initial}\n\n`));
+        },
+        cancel() {
+          deps.onPaneContentSseDisconnect?.(paneId, client);
         },
       });
 
