@@ -28,7 +28,7 @@ export function SessionTable({ sessions }: SessionTableProps) {
           <th className="col-branch">Branch</th>
           <th className="col-status">Status</th>
           <th className="col-summary">Summary</th>
-          <th className="col-tmux">Tmux</th>
+          <th className="col-actions">Actions</th>
         </tr>
       </thead>
       <tbody>

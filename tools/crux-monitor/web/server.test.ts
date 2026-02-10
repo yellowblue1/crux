@@ -86,6 +86,106 @@ describe("Hono API endpoints", () => {
     });
   });
 
+  describe("GET /api/sessions/:pane_id/pane-content", () => {
+    it("returns pane content when available", async () => {
+      const deps = createMockDeps({
+        capturePaneContent: () => "$ hello world\n",
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/pane-content");
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pane_id).toBe("%0");
+      expect(data.content).toBe("$ hello world\n");
+      expect(data.timestamp).toBeGreaterThan(0);
+    });
+
+    it("returns null content when pane not found", async () => {
+      const deps = createMockDeps({
+        capturePaneContent: () => null,
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/pane-content");
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.content).toBeNull();
+    });
+
+    it("returns 501 when capturePaneContent is not provided", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/pane-content");
+
+      expect(res.status).toBe(501);
+    });
+  });
+
+  describe("GET /api/sessions/:pane_id/pane-content/stream", () => {
+    it("returns SSE stream with initial pane content", async () => {
+      const deps = createMockDeps({
+        capturePaneContent: () => "$ hello world\n",
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/pane-content/stream");
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+      expect(res.headers.get("Cache-Control")).toBe("no-cache");
+
+      const reader = res.body?.getReader();
+      const { value } = await reader.read();
+      const text = new TextDecoder().decode(value);
+      expect(text).toContain("data: ");
+      const json = JSON.parse(text.replace("data: ", "").trim());
+      expect(json.pane_id).toBe("%0");
+      expect(json.content).toBe("$ hello world\n");
+      expect(json.timestamp).toBeGreaterThan(0);
+      reader.cancel();
+    });
+
+    it("calls onPaneContentSseConnect and onPaneContentSseDisconnect", async () => {
+      let connectedPaneId = "";
+      let disconnectedPaneId = "";
+      const deps = createMockDeps({
+        capturePaneContent: () => "content",
+        onPaneContentSseConnect: (paneId, _client) => {
+          connectedPaneId = paneId;
+        },
+        onPaneContentSseDisconnect: (paneId, _client) => {
+          disconnectedPaneId = paneId;
+        },
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/pane-content/stream");
+      const reader = res.body?.getReader();
+      await reader.read();
+      expect(connectedPaneId).toBe("%0");
+
+      await reader.cancel();
+      expect(disconnectedPaneId).toBe("%0");
+    });
+
+    it("sends null content when capturePaneContent is not provided", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/pane-content/stream");
+      const reader = res.body?.getReader();
+      const { value } = await reader.read();
+      const text = new TextDecoder().decode(value);
+      const json = JSON.parse(text.replace("data: ", "").trim());
+      expect(json.content).toBeNull();
+      reader.cancel();
+    });
+  });
+
   describe("GET /api/auth/status", () => {
     it("returns all true when both authenticated and configured", async () => {
       const deps = createMockDeps({

@@ -1,15 +1,23 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { serveStatic } from "hono/bun";
 import { getGcpProject } from "../src/notification/config";
 import { generatePaneSummary, getAccessToken } from "../src/notification/gemini";
 import { SessionManager } from "../src/session/manager";
-import { switchToPane } from "../src/tmux/utils";
+import { capturePaneContentEscaped, switchToPane } from "../src/tmux/utils";
 import { type AppType, createApp, type SseClient } from "./server-app";
 
 const DEFAULT_PORT = 3847;
 const PORT = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : DEFAULT_PORT;
 
-// SSE clients
+// SSE clients (session list)
 const clients: Set<SseClient> = new Set();
+
+// SSE clients (pane content — per-pane)
+const paneContentClients = new Map<string, Set<SseClient>>();
+const paneContentDebounce = new Map<string, ReturnType<typeof setTimeout>>();
+const paneContentHashes = new Map<string, string>();
+const PANE_CONTENT_DEBOUNCE_MS = 200;
 
 // Session manager with tmux polling
 const sessionManager = new SessionManager({
@@ -41,6 +49,45 @@ sessionManager.onChange(() => {
   broadcastUpdate();
 });
 
+// Debounced pane content push via SSE
+sessionManager.onPaneActivity((paneId) => {
+  const watchers = paneContentClients.get(paneId);
+  if (!watchers || watchers.size === 0) return;
+
+  // Reset debounce timer
+  const existing = paneContentDebounce.get(paneId);
+  if (existing) clearTimeout(existing);
+
+  paneContentDebounce.set(
+    paneId,
+    setTimeout(() => {
+      paneContentDebounce.delete(paneId);
+
+      const content = capturePaneContentEscaped(paneId);
+      if (content === null) return;
+
+      // Hash guard — skip if content unchanged
+      const hash = Bun.hash(content).toString();
+      if (paneContentHashes.get(paneId) === hash) return;
+      paneContentHashes.set(paneId, hash);
+
+      // Push to watching clients
+      const message = `data: ${JSON.stringify({ pane_id: paneId, content, timestamp: Date.now() })}\n\n`;
+      const encoded = new TextEncoder().encode(message);
+      const currentWatchers = paneContentClients.get(paneId);
+      if (!currentWatchers) return;
+
+      for (const client of currentWatchers) {
+        try {
+          client.controller.enqueue(encoded);
+        } catch {
+          currentWatchers.delete(client);
+        }
+      }
+    }, PANE_CONTENT_DEBOUNCE_MS),
+  );
+});
+
 // Check if a crux-monitor server is already running on the port
 async function isOurServerRunning(port: number): Promise<boolean> {
   try {
@@ -62,6 +109,7 @@ const app = createApp(
   {
     getSessions: (filter) => sessionManager.getSessions(filter),
     switchToPane,
+    capturePaneContent: capturePaneContentEscaped,
     getAccessToken,
     getGcpProject,
     onSseConnect: (client) => {
@@ -71,12 +119,39 @@ const app = createApp(
       clients.delete(client);
     },
     serializeSessionsData,
+    onPaneContentSseConnect: (paneId, client) => {
+      if (!paneContentClients.has(paneId)) {
+        paneContentClients.set(paneId, new Set());
+      }
+      paneContentClients.get(paneId)?.add(client);
+    },
+    onPaneContentSseDisconnect: (paneId, client) => {
+      const watchers = paneContentClients.get(paneId);
+      if (watchers) {
+        watchers.delete(client);
+        if (watchers.size === 0) {
+          paneContentClients.delete(paneId);
+          // Clean up debounce timer and hash when no watchers
+          const timer = paneContentDebounce.get(paneId);
+          if (timer) {
+            clearTimeout(timer);
+            paneContentDebounce.delete(paneId);
+          }
+          paneContentHashes.delete(paneId);
+        }
+      }
+    },
   },
   { restrictCors: true },
 );
 
-// Add static file serving
-const appWithStatic = app.use("/*", serveStatic({ root: "./dist" }));
+// Add static file serving and SPA fallback
+const indexHtml = readFileSync(join(import.meta.dirname, "dist", "index.html"));
+const appWithStatic = app.use("/*", serveStatic({ root: "./dist" })).get("/*", (c) => {
+  return c.body(indexHtml, 200, {
+    "Content-Type": "text/html; charset=utf-8",
+  });
+});
 
 // Export type for future RPC client
 export type { AppType };

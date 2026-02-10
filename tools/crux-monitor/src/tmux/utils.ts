@@ -314,6 +314,21 @@ export function capturePaneContent(paneId: string, exec: ExecFn = defaultExec): 
 }
 
 /**
+ * Capture pane content with ANSI escape sequences preserved.
+ * Uses -e flag to include color/style codes for terminal rendering.
+ */
+export function capturePaneContentEscaped(
+  paneId: string,
+  exec: ExecFn = defaultExec,
+): string | null {
+  try {
+    return exec(`tmux capture-pane -p -e -t ${shellEscape(paneId)}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Start piping a tmux pane's output to a target (e.g., a FIFO).
  * Uses -o flag for output-only mode (excludes keyboard input).
  * Calling this again on the same pane replaces the existing pipe.

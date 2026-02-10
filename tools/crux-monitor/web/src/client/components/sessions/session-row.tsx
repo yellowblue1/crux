@@ -1,6 +1,6 @@
 import type { SessionResponse } from "@shared/types";
 import { Link } from "@tanstack/react-router";
-import { Clipboard, ClipboardCheck } from "lucide-react";
+import { Clipboard, ClipboardCheck, SquareTerminal } from "lucide-react";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { cn } from "@/lib/cn";
 import { StatusBadge } from "../ui/badge";
@@ -57,15 +57,25 @@ export function SessionRow({ session, isRead, onMarkAsRead }: SessionRowProps) {
           <span className="summary-placeholder">-</span>
         )}
       </td>
-      <td className="col-tmux">
-        <button
-          type="button"
-          className={cn("copy-btn", isRead && "copied")}
-          title={tmuxCommand}
-          onClick={handleCopy}
-        >
-          {isRead ? <ClipboardCheck size={20} /> : <Clipboard size={20} />}
-        </button>
+      <td className="col-actions">
+        <div className="action-group">
+          <Link
+            to="/sessions/$paneId"
+            params={{ paneId: session.pane_id }}
+            className="action-btn"
+            title="View terminal"
+          >
+            <SquareTerminal size={20} />
+          </Link>
+          <button
+            type="button"
+            className={cn("action-btn", isRead && "copied")}
+            title={tmuxCommand}
+            onClick={handleCopy}
+          >
+            {isRead ? <ClipboardCheck size={20} /> : <Clipboard size={20} />}
+          </button>
+        </div>
       </td>
     </tr>
   );
