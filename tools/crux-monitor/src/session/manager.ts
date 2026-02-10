@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process";
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -629,8 +629,12 @@ export class SessionManager {
 
 function defaultCreateFifo(path: string): boolean {
   try {
-    execSync(`mkfifo '${path}'`, { timeout: 5000 });
-    return true;
+    const result = Bun.spawnSync(["mkfifo", path], {
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 5000,
+    });
+    return result.success;
   } catch {
     return false;
   }

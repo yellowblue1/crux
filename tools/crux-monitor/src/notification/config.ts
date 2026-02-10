@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -37,13 +36,13 @@ function getConfigValue(options: ConfigOptions): string | null {
   // 3. gcloud command (if provided)
   if (gcloudCmd) {
     try {
-      return (
-        execSync(gcloudCmd, {
-          encoding: "utf-8",
-          timeout: 3000,
-          stdio: ["pipe", "pipe", "pipe"],
-        }).trim() || null
-      );
+      const result = Bun.spawnSync(["sh", "-c", gcloudCmd], {
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout: 3000,
+      });
+      if (!result.success) return defaultValue ?? null;
+      return result.stdout.toString().trim() || null;
     } catch {
       return defaultValue ?? null;
     }
