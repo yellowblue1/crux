@@ -252,6 +252,27 @@ body {
 }
 
 /* ============================================
+   Pane Content Viewer
+   ============================================ */
+
+.pane-viewer {
+  @apply font-mono text-sm leading-relaxed text-text-secondary bg-bg-primary border border-border-default rounded-lg p-4 overflow-auto whitespace-pre m-0;
+  max-height: calc(100vh - 220px);
+  min-height: 300px;
+  tab-size: 8;
+}
+
+.pane-viewer-scroll-btn {
+  @apply absolute bottom-4 right-4 bg-bg-tertiary border border-border-default text-text-secondary rounded-md cursor-pointer transition-all text-xs;
+  padding: 8px 16px;
+  min-height: 36px;
+}
+
+.pane-viewer-scroll-btn:hover {
+  @apply bg-border-default text-text-primary;
+}
+
+/* ============================================
    Responsive Breakpoints
    ============================================ */
 
@@ -364,5 +385,11 @@ body {
 
   .project-name {
     @apply text-[0.9375rem];
+  }
+
+  .pane-viewer {
+    max-height: calc(100vh - 200px);
+    min-height: 200px;
+    @apply text-xs p-3 rounded-none border-x-0;
   }
 }

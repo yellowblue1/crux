@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { SessionResponse } from "../shared/types";
+import type { PaneContentResponse, SessionResponse } from "../shared/types";
 
 /**
  * Dependencies for the app factory.
@@ -18,6 +18,7 @@ import type { SessionResponse } from "../shared/types";
 export interface AppDependencies {
   getSessions: (filter?: string) => SessionResponse[];
   switchToPane: (paneId: string) => boolean;
+  capturePaneContent?: (paneId: string) => string | null;
 
   // Auth status
   getAccessToken?: () => string | null;
@@ -84,6 +85,27 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
         return c.json({ success: true });
       }
       return c.json({ success: false, error: "Failed to switch pane" }, 500);
+    })
+
+    // GET /api/sessions/:pane_id/pane-content
+    .get("/api/sessions/:pane_id/pane-content", (c) => {
+      if (!deps.capturePaneContent) {
+        return c.json(
+          {
+            pane_id: "",
+            content: null,
+            timestamp: Date.now(),
+          } satisfies PaneContentResponse,
+          501,
+        );
+      }
+      const paneId = c.req.param("pane_id");
+      const content = deps.capturePaneContent(paneId);
+      return c.json({
+        pane_id: paneId,
+        content,
+        timestamp: Date.now(),
+      } satisfies PaneContentResponse);
     })
 
     // GET /api/auth/status

@@ -23,3 +23,9 @@ export interface AuthStatusResponse {
   gcp_project_configured: boolean;
   ai_summary_available: boolean;
 }
+
+export interface PaneContentResponse {
+  pane_id: string;
+  content: string | null;
+  timestamp: number;
+}
