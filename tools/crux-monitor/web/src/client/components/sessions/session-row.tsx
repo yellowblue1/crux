@@ -27,13 +27,7 @@ export function SessionRow({ session, isRead, onMarkAsRead }: SessionRowProps) {
   return (
     <tr className={cn(statusClass, isRead && "read")}>
       <td className="col-project">
-        <Link
-          to="/sessions/$paneId"
-          params={{ paneId: session.pane_id }}
-          className="project-name hover:underline"
-        >
-          {session.project_name}
-        </Link>
+        <span className="project-name">{session.project_name}</span>
       </td>
       <td className="col-branch">
         {session.git_branch ? (
