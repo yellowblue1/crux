@@ -64,17 +64,17 @@ The following is the terminal output from a Claude Code session. Claude appears 
 
 Your task: determine whether Claude needs the user's attention, then write a short summary (15 words or less).
 
-ATTENTION DETECTION — prefix with emoji when Claude is waiting for user action:
+ATTENTION DETECTION — prefix with 🔔 when Claude is waiting for user action:
 - Permission request (file delete, git push, command execution, tool use approval) → prefix with 🔔
-- Question asking user to choose between options → prefix with 🙋
-- Question asking for information or clarification → prefix with 🙋
+- Question asking user to choose between options → prefix with 🔔
+- Question asking for information or clarification → prefix with 🔔
 - No user action needed (just completed work, status report) → NO emoji prefix
 
 Examples:
 - "🔔 Waiting for permission to delete 3 files"
 - "🔔 Requesting approval to run git push"
-- "🙋 Asking which database to use"
-- "🙋 Needs clarification on auth method"
+- "🔔 Asking which database to use"
+- "🔔 Needs clarification on auth method"
 - "Completed refactoring auth module"
 - "Tests passing, ready for next task"
 
