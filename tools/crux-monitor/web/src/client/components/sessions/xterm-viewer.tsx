@@ -70,6 +70,12 @@ export function XtermViewer({ content, className }: XtermViewerProps) {
     terminal.loadAddon(fitAddon);
     terminal.open(container);
 
+    // Prevent mobile virtual keyboard from appearing on tap.
+    // This viewer is read-only; the actual input is in SendKeysInput.
+    if (terminal.textarea) {
+      terminal.textarea.inputMode = "none";
+    }
+
     // Defer fit to next animation frame so the renderer finishes initializing
     requestAnimationFrame(() => {
       safeFit(fitAddon);
