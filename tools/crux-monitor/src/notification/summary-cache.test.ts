@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import {
   clearSummaryCache,
+  deleteInflightRequest,
   getCachedSummary,
+  getInflightRequest,
+  getInflightSize,
   getSummaryCacheSize,
   setCachedSummary,
+  setInflightRequest,
 } from "./summary-cache";
 
 describe("summary-cache", () => {
@@ -111,6 +115,54 @@ describe("summary-cache", () => {
 
       setCachedSummary("b", "summary-b");
       expect(getSummaryCacheSize()).toBe(2);
+    });
+  });
+
+  describe("in-flight deduplication", () => {
+    it("returns null when no in-flight request exists", () => {
+      expect(getInflightRequest("some content")).toBeNull();
+    });
+
+    it("stores and retrieves in-flight promise", () => {
+      const promise = Promise.resolve("result" as string | null);
+      setInflightRequest("content", promise);
+      expect(getInflightRequest("content")).toBe(promise);
+    });
+
+    it("returns null after in-flight request is deleted", () => {
+      const promise = Promise.resolve("result" as string | null);
+      setInflightRequest("content", promise);
+      deleteInflightRequest("content");
+      expect(getInflightRequest("content")).toBeNull();
+    });
+
+    it("returns null for different content", () => {
+      const promise = Promise.resolve("result" as string | null);
+      setInflightRequest("content A", promise);
+      expect(getInflightRequest("content B")).toBeNull();
+    });
+
+    it("clearSummaryCache also clears in-flight entries", () => {
+      const promise = Promise.resolve("result" as string | null);
+      setInflightRequest("content", promise);
+      expect(getInflightSize()).toBe(1);
+
+      clearSummaryCache();
+      expect(getInflightSize()).toBe(0);
+      expect(getInflightRequest("content")).toBeNull();
+    });
+
+    it("getInflightSize reflects current count", () => {
+      expect(getInflightSize()).toBe(0);
+
+      setInflightRequest("a", Promise.resolve(null));
+      expect(getInflightSize()).toBe(1);
+
+      setInflightRequest("b", Promise.resolve(null));
+      expect(getInflightSize()).toBe(2);
+
+      deleteInflightRequest("a");
+      expect(getInflightSize()).toBe(1);
     });
   });
 });

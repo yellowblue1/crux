@@ -6,7 +6,7 @@ import {
   mockGeminiSuccess,
 } from "../__tests__";
 import { buildConversationPrompt, generatePaneSummary, getConversationTail } from "./gemini";
-import { clearSummaryCache } from "./summary-cache";
+import { clearSummaryCache, getInflightSize } from "./summary-cache";
 
 describe("gemini", () => {
   describe("getConversationTail", () => {
@@ -183,6 +183,105 @@ describe("gemini", () => {
         await generatePaneSummary("content", mockDeps(countingEmptyFetch));
 
         expect(callCount).toBe(2);
+      });
+    });
+
+    describe("in-flight deduplication", () => {
+      it("concurrent calls with same content only make one API call", async () => {
+        let callCount = 0;
+        let resolveResponse!: (value: Response) => void;
+        const delayedFetch: FetchFn = async () => {
+          callCount++;
+          return new Promise<Response>((resolve) => {
+            resolveResponse = resolve;
+          });
+        };
+
+        const deps = mockDeps(delayedFetch);
+
+        const p1 = generatePaneSummary("same content", deps);
+        const p2 = generatePaneSummary("same content", deps);
+        const p3 = generatePaneSummary("same content", deps);
+
+        // Resolve the single API call
+        resolveResponse({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{ content: { parts: [{ text: "Deduped summary" }] } }],
+          }),
+        } as Response);
+
+        const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+
+        expect(callCount).toBe(1);
+        expect(r1).toBe("Deduped summary");
+        expect(r2).toBe("Deduped summary");
+        expect(r3).toBe("Deduped summary");
+      });
+
+      it("concurrent calls with different content make separate API calls", async () => {
+        let callCount = 0;
+        const countingFetch: FetchFn = async (url, options) => {
+          callCount++;
+          return mockGeminiSuccess("Summary")(url, options);
+        };
+
+        const deps = mockDeps(countingFetch);
+
+        const [r1, r2] = await Promise.all([
+          generatePaneSummary("content A", deps),
+          generatePaneSummary("content B", deps),
+        ]);
+
+        expect(callCount).toBe(2);
+        expect(r1).toBe("Summary");
+        expect(r2).toBe("Summary");
+      });
+
+      it("in-flight entry is cleaned up after request completes", async () => {
+        const deps = mockDeps(mockGeminiSuccess("Summary"));
+
+        await generatePaneSummary("content", deps);
+
+        expect(getInflightSize()).toBe(0);
+      });
+
+      it("in-flight entry is cleaned up after request fails", async () => {
+        const deps = mockDeps(mockGeminiError(500));
+
+        await generatePaneSummary("content", deps);
+
+        expect(getInflightSize()).toBe(0);
+      });
+
+      it("concurrent calls all get null when API fails", async () => {
+        let callCount = 0;
+        let resolveResponse!: (value: Response) => void;
+        const delayedFetch: FetchFn = async () => {
+          callCount++;
+          return new Promise<Response>((resolve) => {
+            resolveResponse = resolve;
+          });
+        };
+
+        const deps = mockDeps(delayedFetch);
+
+        const p1 = generatePaneSummary("same content", deps);
+        const p2 = generatePaneSummary("same content", deps);
+
+        // Resolve with error response
+        resolveResponse({
+          ok: false,
+          status: 500,
+          json: async () => ({ error: { message: "Internal Server Error" } }),
+        } as Response);
+
+        const [r1, r2] = await Promise.all([p1, p2]);
+
+        expect(callCount).toBe(1);
+        expect(r1).toBeNull();
+        expect(r2).toBeNull();
       });
     });
   });
