@@ -301,6 +301,35 @@ export function switchToPane(paneId: string, exec: ExecFn = defaultExec): boolea
 }
 
 /**
+ * Send text to a tmux pane followed by Enter key press.
+ * Uses -l flag to send text literally (avoiding key-name interpretation),
+ * then sends Enter as a separate command to ensure proper submission.
+ */
+export function sendKeys(paneId: string, text: string, exec: ExecFn = defaultExec): boolean {
+  try {
+    const target = shellEscape(paneId);
+    exec(`tmux send-keys -t ${target} -l ${shellEscape(text)}`);
+    exec(`tmux send-keys -t ${target} Enter`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Send a raw tmux key name to a pane (e.g. Escape, Enter, C-c).
+ * Unlike sendKeys(), this does NOT use -l (literal) mode and does NOT append Enter.
+ */
+export function sendRawKey(paneId: string, key: string, exec: ExecFn = defaultExec): boolean {
+  try {
+    exec(`tmux send-keys -t ${shellEscape(paneId)} ${shellEscape(key)}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Capture the current visible content of a tmux pane.
  * Used for diff-based idle detection — if content doesn't change between
  * two consecutive captures, the pane is considered static.

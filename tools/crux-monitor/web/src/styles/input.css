@@ -261,9 +261,28 @@ body {
 
 .pane-viewer {
   @apply font-mono text-sm leading-relaxed text-text-secondary bg-bg-primary border border-border-default rounded-lg p-4 overflow-auto whitespace-pre m-0;
-  max-height: calc(100vh - 220px);
-  min-height: 300px;
+  max-height: calc(100vh - 340px);
+  min-height: 200px;
   tab-size: 8;
+}
+
+/* Send keys input bar */
+.send-keys-bar {
+  @apply sticky bottom-0 bg-bg-primary border-t border-border-default pt-3 pb-3;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.quick-action-btn {
+  @apply text-xs px-3 py-1 bg-bg-secondary border border-border-default rounded-md text-text-secondary cursor-pointer transition-colors;
+  min-height: 32px;
+}
+
+.quick-action-btn:hover {
+  @apply bg-bg-tertiary text-text-primary;
+}
+
+.quick-action-btn:disabled {
+  @apply opacity-40 cursor-not-allowed;
 }
 
 .pane-viewer-scroll-btn {
@@ -477,8 +496,8 @@ body {
   }
 
   .pane-viewer {
-    max-height: calc(100vh - 200px);
-    min-height: 200px;
+    max-height: calc(100vh - 320px);
+    min-height: 150px;
     @apply text-xs p-3 rounded-none border-x-0;
   }
 }

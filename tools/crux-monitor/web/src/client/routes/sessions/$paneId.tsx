@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnsiUp } from "ansi_up";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SendKeysInput } from "@/components/sessions/send-keys-input";
 import { StatusBadge } from "@/components/ui/badge";
 import { usePaneContent } from "@/hooks/use-pane-content";
 import { useSessionsQuery } from "@/hooks/use-sessions";
@@ -105,6 +106,8 @@ function SessionDetailPage() {
           )}
         </div>
       )}
+
+      <SendKeysInput paneId={paneId} />
     </>
   );
 }
