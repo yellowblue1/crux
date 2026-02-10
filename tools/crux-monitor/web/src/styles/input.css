@@ -262,6 +262,7 @@ body {
 .pane-viewer {
   @apply bg-bg-primary border border-border-default rounded-lg overflow-hidden m-0;
   max-height: calc(100vh - 280px);
+  max-height: calc(100dvh - 280px);
   min-height: 200px;
 }
 
@@ -404,6 +405,7 @@ body {
 
   .pane-viewer {
     max-height: calc(100vh - 260px);
+    max-height: calc(100dvh - 260px);
     min-height: 150px;
     @apply rounded-none border-x-0;
   }

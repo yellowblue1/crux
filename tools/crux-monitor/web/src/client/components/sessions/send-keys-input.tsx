@@ -13,6 +13,12 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const sendKeys = useSendKeys();
 
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  };
+
   const handleSend = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -117,6 +123,8 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
+          enterKeyHint="send"
           placeholder="Send text to pane..."
           disabled={sendKeys.isPending}
           className={cn(
