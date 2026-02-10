@@ -431,6 +431,7 @@ export class SessionManager {
     }
 
     if (!content) {
+      console.log(`[Summary] ${paneId}: no content available (pane or JSONL)`);
       session.summary_pending = false;
       return;
     }
@@ -448,15 +449,22 @@ export class SessionManager {
     }
 
     try {
+      console.log(
+        `[Summary] ${paneId}: requesting (source: ${contentSource}, status: ${session.status})`,
+      );
       const summary = await this.deps.generateSummary(content);
       const current = this.sessions.get(paneId);
-      if (!current) return;
+      if (!current) {
+        console.log(`[Summary] ${paneId}: session removed during generation`);
+        return;
+      }
 
       if (summary !== null) {
         // Store summary regardless of current status. The API already filters
         // out summaries for BUSY sessions (returns null), so stale data is
         // never shown. This prevents summaries from getting stuck in active
         // conversations where the session transitions to BUSY during the call.
+        console.log(`[Summary] ${paneId}: stored (status: ${current.status})`);
         current.summary = summary;
         current.summaryContentHash = currentHash;
         if (contentSource === "jsonl" && current.jsonl_path) {
@@ -470,9 +478,13 @@ export class SessionManager {
         // Don't update summaryContentHash — don't cache failed results.
         // Schedule retry after summaryDelayMs. Keep summary_pending = true
         // to prevent checkPaneContent() from triggering immediately.
+        console.log(`[Summary] ${paneId}: null result, scheduling retry`);
         this.scheduleSummaryTimer(paneId);
+      } else {
+        console.log(`[Summary] ${paneId}: null result, status is ${current.status} (no retry)`);
       }
     } catch {
+      console.log(`[Summary] ${paneId}: generation threw unexpectedly`);
       const current = this.sessions.get(paneId);
       if (current) {
         current.summary_pending = false;
