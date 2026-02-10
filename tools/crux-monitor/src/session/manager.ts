@@ -43,7 +43,7 @@ export interface SessionManagerOptions {
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
-const DEFAULT_IDLE_THRESHOLD_MS = 3000;
+const DEFAULT_IDLE_THRESHOLD_MS = 1000;
 const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
 const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
 
