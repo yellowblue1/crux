@@ -1,5 +1,12 @@
 import { execSync } from "node:child_process";
 import { getGcpLocation, getGcpProject } from "./config";
+import {
+  deleteInflightRequest,
+  getCachedSummary,
+  getInflightRequest,
+  setCachedSummary,
+  setInflightRequest,
+} from "./summary-cache";
 
 const MODEL_ID = "gemini-2.5-flash";
 const MAX_SUMMARY_LENGTH = 100;
@@ -101,6 +108,23 @@ export async function generatePaneSummary(
     return null;
   }
 
+  const conversationTail = getConversationTail(conversation);
+
+  const cached = getCachedSummary(conversationTail);
+  if (cached !== null) {
+    console.log(`[Gemini] Cache hit (input: ${conversationTail.length} chars): ${cached}`);
+    return cached;
+  }
+
+  // Deduplicate concurrent requests for the same content
+  const existing = getInflightRequest(conversationTail);
+  if (existing !== null) {
+    console.log(
+      `[Gemini] Dedup hit - awaiting in-flight request (input: ${conversationTail.length} chars)`,
+    );
+    return existing;
+  }
+
   const projectId = getGcpProjectFn();
   if (!projectId) {
     return null;
@@ -111,55 +135,66 @@ export async function generatePaneSummary(
     return null;
   }
 
-  const conversationTail = getConversationTail(conversation);
   const location = getGcpLocationFn();
   const apiUrl = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${MODEL_ID}:generateContent`;
 
   const prompt = buildConversationPrompt(conversationTail);
 
-  try {
-    const startTime = Date.now();
-    console.log(`[Gemini] Requesting summary (input: ${conversationTail.length} chars)`);
+  const requestPromise = (async (): Promise<string | null> => {
+    try {
+      const startTime = Date.now();
+      console.log(`[Gemini] Requesting summary (input: ${conversationTail.length} chars)`);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const response = await fetchFn(apiUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: {
-          role: "user",
-          parts: { text: prompt },
+      const response = await fetchFn(apiUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
-      }),
-      signal: controller.signal,
-    });
+        body: JSON.stringify({
+          contents: {
+            role: "user",
+            parts: { text: prompt },
+          },
+        }),
+        signal: controller.signal,
+      });
 
-    clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      console.log(`[Gemini] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`);
+      if (!response.ok) {
+        console.log(
+          `[Gemini] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`,
+        );
+        return null;
+      }
+
+      const data = (await response.json()) as GeminiResponse;
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        console.log(`[Gemini] Empty response (${Date.now() - startTime}ms)`);
+        return null;
+      }
+
+      const summary = text.slice(0, MAX_SUMMARY_LENGTH).trim();
+      console.log(`[Gemini] Summary received (${Date.now() - startTime}ms): ${summary}`);
+      setCachedSummary(conversationTail, summary);
+      return summary;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "unknown error";
+      console.log(`[Gemini] Request error: ${message}`);
       return null;
     }
+  })();
 
-    const data = (await response.json()) as GeminiResponse;
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      console.log(`[Gemini] Empty response (${Date.now() - startTime}ms)`);
-      return null;
-    }
-
-    const summary = text.slice(0, MAX_SUMMARY_LENGTH).trim();
-    console.log(`[Gemini] Summary received (${Date.now() - startTime}ms): ${summary}`);
-    return summary;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown error";
-    console.log(`[Gemini] Request error: ${message}`);
-    return null;
+  setInflightRequest(conversationTail, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    deleteInflightRequest(conversationTail);
   }
 }
