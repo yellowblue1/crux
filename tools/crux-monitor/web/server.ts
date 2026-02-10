@@ -4,7 +4,7 @@ import { serveStatic } from "hono/bun";
 import { getGcpProject } from "../src/notification/config";
 import { generatePaneSummary, getAccessToken } from "../src/notification/gemini";
 import { SessionManager } from "../src/session/manager";
-import { capturePaneContent, switchToPane } from "../src/tmux/utils";
+import { capturePaneContentEscaped, switchToPane } from "../src/tmux/utils";
 import { type AppType, createApp, type SseClient } from "./server-app";
 
 const DEFAULT_PORT = 3847;
@@ -64,7 +64,7 @@ const app = createApp(
   {
     getSessions: (filter) => sessionManager.getSessions(filter),
     switchToPane,
-    capturePaneContent,
+    capturePaneContent: capturePaneContentEscaped,
     getAccessToken,
     getGcpProject,
     onSseConnect: (client) => {

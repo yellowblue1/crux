@@ -1,8 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { AnsiUp } from "ansi_up";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StatusBadge } from "@/components/ui/badge";
 import { usePaneContent } from "@/hooks/use-pane-content";
 import { useSessionsQuery } from "@/hooks/use-sessions";
+
+const ansiUp = new AnsiUp();
+ansiUp.use_classes = true;
 
 export const Route = createFileRoute("/sessions/$paneId")({
   component: SessionDetailPage,
@@ -30,6 +34,11 @@ function SessionDetailPage() {
       preRef.current.scrollTop = preRef.current.scrollHeight;
     }
   }, [paneData?.content, autoScroll]);
+
+  const contentHtml = useMemo(() => {
+    if (paneData?.content == null) return null;
+    return ansiUp.ansi_to_html(paneData.content);
+  }, [paneData?.content]);
 
   return (
     <>
@@ -72,11 +81,14 @@ function SessionDetailPage() {
         </div>
       )}
 
-      {paneData?.content != null && (
+      {contentHtml != null && (
         <div className="relative">
-          <pre ref={preRef} onScroll={handleScroll} className="pane-viewer">
-            {paneData.content}
-          </pre>
+          <pre
+            ref={preRef}
+            onScroll={handleScroll}
+            className="pane-viewer"
+            dangerouslySetInnerHTML={{ __html: contentHtml }}
+          />
           {!autoScroll && (
             <button
               type="button"

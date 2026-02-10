@@ -16,6 +16,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.0",
     "@tanstack/react-router": "^1.120.0",
+    "ansi_up": "^6.0.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "hono": "^4.7.0",
