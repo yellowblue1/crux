@@ -21,6 +21,7 @@ export interface AppDependencies {
   sendKeys?: (paneId: string, text: string) => boolean;
   sendRawKey?: (paneId: string, key: string) => boolean;
   capturePaneContent?: (paneId: string) => string | null;
+  regenerateSummary?: (paneId: string) => boolean;
 
   // Auth status
   getAccessToken?: () => string | null;
@@ -91,6 +92,19 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
         return c.json({ success: true });
       }
       return c.json({ success: false, error: "Failed to switch pane" }, 500);
+    })
+
+    // POST /api/sessions/:pane_id/regenerate-summary
+    .post("/api/sessions/:pane_id/regenerate-summary", (c) => {
+      if (!deps.regenerateSummary) {
+        return c.json({ success: false, error: "Not available" }, 501);
+      }
+      const paneId = c.req.param("pane_id");
+      const success = deps.regenerateSummary(paneId);
+      if (success) {
+        return c.json({ success: true });
+      }
+      return c.json({ success: false, error: "Session not found" }, 404);
     })
 
     // POST /api/sessions/:pane_id/send-keys

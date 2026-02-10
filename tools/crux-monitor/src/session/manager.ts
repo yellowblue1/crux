@@ -57,10 +57,11 @@ interface PipePaneState {
  * Manages Claude Code session state via tmux polling + pipe-pane activity detection.
  *
  * Session discovery: polls ps + tmux list-panes periodically.
- * Status detection: pipe-pane (FIFO) is the sole signal for both directions:
+ * Status detection: pipe-pane (FIFO) is the primary signal for both directions:
  *   - WAITING → BUSY: any data on the pipe
  *   - BUSY → WAITING: no pipe data for idleThresholdMs
- * Falls back to capture-pane polling when pipe-pane is unavailable.
+ * Capture-pane polling runs as a redundant signal alongside pipe-pane, providing
+ * self-healing when pipe-pane dies silently (e.g. tmux disconnects the writer).
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
@@ -199,6 +200,22 @@ export class SessionManager {
       tmux_target: state.tmux_target,
       last_activity: state.last_activity,
     };
+  }
+
+  /**
+   * Force regeneration of a session's summary.
+   * Resets all summary state and triggers a new Gemini call.
+   * Returns false if the session doesn't exist.
+   */
+  regenerateSummary(paneId: string): boolean {
+    const session = this.sessions.get(paneId);
+    if (!session) return false;
+
+    session.summary_pending = false;
+    session.summaryContentHash = null;
+    this.cancelSummaryTimer(paneId);
+    this.generateSummaryAsync(paneId);
+    return true;
   }
 
   /**
@@ -368,6 +385,10 @@ export class SessionManager {
       this.summaryTimers.delete(paneId);
       const session = this.sessions.get(paneId);
       if (session?.status === "waiting") {
+        // Reset summary_pending so generateSummaryAsync can proceed.
+        // This is needed for retry-after-failure: the previous attempt
+        // may have left summary_pending = true to block checkPaneContent.
+        session.summary_pending = false;
         this.generateSummaryAsync(paneId);
       }
     }, this.summaryDelayMs);
@@ -429,9 +450,16 @@ export class SessionManager {
 
     try {
       const summary = await this.deps.generateSummary(content);
-      // Re-check session still exists and is still waiting
       const current = this.sessions.get(paneId);
-      if (current && current.status === "waiting") {
+      if (!current) {
+        return;
+      }
+
+      if (summary !== null) {
+        // Store summary regardless of current status. The API already filters
+        // out summaries for BUSY sessions (returns null), so stale data is
+        // never shown. This prevents summaries from getting stuck in active
+        // conversations where the session transitions to BUSY during the call.
         current.summary = summary;
         current.summaryContentHash = currentHash;
         if (contentSource === "jsonl" && current.jsonl_path) {
@@ -440,6 +468,12 @@ export class SessionManager {
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
+      } else if (current.status === "waiting") {
+        // Gemini returned null (error, auth failure, empty response, etc.).
+        // Don't update summaryContentHash — don't cache failed results.
+        // Schedule retry after summaryDelayMs. Keep summary_pending = true
+        // to prevent checkPaneContent() from triggering immediately.
+        this.scheduleSummaryTimer(paneId);
       }
     } catch {
       const current = this.sessions.get(paneId);
@@ -515,8 +549,16 @@ export class SessionManager {
     // Cancel tmux pipe-pane
     this.deps.stopPipePane(paneId);
 
-    // Kill reader process
+    // Kill reader process — SIGTERM first, escalate to SIGKILL if needed.
+    // On macOS, cat blocked on a FIFO read may not respond to SIGTERM.
     state.readerProcess.kill("SIGTERM");
+    setTimeout(() => {
+      try {
+        state.readerProcess.kill("SIGKILL");
+      } catch {
+        // Process already exited — ignore
+      }
+    }, 500);
 
     // Remove FIFO
     try {
@@ -554,8 +596,8 @@ export class SessionManager {
 
   /**
    * Check pane content for all sessions.
-   * When pipe-pane is active: only checks for static screen to trigger summary.
-   * When pipe-pane is unavailable: also detects content changes for WAITING → BUSY fallback.
+   * Always detects content changes for WAITING → BUSY transition (redundant with pipe-pane).
+   * Also checks for static screen to trigger summary generation.
    */
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
@@ -569,8 +611,10 @@ export class SessionManager {
           session.previousPaneContent !== null && content !== session.previousPaneContent;
         session.previousPaneContent = content;
 
-        // Fallback: capture-pane activity detection when pipe-pane unavailable
-        if (!session.pipePaneActive && isContentChanged) {
+        // Content change detection: always active as redundant signal alongside pipe-pane.
+        // When pipe-pane is working, both signals fire (pipe-pane first, capture-pane ~1s later).
+        // When pipe-pane is broken (writer died silently), capture-pane catches it within 1s.
+        if (isContentChanged) {
           if (session.status === "waiting") {
             session.status = "busy";
             session.last_activity = new Date().toISOString();
@@ -579,6 +623,7 @@ export class SessionManager {
             this.notifyChange();
           }
           this.resetIdleTimer(paneId);
+          this.paneActivityCallback?.(paneId);
           continue;
         }
 
