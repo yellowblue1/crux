@@ -99,15 +99,23 @@ export function XtermViewer({ content, className }: XtermViewerProps) {
     };
   }, []);
 
-  // Write content when it changes
+  // Write content when it changes — deferred to ensure renderer is initialized
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) return;
 
-    terminal.reset();
-    if (content != null) {
-      terminal.write(content);
-    }
+    const frameId = requestAnimationFrame(() => {
+      try {
+        terminal.reset();
+        if (content != null) {
+          terminal.write(content);
+        }
+      } catch {
+        // Terminal renderer not yet ready; content will be written on next update
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
   }, [content]);
 
   return <div ref={containerRef} className={className} />;
