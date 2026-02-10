@@ -245,8 +245,9 @@ body {
   @apply w-5 h-5;
 }
 
-/* Hidden utility */
+/* Hidden utility — !important needed to override inline/component styles */
 .hidden {
+  /* biome-ignore lint/complexity/noImportantStyles: required to override component display values */
   display: none !important;
 }
 

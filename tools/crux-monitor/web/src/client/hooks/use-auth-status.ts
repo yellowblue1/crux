@@ -12,8 +12,8 @@ export function useAuthStatus() {
         if (res.ok) {
           return await res.json();
         }
-      } catch {
-        // Auth check failed
+      } catch (err) {
+        console.warn("Failed to check auth status:", err);
       }
       return {
         gcloud_authenticated: false,

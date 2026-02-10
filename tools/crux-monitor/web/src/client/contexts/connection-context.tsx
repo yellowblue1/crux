@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
 
 export type ConnectionStatus = "connected" | "polling" | "disconnected";
 
@@ -11,12 +11,9 @@ const ConnectionContext = createContext<ConnectionContextValue | null>(null);
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
+  const value = useMemo(() => ({ status, setStatus }), [status]);
 
-  return (
-    <ConnectionContext.Provider value={{ status, setStatus }}>
-      {children}
-    </ConnectionContext.Provider>
-  );
+  return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>;
 }
 
 export function useConnection(): ConnectionContextValue {

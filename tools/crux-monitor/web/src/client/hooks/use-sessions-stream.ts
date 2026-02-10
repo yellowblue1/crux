@@ -80,8 +80,8 @@ export function useSessionsStream(): void {
       try {
         const data: SessionsApiResponse = JSON.parse(event.data);
         handleSessionsUpdate(data);
-      } catch {
-        // Parse error, skip
+      } catch (err) {
+        console.warn("Failed to parse SSE message:", err);
       }
     };
 

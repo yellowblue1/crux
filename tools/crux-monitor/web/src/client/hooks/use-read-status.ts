@@ -1,20 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getReadStatus, initDb, setReadStatus } from "@/lib/storage";
 
 export function useReadStatus(paneIds: string[]) {
   const [readStatuses, setReadStatuses] = useState<Map<string, boolean>>(new Map());
-  const dbInitialized = useRef(false);
+  const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
-    if (!dbInitialized.current) {
-      initDb().then(() => {
-        dbInitialized.current = true;
-      });
-    }
+    initDb().then(() => {
+      setDbReady(true);
+    });
   }, []);
 
   useEffect(() => {
-    if (!dbInitialized.current || paneIds.length === 0) return;
+    if (!dbReady || paneIds.length === 0) return;
 
     Promise.all(paneIds.map((id) => getReadStatus(id))).then((statuses) => {
       const map = new Map<string, boolean>();
@@ -23,7 +21,7 @@ export function useReadStatus(paneIds: string[]) {
       }
       setReadStatuses(map);
     });
-  }, [paneIds]);
+  }, [dbReady, paneIds]);
 
   const markAsRead = useCallback(async (paneId: string) => {
     await setReadStatus(paneId, true);
