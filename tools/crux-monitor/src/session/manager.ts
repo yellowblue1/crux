@@ -429,9 +429,12 @@ export class SessionManager {
 
     try {
       const summary = await this.deps.generateSummary(content);
-      // Re-check session still exists and is still waiting
+      // Re-check session still exists. Store the summary regardless of current
+      // status so that it stays up-to-date even when the session transitions to
+      // BUSY while the Gemini call was in-flight. The API already filters out
+      // summaries for BUSY sessions (returns null), so stale data is never shown.
       const current = this.sessions.get(paneId);
-      if (current && current.status === "waiting") {
+      if (current) {
         current.summary = summary;
         current.summaryContentHash = currentHash;
         if (contentSource === "jsonl" && current.jsonl_path) {
