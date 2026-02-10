@@ -13,6 +13,7 @@ function createMockDeps(overrides: Partial<AppDependencies> = {}): AppDependenci
   return {
     getSessions: () => [],
     switchToPane: () => true,
+    sendKeys: () => true,
     getAccessToken: () => "mock-token",
     getGcpProject: () => "mock-project",
     ...overrides,
@@ -83,6 +84,112 @@ describe("Hono API endpoints", () => {
       expect(res.status).toBe(500);
       const data = await res.json();
       expect(data.success).toBe(false);
+    });
+  });
+
+  describe("POST /api/sessions/:pane_id/send-keys", () => {
+    it("returns success when sendKeys succeeds", async () => {
+      const sendKeysSpy = mock(
+        (_paneId: string, _text: string, _options?: { noEnter?: boolean }) => true,
+      );
+      const deps = createMockDeps({ sendKeys: sendKeysSpy });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "hello" }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(sendKeysSpy).toHaveBeenCalledWith("%0", "hello", { noEnter: false });
+    });
+
+    it("passes noEnter option when specified", async () => {
+      const sendKeysSpy = mock(
+        (_paneId: string, _text: string, _options?: { noEnter?: boolean }) => true,
+      );
+      const deps = createMockDeps({ sendKeys: sendKeysSpy });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "y", noEnter: true }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(sendKeysSpy).toHaveBeenCalledWith("%0", "y", { noEnter: true });
+    });
+
+    it("returns 400 when text is missing", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+    });
+
+    it("returns 400 when text is empty string", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "" }),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when body is not valid JSON", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        body: "not json",
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 500 when sendKeys fails", async () => {
+      const deps = createMockDeps({ sendKeys: () => false });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "hello" }),
+      });
+
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+    });
+
+    it("returns 501 when sendKeys dependency is not provided", async () => {
+      const { sendKeys: _, ...depsWithoutSendKeys } = createMockDeps();
+      const app = createApp(depsWithoutSendKeys as AppDependencies);
+
+      const res = await app.request("/api/sessions/%250/send-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "hello" }),
+      });
+
+      expect(res.status).toBe(501);
     });
   });
 

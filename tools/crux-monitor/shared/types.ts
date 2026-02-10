@@ -29,3 +29,13 @@ export interface PaneContentResponse {
   content: string | null;
   timestamp: number;
 }
+
+export interface SendKeysRequest {
+  text: string;
+  noEnter?: boolean;
+}
+
+export interface SendKeysResponse {
+  success: boolean;
+  error?: string;
+}
