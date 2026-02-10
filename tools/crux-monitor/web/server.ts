@@ -112,6 +112,7 @@ const app = createApp(
     sendKeys: (paneId, text) => sendKeys(paneId, text),
     sendRawKey: (paneId, key) => sendRawKey(paneId, key),
     capturePaneContent: capturePaneContentEscaped,
+    regenerateSummary: (paneId) => sessionManager.regenerateSummary(paneId),
     getAccessToken,
     getGcpProject,
     onSseConnect: (client) => {

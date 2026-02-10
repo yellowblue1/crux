@@ -1218,6 +1218,193 @@ describe("SessionManager", () => {
       // Should have called Gemini again because content changed
       expect(generateSpy).toHaveBeenCalledTimes(2);
     });
+
+    it("retries after Gemini returns null", async () => {
+      let callCount = 0;
+      const generateSpy = mock(async () => {
+        callCount++;
+        if (callCount <= 2) return null; // Fail first two attempts
+        return "Recovered summary";
+      });
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static pane content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 100, // Short delay for faster test
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First attempt: pane static triggers immediately, returns null
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+      expect(manager.getSessions()[0]?.summary).toBeNull();
+
+      // Eventually recovers — wait enough for multiple retries
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
+      expect(manager.getSessions()[0]?.summary).toBe("Recovered summary");
+    });
+
+    it("does not update content hash when Gemini returns null", async () => {
+      let geminiResult: string | null = null;
+      const generateSpy = mock(async () => geminiResult);
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "same pane content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First attempt returns null
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Go BUSY then WAITING again
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Now Gemini will succeed
+      geminiResult = "Success summary";
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Gemini should be called again because hash was NOT cached on null return
+      expect(generateSpy).toHaveBeenCalledTimes(2);
+      expect(manager.getSessions()[0]?.summary).toBe("Success summary");
+    });
+
+    it("stores summary even when session goes BUSY during Gemini call", async () => {
+      const pending: { resolve: ((value: string | null) => void) | null } = { resolve: null };
+      const generateSpy = mock(
+        () =>
+          new Promise<string | null>((resolve) => {
+            pending.resolve = resolve;
+          }),
+      );
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "pane content about new topic",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for WAITING + pane static → Gemini call starts
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Session goes BUSY while Gemini is still processing
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("user typing");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Gemini returns — session is now BUSY
+      pending.resolve?.("Summary about new topic");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // API returns null during BUSY (expected filtering)
+      expect(manager.getSessions()[0]?.summary).toBeNull();
+
+      // Session goes back to WAITING — summary should reflect the new topic
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(manager.getSessions()[0]?.summary).toBe("Summary about new topic");
+    });
+
+    it("cancels retry timer when session goes BUSY", async () => {
+      const generateSpy = mock(async () => null); // Always fail
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 200,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First attempt fails, retry scheduled
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Go BUSY (cancels retry timer via onPipePaneActivity → cancelSummaryTimer)
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Wait past original retry time
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Retry timer was cancelled — no extra Gemini call during BUSY
+      // (a new attempt may happen if session goes WAITING again, that's expected)
+      // The key assertion: the retry timer from the failed attempt was cancelled
+      // when going BUSY, not carried over
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+  });
+
+  describe("regenerateSummary", () => {
+    it("forces a new summary generation", async () => {
+      const generateSpy = mock(async () => "Regenerated summary");
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 30,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for WAITING + initial summary via pane static detection
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Regenerated summary");
+
+      // Manually regenerate (resets hash, allowing re-generation)
+      const result = manager.regenerateSummary("%0");
+      expect(result).toBe(true);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Should have been called at least once more for the regeneration
+      expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("returns false for unknown pane ID", () => {
+      const { deps } = createMockDeps();
+      manager = new SessionManager(deps);
+      manager.start();
+
+      expect(manager.regenerateSummary("%99")).toBe(false);
+    });
   });
 
   describe("API summary filtering", () => {

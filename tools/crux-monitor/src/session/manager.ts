@@ -202,6 +202,22 @@ export class SessionManager {
   }
 
   /**
+   * Force regeneration of a session's summary.
+   * Resets all summary state and triggers a new Gemini call.
+   * Returns false if the session doesn't exist.
+   */
+  regenerateSummary(paneId: string): boolean {
+    const session = this.sessions.get(paneId);
+    if (!session) return false;
+
+    session.summary_pending = false;
+    session.summaryContentHash = null;
+    this.cancelSummaryTimer(paneId);
+    this.generateSummaryAsync(paneId);
+    return true;
+  }
+
+  /**
    * Main polling loop - discover/remove sessions only.
    * Status detection is handled by pipe-pane (or capture-pane fallback).
    */
@@ -368,6 +384,10 @@ export class SessionManager {
       this.summaryTimers.delete(paneId);
       const session = this.sessions.get(paneId);
       if (session?.status === "waiting") {
+        // Reset summary_pending so generateSummaryAsync can proceed.
+        // This is needed for retry-after-failure: the previous attempt
+        // may have left summary_pending = true to block checkPaneContent.
+        session.summary_pending = false;
         this.generateSummaryAsync(paneId);
       }
     }, this.summaryDelayMs);
@@ -429,9 +449,14 @@ export class SessionManager {
 
     try {
       const summary = await this.deps.generateSummary(content);
-      // Re-check session still exists and is still waiting
       const current = this.sessions.get(paneId);
-      if (current && current.status === "waiting") {
+      if (!current) return;
+
+      if (summary !== null) {
+        // Store summary regardless of current status. The API already filters
+        // out summaries for BUSY sessions (returns null), so stale data is
+        // never shown. This prevents summaries from getting stuck in active
+        // conversations where the session transitions to BUSY during the call.
         current.summary = summary;
         current.summaryContentHash = currentHash;
         if (contentSource === "jsonl" && current.jsonl_path) {
@@ -440,6 +465,12 @@ export class SessionManager {
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
+      } else if (current.status === "waiting") {
+        // Gemini returned null (error, auth failure, empty response, etc.).
+        // Don't update summaryContentHash — don't cache failed results.
+        // Schedule retry after summaryDelayMs. Keep summary_pending = true
+        // to prevent checkPaneContent() from triggering immediately.
+        this.scheduleSummaryTimer(paneId);
       }
     } catch {
       const current = this.sessions.get(paneId);
