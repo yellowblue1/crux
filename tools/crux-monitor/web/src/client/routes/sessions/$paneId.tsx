@@ -1,13 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AnsiUp } from "ansi_up";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SendKeysInput } from "@/components/sessions/send-keys-input";
+import { XtermViewer } from "@/components/sessions/xterm-viewer";
 import { StatusBadge } from "@/components/ui/badge";
 import { usePaneContent } from "@/hooks/use-pane-content";
 import { useSessionsQuery } from "@/hooks/use-sessions";
-
-const ansiUp = new AnsiUp();
-ansiUp.use_classes = true;
 
 export const Route = createFileRoute("/sessions/$paneId")({
   component: SessionDetailPage,
@@ -19,27 +15,6 @@ function SessionDetailPage() {
   const { data: sessionsData } = useSessionsQuery();
 
   const session = sessionsData?.sessions.find((s) => s.pane_id === paneId);
-
-  const preRef = useRef<HTMLPreElement>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
-
-  const handleScroll = useCallback(() => {
-    const el = preRef.current;
-    if (!el) return;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    setAutoScroll(isAtBottom);
-  }, []);
-
-  useEffect(() => {
-    if (autoScroll && preRef.current) {
-      preRef.current.scrollTop = preRef.current.scrollHeight;
-    }
-  }, [paneData?.content, autoScroll]);
-
-  const contentHtml = useMemo(() => {
-    if (paneData?.content == null) return null;
-    return ansiUp.ansi_to_html(paneData.content);
-  }, [paneData?.content]);
 
   return (
     <>
@@ -82,29 +57,8 @@ function SessionDetailPage() {
         </div>
       )}
 
-      {contentHtml != null && (
-        <div className="relative">
-          <pre
-            ref={preRef}
-            onScroll={handleScroll}
-            className="pane-viewer"
-            dangerouslySetInnerHTML={{ __html: contentHtml }}
-          />
-          {!autoScroll && (
-            <button
-              type="button"
-              className="pane-viewer-scroll-btn"
-              onClick={() => {
-                setAutoScroll(true);
-                if (preRef.current) {
-                  preRef.current.scrollTop = preRef.current.scrollHeight;
-                }
-              }}
-            >
-              Scroll to bottom
-            </button>
-          )}
-        </div>
+      {paneData?.content != null && (
+        <XtermViewer content={paneData.content} className="pane-viewer" />
       )}
 
       <SendKeysInput paneId={paneId} />
