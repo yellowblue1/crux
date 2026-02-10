@@ -67,6 +67,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     generateSummary: async () => null,
     getJsonlMtime: () => 1000,
     capturePaneContent: () => null,
+    capturePaneContentForSummary: () => null,
     startPipePane: () => true,
     stopPipePane: () => true,
     createFifo: () => true,
@@ -77,6 +78,13 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     },
     ...overrides,
   };
+
+  // Auto-link: when capturePaneContent is overridden for summary-related tests
+  // but capturePaneContentForSummary is not explicitly set, default the latter
+  // to the same value so existing tests continue to work without changes.
+  if (overrides.capturePaneContent && !overrides.capturePaneContentForSummary) {
+    deps.capturePaneContentForSummary = overrides.capturePaneContent;
+  }
 
   return { deps, fifoReaders };
 }
@@ -1577,6 +1585,73 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 80));
 
       expect(activitySpy).toHaveBeenCalledWith("%0");
+    });
+  });
+
+  describe("prompt area stripping", () => {
+    it("ignores prompt area changes in pane content diff detection", async () => {
+      let paneContent = [
+        "Claude finished the task.",
+        "╭──────────────────────────────────────╮",
+        "│ ❯                                     │",
+        "╰──────────────────────────────────────╯",
+      ].join("\n");
+
+      const { deps } = createMockDeps({
+        createFifo: () => false, // disable pipe-pane to isolate capture-pane
+        capturePaneContent: () => paneContent,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for initial capture + WAITING transition
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Simulate user typing in the prompt area (only bottom changes)
+      paneContent = [
+        "Claude finished the task.",
+        "╭──────────────────────────────────────╮",
+        "│ ❯ fix the auth bug                    │",
+        "╰──────────────────────────────────────╯",
+      ].join("\n");
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      // Should still be WAITING — prompt area change is ignored
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("uses capturePaneContentForSummary for Gemini instead of capturePaneContent", async () => {
+      const receivedContents: string[] = [];
+
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "raw pane with prompt area",
+        capturePaneContentForSummary: () => "sanitized content without prompt",
+        generateSummary: async (content) => {
+          receivedContents.push(content);
+          return "test summary";
+        },
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      expect(receivedContents).toContain("sanitized content without prompt");
+      expect(receivedContents).not.toContain("raw pane with prompt area");
     });
   });
 

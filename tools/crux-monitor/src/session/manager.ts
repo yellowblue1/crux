@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { stripPromptArea } from "../tmux/sanitize.js";
 import * as tmux from "../tmux/utils.js";
 import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
 
@@ -29,6 +30,7 @@ export interface SessionManagerDeps {
   generateSummary: (content: string) => Promise<string | null>;
   getJsonlMtime: (jsonlPath: string) => number | null;
   capturePaneContent: (paneId: string) => string | null;
+  capturePaneContentForSummary: (paneId: string) => string | null;
   startPipePane: (paneId: string, target: string) => boolean;
   stopPipePane: (paneId: string) => boolean;
   createFifo: (path: string) => boolean;
@@ -99,6 +101,8 @@ export class SessionManager {
       generateSummary: deps?.generateSummary ?? (async () => null),
       getJsonlMtime: deps?.getJsonlMtime ?? tmux.getJsonlMtime,
       capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
+      capturePaneContentForSummary:
+        deps?.capturePaneContentForSummary ?? tmux.capturePaneContentSanitized,
       startPipePane: deps?.startPipePane ?? tmux.startPipePane,
       stopPipePane: deps?.stopPipePane ?? tmux.stopPipePane,
       createFifo: deps?.createFifo ?? defaultCreateFifo,
@@ -406,8 +410,8 @@ export class SessionManager {
     if (session.summary_pending) return;
     session.summary_pending = true;
 
-    // Try pane content first, fall back to JSONL
-    let content = this.deps.capturePaneContent(session.pane_id);
+    // Try sanitized pane content first, fall back to JSONL
+    let content = this.deps.capturePaneContentForSummary(session.pane_id);
     let contentSource: "pane" | "jsonl" = "pane";
 
     if (!content && session.jsonl_path) {
@@ -586,8 +590,12 @@ export class SessionManager {
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
       try {
-        const content = this.deps.capturePaneContent(session.pane_id);
-        if (content === null) continue;
+        const rawContent = this.deps.capturePaneContent(session.pane_id);
+        if (rawContent === null) continue;
+
+        // Strip the Claude Code prompt input area so that user typing
+        // and suggestion changes don't trigger false state transitions.
+        const content = stripPromptArea(rawContent);
 
         const isStatic =
           session.previousPaneContent !== null && content === session.previousPaneContent;
