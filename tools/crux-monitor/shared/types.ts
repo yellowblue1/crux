@@ -40,3 +40,8 @@ export interface SendKeysResponse {
   success: boolean;
   error?: string;
 }
+
+export interface RegenerateSummaryResponse {
+  success: boolean;
+  error?: string;
+}

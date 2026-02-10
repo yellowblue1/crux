@@ -9,7 +9,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { PaneContentResponse, SendKeysResponse, SessionResponse } from "../shared/types";
+import type {
+  PaneContentResponse,
+  RegenerateSummaryResponse,
+  SendKeysResponse,
+  SessionResponse,
+} from "../shared/types";
 
 /**
  * Dependencies for the app factory.
@@ -21,6 +26,9 @@ export interface AppDependencies {
   sendKeys?: (paneId: string, text: string) => boolean;
   sendRawKey?: (paneId: string, key: string) => boolean;
   capturePaneContent?: (paneId: string) => string | null;
+
+  // Summary regeneration
+  regenerateSummary?: (paneId: string) => Promise<boolean>;
 
   // Auth status
   getAccessToken?: () => string | null;
@@ -134,6 +142,40 @@ export function createApp(deps: AppDependencies, options: CreateAppOptions = {})
         { success: false, error: "Failed to send keys to pane" } satisfies SendKeysResponse,
         500,
       );
+    })
+
+    // POST /api/sessions/:pane_id/regenerate-summary
+    .post("/api/sessions/:pane_id/regenerate-summary", async (c) => {
+      if (!deps.regenerateSummary) {
+        return c.json(
+          { success: false, error: "Not available" } satisfies RegenerateSummaryResponse,
+          501,
+        );
+      }
+
+      const paneId = c.req.param("pane_id");
+
+      try {
+        const success = await deps.regenerateSummary(paneId);
+        if (success) {
+          return c.json({ success: true } satisfies RegenerateSummaryResponse);
+        }
+        return c.json(
+          {
+            success: false,
+            error: "Session not found or not in waiting state",
+          } satisfies RegenerateSummaryResponse,
+          404,
+        );
+      } catch {
+        return c.json(
+          {
+            success: false,
+            error: "Failed to regenerate summary",
+          } satisfies RegenerateSummaryResponse,
+          500,
+        );
+      }
     })
 
     // GET /api/sessions/:pane_id/pane-content

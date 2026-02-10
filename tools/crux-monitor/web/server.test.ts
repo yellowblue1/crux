@@ -218,6 +218,66 @@ describe("Hono API endpoints", () => {
     });
   });
 
+  describe("POST /api/sessions/:pane_id/regenerate-summary", () => {
+    it("returns success when regeneration succeeds", async () => {
+      const regenerateSpy = mock(async (_paneId: string) => true);
+      const deps = createMockDeps({ regenerateSummary: regenerateSpy });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/regenerate-summary", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(regenerateSpy).toHaveBeenCalledWith("%0");
+    });
+
+    it("returns 404 when session not found or not waiting", async () => {
+      const deps = createMockDeps({
+        regenerateSummary: async () => false,
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/regenerate-summary", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(404);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+    });
+
+    it("returns 501 when regenerateSummary dependency is not provided", async () => {
+      const deps = createMockDeps();
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/regenerate-summary", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(501);
+    });
+
+    it("returns 500 when regeneration throws", async () => {
+      const deps = createMockDeps({
+        regenerateSummary: async () => {
+          throw new Error("Unexpected error");
+        },
+      });
+      const app = createApp(deps);
+
+      const res = await app.request("/api/sessions/%250/regenerate-summary", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+    });
+  });
+
   describe("GET /api/sessions/:pane_id/pane-content", () => {
     it("returns pane content when available", async () => {
       const deps = createMockDeps({

@@ -202,6 +202,23 @@ export class SessionManager {
   }
 
   /**
+   * Manually trigger summary regeneration for a waiting session.
+   * Resets guards to allow re-triggering even after a previous failure.
+   */
+  async regenerateSummary(paneId: string): Promise<boolean> {
+    const session = this.sessions.get(paneId);
+    if (!session || session.status !== "waiting") return false;
+
+    // Reset guards to allow regeneration
+    session.summary_pending = false;
+    session.summaryContentHash = null;
+
+    // Trigger async summary generation (handles content fetch, Gemini call, notification)
+    await this.generateSummaryAsync(paneId);
+    return true;
+  }
+
+  /**
    * Main polling loop - discover/remove sessions only.
    * Status detection is handled by pipe-pane (or capture-pane fallback).
    */

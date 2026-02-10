@@ -111,6 +111,7 @@ const app = createApp(
     switchToPane,
     sendKeys: (paneId, text) => sendKeys(paneId, text),
     sendRawKey: (paneId, key) => sendRawKey(paneId, key),
+    regenerateSummary: (paneId) => sessionManager.regenerateSummary(paneId),
     capturePaneContent: capturePaneContentEscaped,
     getAccessToken,
     getGcpProject,

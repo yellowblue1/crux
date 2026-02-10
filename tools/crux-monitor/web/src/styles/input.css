@@ -152,6 +152,40 @@ body {
   @apply text-text-muted italic text-sm opacity-70;
 }
 
+/* Regenerate summary button */
+.regenerate-btn {
+  @apply inline-flex items-center gap-1.5 bg-transparent border border-border-default text-text-muted rounded-md cursor-pointer transition-all text-xs px-2 py-1;
+}
+
+.regenerate-btn:hover {
+  @apply bg-bg-tertiary text-text-primary border-text-muted;
+}
+
+.regenerate-btn:active {
+  @apply scale-[0.98];
+}
+
+.regenerate-btn:disabled {
+  @apply opacity-60 cursor-not-allowed;
+}
+
+.regenerate-btn svg {
+  @apply w-3.5 h-3.5 shrink-0;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
 /* AI Summary indicator */
 .ai-indicator {
   @apply shrink-0 text-accent-yellow cursor-help;

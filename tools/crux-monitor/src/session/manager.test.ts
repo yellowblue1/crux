@@ -1339,6 +1339,88 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("regenerateSummary", () => {
+    it("triggers summary generation for a waiting session", async () => {
+      const generateSpy = mock(async () => "Regenerated summary");
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "pane content here",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 50_000, // Very long to avoid auto-trigger
+        paneCheckIntervalMs: 50_000,
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      const result = await manager.regenerateSummary("%0");
+      expect(result).toBe(true);
+      expect(generateSpy).toHaveBeenCalled();
+      expect(manager.getSessions()[0]?.summary).toBe("Regenerated summary");
+    });
+
+    it("returns false for non-existent session", async () => {
+      const { deps } = createMockDeps();
+      manager = new SessionManager(deps);
+      manager.start();
+
+      const result = await manager.regenerateSummary("%99");
+      expect(result).toBe(false);
+    });
+
+    it("returns false for busy session", async () => {
+      const { deps } = createMockDeps();
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50_000, // Stay BUSY
+      });
+      manager.start();
+
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+      const result = await manager.regenerateSummary("%0");
+      expect(result).toBe(false);
+    });
+
+    it("can retry after a previously failed summary generation", async () => {
+      let callCount = 0;
+      const generateSpy = mock(async () => {
+        callCount++;
+        if (callCount === 1) return null; // First call fails
+        return "Success on retry";
+      });
+
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "static pane content",
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // Wait for auto-summary (first call returns null)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.summary).toBeNull();
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Regenerate should succeed on retry
+      const result = await manager.regenerateSummary("%0");
+      expect(result).toBe(true);
+      expect(manager.getSessions()[0]?.summary).toBe("Success on retry");
+    });
+  });
+
   describe("poll error resilience", () => {
     it("removes stale sessions even when a new pane's creation throws", async () => {
       let currentPanes: TmuxPane[] = [

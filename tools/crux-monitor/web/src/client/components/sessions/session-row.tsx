@@ -1,7 +1,8 @@
 import type { SessionResponse } from "@shared/types";
 import { Link } from "@tanstack/react-router";
-import { Clipboard, ClipboardCheck, SquareTerminal } from "lucide-react";
+import { Clipboard, ClipboardCheck, RefreshCw, SquareTerminal } from "lucide-react";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { useRegenerateSummary } from "@/hooks/use-regenerate-summary";
 import { cn } from "@/lib/cn";
 import { StatusBadge } from "../ui/badge";
 
@@ -13,6 +14,7 @@ interface SessionRowProps {
 
 export function SessionRow({ session, isRead, onMarkAsRead }: SessionRowProps) {
   const copy = useCopyToClipboard();
+  const regenerateSummary = useRegenerateSummary();
   const tmuxCommand = `tmux switch-client -t ${session.pane_id}`;
 
   const handleCopy = async () => {
@@ -47,6 +49,17 @@ export function SessionRow({ session, isRead, onMarkAsRead }: SessionRowProps) {
             </span>
             {session.summary}
           </span>
+        ) : session.status === "waiting" ? (
+          <button
+            type="button"
+            className="regenerate-btn"
+            title="Regenerate AI summary"
+            disabled={regenerateSummary.isPending}
+            onClick={() => regenerateSummary.mutate(session.pane_id)}
+          >
+            <RefreshCw size={14} className={regenerateSummary.isPending ? "spinning" : ""} />
+            <span>{regenerateSummary.isPending ? "Generating..." : "Regenerate"}</span>
+          </button>
         ) : (
           <span className="summary-placeholder">-</span>
         )}
