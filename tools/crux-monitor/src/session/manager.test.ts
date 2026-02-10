@@ -20,6 +20,11 @@ class MockFifoReader extends EventEmitter {
   simulateData(data = "output"): void {
     this.stdout.emit("data", Buffer.from(data));
   }
+
+  /** Simulate reader process exiting (e.g. pane destroyed → FIFO EOF) */
+  simulateExit(code = 0): void {
+    this.emit("exit", code, null);
+  }
 }
 
 function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
@@ -1260,6 +1265,133 @@ describe("SessionManager", () => {
       const sessions = manager.getSessions();
       expect(sessions[0]?.status).toBe("waiting");
       expect(sessions[0]?.summary).toBe("Test summary");
+    });
+  });
+
+  describe("real-time pane destruction detection", () => {
+    it("removes session immediately when pipe-pane reader exits unexpectedly", async () => {
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 60_000, // Long interval — rely on exit handler
+        paneCheckIntervalMs: 60_000,
+      });
+      manager.start();
+
+      expect(manager.getSessions()).toHaveLength(1);
+
+      // Simulate pane destruction — reader exits
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateExit();
+
+      // Allow async exit event to propagate
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(manager.getSessions()).toHaveLength(0);
+    });
+
+    it("fires onChange when reader exits unexpectedly", async () => {
+      const onChangeSpy = mock(() => {});
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 60_000,
+        paneCheckIntervalMs: 60_000,
+      });
+      manager.onChange(onChangeSpy);
+      manager.start();
+
+      const countAfterStart = onChangeSpy.mock.calls.length;
+
+      // Simulate pane destruction
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateExit();
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(onChangeSpy.mock.calls.length).toBeGreaterThan(countAfterStart);
+    });
+
+    it("does not double-remove when teardownPipePane kills the reader", async () => {
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 60_000,
+        paneCheckIntervalMs: 60_000,
+      });
+      manager.start();
+
+      expect(manager.getSessions()).toHaveLength(1);
+
+      // Explicitly stop the manager (triggers teardownPipePane which
+      // deletes from pipePanes before killing reader)
+      manager.stop();
+
+      // Simulate the exit event that fires asynchronously after kill
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateExit();
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Session should still exist — stop() only tears down pipes,
+      // and the exit handler should NOT remove because pipePanes was cleared
+      expect(manager.getSessions()).toHaveLength(1);
+    });
+  });
+
+  describe("poll error resilience", () => {
+    it("removes stale sessions even when a new pane's creation throws", async () => {
+      let currentPanes: TmuxPane[] = [
+        { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
+      ];
+      let currentProcesses: ClaudeProcess[] = [{ pid: 2000, ppid: 1000 }];
+      let currentProcessTable: ProcessInfo[] = [
+        { pid: 1000, ppid: 1, command: "-bash" },
+        { pid: 2000, ppid: 1000, command: "claude" },
+      ];
+
+      const { deps } = createMockDeps({
+        getAllTmuxPanes: () => currentPanes,
+        getClaudeProcesses: () => currentProcesses,
+        getProcessTable: () => currentProcessTable,
+        matchProcessesToPanes: (processes, paneList, _processTable) => {
+          const paneByPid = new Map<number, TmuxPane>();
+          for (const pane of paneList) paneByPid.set(pane.pane_pid, pane);
+          const result = new Map<string, { process: ClaudeProcess; pane: TmuxPane }>();
+          for (const proc of processes) {
+            const pane = paneByPid.get(proc.ppid);
+            if (pane) result.set(pane.pane_id, { process: proc, pane });
+          }
+          return result;
+        },
+        getProcessCwd: (pid: number) => {
+          if (pid === 3000) throw new Error("Simulated getProcessCwd failure");
+          return "/home/user/project";
+        },
+      });
+
+      manager = new SessionManager(deps, { pollIntervalMs: 50 });
+      manager.start();
+
+      // First poll: pane %0 created successfully
+      expect(manager.getSessions()).toHaveLength(1);
+      expect(manager.getSessions()[0].pane_id).toBe("%0");
+
+      // Second poll: pane %0 gone, new pane %1 appears but createSession throws
+      currentPanes = [
+        { pane_id: "%1", pane_pid: 1001, session_name: "main", window_index: 0, pane_index: 1 },
+      ];
+      currentProcesses = [{ pid: 3000, ppid: 1001 }];
+      currentProcessTable = [
+        { pid: 1001, ppid: 1, command: "-bash" },
+        { pid: 3000, ppid: 1001, command: "claude" },
+      ];
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Stale session %0 should be removed despite the throw for %1
+      const sessions = manager.getSessions();
+      expect(sessions.some((s) => s.pane_id === "%0")).toBe(false);
     });
   });
 });

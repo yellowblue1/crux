@@ -215,21 +215,26 @@ export class SessionManager {
 
     for (const [paneId, { process, pane }] of matches) {
       foundPanes.add(paneId);
-      const existing = this.sessions.get(paneId);
-      if (!existing) {
-        const didCreate = this.createSession(paneId, process.pid, pane);
-        if (didCreate) changed = true;
-      } else if (existing.process_pid !== process.pid) {
-        // Claude process changed in this pane — recreate session with fresh metadata
-        this.removeSession(paneId);
-        const didCreate = this.createSession(paneId, process.pid, pane);
-        if (didCreate) changed = true;
-      } else if (!existing.jsonl_path) {
-        // Retry finding JSONL path — file may not have existed at session creation
-        const jsonlPath = this.deps.findSessionJsonlPath(existing.cwd);
-        if (jsonlPath) {
-          existing.jsonl_path = jsonlPath;
+      try {
+        const existing = this.sessions.get(paneId);
+        if (!existing) {
+          const didCreate = this.createSession(paneId, process.pid, pane);
+          if (didCreate) changed = true;
+        } else if (existing.process_pid !== process.pid) {
+          // Claude process changed in this pane — recreate session with fresh metadata
+          this.removeSession(paneId);
+          const didCreate = this.createSession(paneId, process.pid, pane);
+          if (didCreate) changed = true;
+        } else if (!existing.jsonl_path) {
+          // Retry finding JSONL path — file may not have existed at session creation
+          const jsonlPath = this.deps.findSessionJsonlPath(existing.cwd);
+          if (jsonlPath) {
+            existing.jsonl_path = jsonlPath;
+          }
         }
+      } catch {
+        // Continue processing other panes — one pane's error should not
+        // prevent cleanup of stale sessions in the loop below
       }
     }
 
@@ -465,6 +470,16 @@ export class SessionManager {
 
     this.pipePanes.set(paneId, { fifoPath, readerProcess });
 
+    // Detect unexpected reader exit (e.g. tmux pane destroyed → FIFO EOF)
+    readerProcess.on("exit", () => {
+      // Guard: teardownPipePane deletes from pipePanes synchronously
+      // before killing the reader, so this won't fire for intentional teardowns
+      if (this.pipePanes.has(paneId) && this.sessions.has(paneId)) {
+        this.removeSession(paneId);
+        this.notifyChange();
+      }
+    });
+
     // Start pipe-pane → FIFO
     const started = this.deps.startPipePane(paneId, fifoPath);
     if (started) {
@@ -483,6 +498,11 @@ export class SessionManager {
     const state = this.pipePanes.get(paneId);
     if (!state) return;
 
+    // Remove from map FIRST to signal intentional teardown.
+    // The exit handler checks pipePanes.has() to distinguish
+    // intentional teardown from unexpected pane destruction.
+    this.pipePanes.delete(paneId);
+
     // Cancel tmux pipe-pane
     this.deps.stopPipePane(paneId);
 
@@ -497,8 +517,6 @@ export class SessionManager {
     } catch {
       // Best effort cleanup
     }
-
-    this.pipePanes.delete(paneId);
 
     const session = this.sessions.get(paneId);
     if (session) session.pipePaneActive = false;
@@ -531,32 +549,36 @@ export class SessionManager {
    */
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
-      const content = this.deps.capturePaneContent(session.pane_id);
-      if (content === null) continue;
+      try {
+        const content = this.deps.capturePaneContent(session.pane_id);
+        if (content === null) continue;
 
-      const isStatic =
-        session.previousPaneContent !== null && content === session.previousPaneContent;
-      const isContentChanged =
-        session.previousPaneContent !== null && content !== session.previousPaneContent;
-      session.previousPaneContent = content;
+        const isStatic =
+          session.previousPaneContent !== null && content === session.previousPaneContent;
+        const isContentChanged =
+          session.previousPaneContent !== null && content !== session.previousPaneContent;
+        session.previousPaneContent = content;
 
-      // Fallback: capture-pane activity detection when pipe-pane unavailable
-      if (!session.pipePaneActive && isContentChanged) {
-        if (session.status === "waiting") {
-          session.status = "busy";
-          session.last_activity = new Date().toISOString();
-          session.summary_pending = false;
-          this.cancelSummaryTimer(paneId);
-          this.notifyChange();
+        // Fallback: capture-pane activity detection when pipe-pane unavailable
+        if (!session.pipePaneActive && isContentChanged) {
+          if (session.status === "waiting") {
+            session.status = "busy";
+            session.last_activity = new Date().toISOString();
+            session.summary_pending = false;
+            this.cancelSummaryTimer(paneId);
+            this.notifyChange();
+          }
+          this.resetIdleTimer(paneId);
+          continue;
         }
-        this.resetIdleTimer(paneId);
-        continue;
-      }
 
-      // Dual-condition: pane static AND WAITING → trigger summary immediately
-      if (isStatic && session.status === "waiting" && !session.summary_pending) {
-        this.cancelSummaryTimer(paneId);
-        this.generateSummaryAsync(paneId);
+        // Dual-condition: pane static AND WAITING → trigger summary immediately
+        if (isStatic && session.status === "waiting" && !session.summary_pending) {
+          this.cancelSummaryTimer(paneId);
+          this.generateSummaryAsync(paneId);
+        }
+      } catch {
+        // Best effort — skip this pane and continue with others
       }
     }
   }
