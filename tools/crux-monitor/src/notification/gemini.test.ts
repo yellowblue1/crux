@@ -50,6 +50,13 @@ describe("gemini", () => {
       const prompt = buildConversationPrompt("test");
       expect(prompt).toContain("terminal output from a Claude Code session");
     });
+
+    it("includes attention detection instructions with emoji prefixes", () => {
+      const prompt = buildConversationPrompt("test");
+      expect(prompt).toContain("ATTENTION DETECTION");
+      expect(prompt).toContain("\u{1F514}");
+      expect(prompt).toContain("\u{1F64B}");
+    });
   });
 
   describe("generatePaneSummary", () => {
