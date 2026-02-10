@@ -57,10 +57,11 @@ interface PipePaneState {
  * Manages Claude Code session state via tmux polling + pipe-pane activity detection.
  *
  * Session discovery: polls ps + tmux list-panes periodically.
- * Status detection: pipe-pane (FIFO) is the sole signal for both directions:
+ * Status detection: pipe-pane (FIFO) is the primary signal for both directions:
  *   - WAITING → BUSY: any data on the pipe
  *   - BUSY → WAITING: no pipe data for idleThresholdMs
- * Falls back to capture-pane polling when pipe-pane is unavailable.
+ * Capture-pane polling runs as a redundant signal alongside pipe-pane, providing
+ * self-healing when pipe-pane dies silently (e.g. tmux disconnects the writer).
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
@@ -548,8 +549,16 @@ export class SessionManager {
     // Cancel tmux pipe-pane
     this.deps.stopPipePane(paneId);
 
-    // Kill reader process
+    // Kill reader process — SIGTERM first, escalate to SIGKILL if needed.
+    // On macOS, cat blocked on a FIFO read may not respond to SIGTERM.
     state.readerProcess.kill("SIGTERM");
+    setTimeout(() => {
+      try {
+        state.readerProcess.kill("SIGKILL");
+      } catch {
+        // Process already exited — ignore
+      }
+    }, 500);
 
     // Remove FIFO
     try {
@@ -587,8 +596,8 @@ export class SessionManager {
 
   /**
    * Check pane content for all sessions.
-   * When pipe-pane is active: only checks for static screen to trigger summary.
-   * When pipe-pane is unavailable: also detects content changes for WAITING → BUSY fallback.
+   * Always detects content changes for WAITING → BUSY transition (redundant with pipe-pane).
+   * Also checks for static screen to trigger summary generation.
    */
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
@@ -602,8 +611,10 @@ export class SessionManager {
           session.previousPaneContent !== null && content !== session.previousPaneContent;
         session.previousPaneContent = content;
 
-        // Fallback: capture-pane activity detection when pipe-pane unavailable
-        if (!session.pipePaneActive && isContentChanged) {
+        // Content change detection: always active as redundant signal alongside pipe-pane.
+        // When pipe-pane is working, both signals fire (pipe-pane first, capture-pane ~1s later).
+        // When pipe-pane is broken (writer died silently), capture-pane catches it within 1s.
+        if (isContentChanged) {
           if (session.status === "waiting") {
             session.status = "busy";
             session.last_activity = new Date().toISOString();
@@ -612,6 +623,7 @@ export class SessionManager {
             this.notifyChange();
           }
           this.resetIdleTimer(paneId);
+          this.paneActivityCallback?.(paneId);
           continue;
         }
 

@@ -10,8 +10,10 @@ import { SessionManager, type SessionManagerDeps } from "./manager";
 class MockFifoReader extends EventEmitter {
   stdout: EventEmitter = new EventEmitter();
   killed = false;
+  killSignals: string[] = [];
 
-  kill(_signal?: string): boolean {
+  kill(signal?: string): boolean {
+    this.killSignals.push(signal ?? "SIGTERM");
     this.killed = true;
     return true;
   }
@@ -863,7 +865,7 @@ describe("SessionManager", () => {
       expect(onChangeSpy.mock.calls.length).toBeGreaterThan(countAfterWaiting);
     });
 
-    it("does not trigger BUSY on content change when pipe-pane is active", async () => {
+    it("triggers BUSY on content change even when pipe-pane is active (redundant detection)", async () => {
       let paneContent = "initial content";
       const { deps } = createMockDeps({
         // pipe-pane is active (default: createFifo returns true)
@@ -878,16 +880,24 @@ describe("SessionManager", () => {
       });
       manager.start();
 
-      // Wait for WAITING
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait for WAITING + at least one pane check to establish previousPaneContent
+      await new Promise((resolve) => setTimeout(resolve, 150));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Pane content changes — but pipe-pane is active, so capture-pane should NOT trigger BUSY
+      // Pane content changes — capture-pane should trigger BUSY even with pipe-pane active.
+      // Keep content changing so idle timer doesn't transition back to WAITING.
       paneContent = "changed content";
-      await new Promise((resolve) => setTimeout(resolve, 80));
 
-      // Should still be WAITING (capture-pane fallback is disabled when pipe-pane active)
-      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      // Wait for capture-pane to detect the change (within 1 paneCheckInterval)
+      await new Promise((resolve) => setTimeout(resolve, 40));
+
+      // Check status transitioned to BUSY via capture-pane content change detection
+      const status = manager.getSessions()[0]?.status;
+      // The session should have been BUSY at some point. Since idleThresholdMs is 50ms,
+      // it may have already gone back to WAITING. Check onChange was called for the BUSY transition.
+      // Instead, verify by checking that the session went through a BUSY transition
+      // using the onChange callback.
+      expect(status).toBe("busy");
     });
 
     it("does not transition to BUSY when pane content is static", async () => {
@@ -1579,6 +1589,55 @@ describe("SessionManager", () => {
       // Stale session %0 should be removed despite the throw for %1
       const sessions = manager.getSessions();
       expect(sessions.some((s) => s.pane_id === "%0")).toBe(false);
+    });
+  });
+
+  describe("pipe-pane death recovery via capture-pane", () => {
+    it("fires paneActivityCallback on capture-pane content change", async () => {
+      let paneContent = "initial";
+      const activitySpy = mock(() => {});
+      const { deps } = createMockDeps({
+        capturePaneContent: () => paneContent,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.onPaneActivity(activitySpy);
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Content change triggers activity callback
+      paneContent = "new content";
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      expect(activitySpy).toHaveBeenCalledWith("%0");
+    });
+  });
+
+  describe("pipe-pane SIGKILL escalation", () => {
+    it("sends SIGKILL after SIGTERM when tearing down pipe-pane", async () => {
+      const { deps, fifoReaders } = createMockDeps();
+
+      manager = new SessionManager(deps, { pollIntervalMs: 5000 });
+      manager.start();
+
+      const reader = Array.from(fifoReaders.values())[0] as MockFifoReader;
+
+      manager.stop();
+
+      // SIGTERM sent immediately
+      expect(reader.killSignals).toContain("SIGTERM");
+
+      // Wait for SIGKILL escalation (500ms + buffer)
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      expect(reader.killSignals).toContain("SIGKILL");
     });
   });
 });
