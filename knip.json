@@ -12,10 +12,10 @@
     },
     "tools/crux-monitor/web": {
       "vite": true,
-      "entry": ["src/app.ts", "src/test/setup.ts", "**/*.test.ts"],
-      "project": ["**/*.ts"],
+      "entry": ["src/client/main.tsx", "**/*.test.ts"],
+      "project": ["**/*.ts", "**/*.tsx"],
       "ignoreDependencies": ["tailwindcss"],
-      "ignore": ["src/sse.ts", "src/ui.ts", "src/types.ts", "src/components/*.ts"]
+      "ignore": ["src/client/routeTree.gen.ts"]
     },
     "plugins/crux-hive": {
       "entry": ["src/ensure-gtrconfig.ts", "scripts/deregister-worker.ts", "**/*.test.ts"],
