@@ -17,9 +17,10 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const { action, isDetecting, detect } = useActionDetection(paneId);
 
   const handleInputFocus = () => {
-    setTimeout(() => {
-      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
+    const scroll = () => inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Fire twice: once early, once after keyboard animation finishes
+    setTimeout(scroll, 100);
+    setTimeout(scroll, 400);
   };
 
   const handleSend = (value: string) => {

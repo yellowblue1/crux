@@ -141,8 +141,9 @@ export async function detectPaneActions(
     try {
       const startTime = Date.now();
       console.log(
-        `[Gemini Actions] Requesting action detection (input: ${contentTail.length} chars)`,
+        `[Gemini Actions] Requesting action detection (input: ${contentTail.length} chars, prompt: ${prompt.length} chars)`,
       );
+      console.log(`[Gemini Actions] Content tail:\n${contentTail}`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
