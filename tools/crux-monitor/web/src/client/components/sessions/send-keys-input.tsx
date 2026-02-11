@@ -133,6 +133,7 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
       <DynamicActions
         action={action ?? { type: "none" }}
         onQuickAction={handleQuickAction}
+        onRawKey={handleRawKey}
         isPending={sendKeys.isPending}
         isDetecting={isDetecting}
       />
@@ -177,11 +178,13 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
 function DynamicActions({
   action,
   onQuickAction,
+  onRawKey,
   isPending,
   isDetecting,
 }: {
   action: PaneAction;
   onQuickAction: (value: string) => void;
+  onRawKey: (key: string, label: string) => void;
   isPending: boolean;
   isDetecting: boolean;
 }) {
@@ -220,21 +223,17 @@ function DynamicActions({
   }
 
   if (action.type === "choices") {
-    // Only show buttons for autoEnter: true options (reliable number + Enter).
-    // autoEnter: false options (e.g. "Type something", "Chat about this") may not
-    // respond to number keys; users can reach them via arrow keys + Enter instead.
-    const automatable = action.options.filter((opt) => opt.autoEnter);
-    if (automatable.length === 0) return null;
-
     return (
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs text-text-muted">Options:</span>
-        {automatable.map((opt) => (
+        {action.options.map((opt) => (
           <button
             key={opt.value}
             type="button"
             className="quick-action-btn"
-            onClick={() => onQuickAction(opt.value)}
+            onClick={() =>
+              opt.autoEnter ? onQuickAction(opt.value) : onRawKey(opt.value, opt.label)
+            }
             disabled={isPending}
           >
             {opt.label}
