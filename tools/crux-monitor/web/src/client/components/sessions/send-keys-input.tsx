@@ -193,10 +193,16 @@ function DynamicActions({
   }
 
   if (action.type === "choices") {
+    // Only show buttons for options that can be reliably automated (autoEnter: true).
+    // Options like "Type something" / "Chat about this" (autoEnter: false) open a
+    // secondary text input in the TUI, and the Enter key bleeds into it.
+    const automatable = action.options.filter((opt) => opt.autoEnter);
+    if (automatable.length === 0) return null;
+
     return (
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs text-text-muted">Options:</span>
-        {action.options.map((opt) => (
+        {automatable.map((opt) => (
           <button
             key={opt.value}
             type="button"
