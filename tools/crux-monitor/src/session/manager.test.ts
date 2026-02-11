@@ -224,15 +224,16 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 100,
+        maxNetworkIdleResets: 5,
       });
       manager.start();
 
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
-      // Wait well past the idle threshold
+      // Wait past the idle threshold but within max resets (5 * 100ms = 500ms)
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Should still be BUSY because network is active
+      // Should still be BUSY because network is active and under max resets
       expect(manager.getSessions()[0]?.status).toBe("busy");
     });
 
@@ -259,24 +260,48 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
 
-    it("does not trigger summary generation while network is active", async () => {
-      const generateSpy = mock(async () => "test summary");
+    it("transitions to WAITING after max network idle resets despite active connections", async () => {
       const { deps } = createMockDeps({
         hasActiveNetworkConnections: () => true,
-        generateSummary: generateSpy,
       });
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 100,
-        summaryDelayMs: 100,
+        maxNetworkIdleResets: 3,
       });
       manager.start();
 
-      // Wait well past both idle and summary thresholds
+      // Wait past max resets (3 * 100ms = 300ms, wait 500ms for margin)
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Summary should never have been triggered because we never entered WAITING
-      expect(generateSpy).not.toHaveBeenCalled();
+      // Should be WAITING — max resets exceeded despite persistent connections
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("resets network idle counter when pipe-pane data arrives", async () => {
+      const { deps, fifoReaders } = createMockDeps({
+        hasActiveNetworkConnections: () => true,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        maxNetworkIdleResets: 3,
+      });
+      manager.start();
+
+      // Wait for 2 resets (200ms)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Pipe-pane data resets the counter
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+
+      // Wait again past what would have been max resets without the reset
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Should still be BUSY — counter was reset by pipe-pane data
+      expect(manager.getSessions()[0]?.status).toBe("busy");
     });
 
     it("re-checks network activity on each idle timer cycle", async () => {
@@ -290,14 +315,14 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 100,
+        maxNetworkIdleResets: 10,
       });
       manager.start();
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Should have been checked multiple times (roughly 500/100 = 5 times, allow margin)
+      // Should have been checked multiple times (up to maxNetworkIdleResets)
       expect(checkCount).toBeGreaterThanOrEqual(3);
-      expect(manager.getSessions()[0]?.status).toBe("busy");
     });
   });
 

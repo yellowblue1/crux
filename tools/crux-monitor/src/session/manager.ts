@@ -43,12 +43,14 @@ export interface SessionManagerOptions {
   idleThresholdMs?: number;
   summaryDelayMs?: number;
   paneCheckIntervalMs?: number;
+  maxNetworkIdleResets?: number;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 const DEFAULT_IDLE_THRESHOLD_MS = 1000;
 const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
 const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
+const DEFAULT_MAX_NETWORK_IDLE_RESETS = 10; // max times network activity can postpone WAITING
 
 /** State for a single FIFO-based pipe-pane monitor */
 interface PipePaneState {
@@ -76,6 +78,7 @@ export class SessionManager {
   private idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private summaryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private pipePanes = new Map<string, PipePaneState>();
+  private networkIdleResets = new Map<string, number>();
   private deps: SessionManagerDeps;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private paneCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -83,6 +86,7 @@ export class SessionManager {
   private readonly idleThresholdMs: number;
   private readonly summaryDelayMs: number;
   private readonly paneCheckIntervalMs: number;
+  private readonly maxNetworkIdleResets: number;
   private onChangeCallback: (() => void) | null = null;
   private paneActivityCallback: ((paneId: string) => void) | null = null;
 
@@ -116,6 +120,7 @@ export class SessionManager {
     this.idleThresholdMs = options?.idleThresholdMs ?? DEFAULT_IDLE_THRESHOLD_MS;
     this.summaryDelayMs = options?.summaryDelayMs ?? DEFAULT_SUMMARY_DELAY_MS;
     this.paneCheckIntervalMs = options?.paneCheckIntervalMs ?? DEFAULT_PANE_CHECK_INTERVAL_MS;
+    this.maxNetworkIdleResets = options?.maxNetworkIdleResets ?? DEFAULT_MAX_NETWORK_IDLE_RESETS;
   }
 
   /**
@@ -311,6 +316,7 @@ export class SessionManager {
   private removeSession(paneId: string): void {
     this.sessions.delete(paneId);
     this.teardownPipePane(paneId);
+    this.networkIdleResets.delete(paneId);
     const idleTimer = this.idleTimers.get(paneId);
     if (idleTimer) {
       clearTimeout(idleTimer);
@@ -330,6 +336,7 @@ export class SessionManager {
     }
     this.sessions.clear();
     this.idleTimers.clear();
+    this.networkIdleResets.clear();
     for (const timer of this.summaryTimers.values()) {
       clearTimeout(timer);
     }
@@ -358,11 +365,18 @@ export class SessionManager {
     if (!session || session.status !== "busy") return;
 
     // If the process has active network connections (e.g. API calls),
-    // stay BUSY and re-check after another idle interval.
-    if (this.deps.hasActiveNetworkConnections(session.process_pid)) {
+    // stay BUSY and re-check after another idle interval — up to a maximum
+    // number of resets to handle persistent keep-alive connections.
+    const resets = this.networkIdleResets.get(paneId) ?? 0;
+    if (
+      resets < this.maxNetworkIdleResets &&
+      this.deps.hasActiveNetworkConnections(session.process_pid)
+    ) {
+      this.networkIdleResets.set(paneId, resets + 1);
       this.resetIdleTimer(paneId);
       return;
     }
+    this.networkIdleResets.delete(paneId);
 
     session.status = "waiting";
     session.last_activity = new Date().toISOString();
@@ -588,6 +602,7 @@ export class SessionManager {
       this.notifyChange();
     }
     // Always reset idle timer — pipe data resets idle timer even during BUSY
+    this.networkIdleResets.delete(paneId);
     this.resetIdleTimer(paneId);
     session.last_activity = new Date().toISOString();
     this.paneActivityCallback?.(paneId);
@@ -621,6 +636,7 @@ export class SessionManager {
             this.cancelSummaryTimer(paneId);
             this.notifyChange();
           }
+          this.networkIdleResets.delete(paneId);
           this.resetIdleTimer(paneId);
           this.paneActivityCallback?.(paneId);
           continue;
