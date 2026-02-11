@@ -17,11 +17,12 @@ async function fetchActions(paneId: string): Promise<PaneAction> {
  * when the timestamp changes (i.e., when SSE delivers new pane content).
  */
 export function useActionDetection(paneId: string, contentTimestamp: number | undefined) {
-  return useQuery({
+  const query = useQuery({
     queryKey: actionKeys.detect(paneId, contentTimestamp),
     queryFn: () => fetchActions(paneId),
     enabled: contentTimestamp !== undefined,
     staleTime: Number.POSITIVE_INFINITY,
     placeholderData: DEFAULT_ACTION,
   });
+  return { ...query, isDetecting: query.isFetching };
 }

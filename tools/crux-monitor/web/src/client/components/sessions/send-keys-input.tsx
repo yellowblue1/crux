@@ -15,7 +15,7 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const sendKeys = useSendKeys();
-  const { data: action } = useActionDetection(paneId, contentTimestamp);
+  const { data: action, isDetecting } = useActionDetection(paneId, contentTimestamp);
 
   const handleInputFocus = () => {
     setTimeout(() => {
@@ -107,6 +107,7 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
         action={action ?? { type: "none" }}
         onQuickAction={handleQuickAction}
         isPending={sendKeys.isPending}
+        isDetecting={isDetecting}
       />
 
       {/* Input row */}
@@ -150,11 +151,21 @@ function DynamicActions({
   action,
   onQuickAction,
   isPending,
+  isDetecting,
 }: {
   action: PaneAction;
   onQuickAction: (value: string) => void;
   isPending: boolean;
+  isDetecting: boolean;
 }) {
+  if (isDetecting) {
+    return (
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs text-text-muted animate-pulse">Detecting actions...</span>
+      </div>
+    );
+  }
+
   if (action.type === "none") return null;
 
   if (action.type === "yesno") {
