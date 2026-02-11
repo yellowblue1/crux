@@ -1,156 +1,59 @@
 import { describe, expect, it } from "bun:test";
-import { sanitizePaneContent, stripAnsiEscapes, stripDimText, stripPromptArea } from "./sanitize";
+import { sanitizePaneContent, skipBottomLines, stripAnsiEscapes, stripDimText } from "./sanitize";
 
 describe("sanitize", () => {
-  describe("stripPromptArea", () => {
-    it("strips prompt area with box-drawing border and ❯ marker", () => {
-      const content = [
-        "Some conversation output above",
-        "Claude finished working on the task.",
-        "╭──────────────────────────────────────╮",
-        "│ ❯ fix the bug                        │",
-        "╰──────────────────────────────────────╯",
-        "  !builds  ↩ send  ⌥↩ newline  /help",
-      ].join("\n");
-
-      const result = stripPromptArea(content);
-      expect(result).toBe(
-        ["Some conversation output above", "Claude finished working on the task."].join("\n"),
-      );
+  describe("skipBottomLines", () => {
+    it("removes the bottom 10 lines from content", () => {
+      const lines = [];
+      for (let i = 0; i < 20; i++) {
+        lines.push(`Line ${i}`);
+      }
+      const result = skipBottomLines(lines.join("\n"));
+      const resultLines = result.split("\n");
+      expect(resultLines).toHaveLength(10);
+      expect(resultLines[0]).toBe("Line 0");
+      expect(resultLines[9]).toBe("Line 9");
     });
 
-    it("strips prompt area with suggestion ghost text", () => {
-      const content = [
-        "Done. All tests passing.",
-        "╭──────────────────────────────────────╮",
-        "│ ❯ fix the authentication module       │",
-        "╰──────────────────────────────────────╯",
-      ].join("\n");
-
-      const result = stripPromptArea(content);
-      expect(result).toBe("Done. All tests passing.");
+    it("keeps at least 1 line even if content is short", () => {
+      const content = "Only line";
+      expect(skipBottomLines(content)).toBe("Only line");
     });
 
-    it("returns content unchanged when no prompt area found", () => {
-      const content = "Some conversation output\nwith multiple lines\nno prompt here";
-      expect(stripPromptArea(content)).toBe(content);
-    });
-
-    it("returns empty string when content is only the prompt area", () => {
-      const content = [
-        "╭──────────────────────────────────────╮",
-        "│ ❯                                     │",
-        "╰──────────────────────────────────────╯",
-      ].join("\n");
-
-      const result = stripPromptArea(content);
-      expect(result).toBe("");
+    it("handles content with exactly 10 lines", () => {
+      const lines = [];
+      for (let i = 0; i < 10; i++) {
+        lines.push(`Line ${i}`);
+      }
+      const result = skipBottomLines(lines.join("\n"));
+      expect(result).toBe("Line 0");
     });
 
     it("handles empty string", () => {
-      expect(stripPromptArea("")).toBe("");
+      expect(skipBottomLines("")).toBe("");
     });
 
-    it("preserves selection UI where ❯ is a selection indicator (no ╭ border)", () => {
-      const content = [
-        "Conversation content above",
-        "Do you want to proceed?",
-        " ❯ 1. Yes",
-        "   2. No",
-        "",
-        " Esc to cancel",
-      ].join("\n");
-
-      // No ╭ border near ❯ — this is a selection UI, not the input prompt
-      expect(stripPromptArea(content)).toBe(content);
-    });
-
-    it("only scans the last 20 lines for prompt area", () => {
-      // ❯ appearing earlier in content (e.g., in code blocks) should not be stripped
-      const lines = [];
-      for (let i = 0; i < 30; i++) {
-        lines.push(`Line ${i}`);
-      }
-      // Add ❯ at line 5 (well above the scan window)
-      lines[5] = "The ❯ character appears in documentation";
-
-      const content = lines.join("\n");
-      expect(stripPromptArea(content)).toBe(content);
-    });
-
-    it("strips multi-line prompt input area", () => {
-      const content = [
-        "Conversation output",
-        "╭──────────────────────────────────────╮",
-        "│ ❯ first line of input                 │",
-        "│   second line of input                 │",
-        "╰──────────────────────────────────────╯",
-      ].join("\n");
-
-      const result = stripPromptArea(content);
-      expect(result).toBe("Conversation output");
-    });
-
-    it("strips prompt area with solid horizontal line border (real Claude Code format)", () => {
-      const content = [
-        "Some conversation output above",
-        "Claude finished working on the task.",
-        "──────────────── @worker-name ──",
-        "❯ fix the bug",
-        "───────────────────────────────────────────",
-      ].join("\n");
-
-      const result = stripPromptArea(content);
-      expect(result).toBe(
-        ["Some conversation output above", "Claude finished working on the task."].join("\n"),
-      );
-    });
-
-    it("strips prompt with solid border and status bar below", () => {
-      const content = [
-        "Done. All tests passing.",
+    it("ignores prompt area changes at the bottom", () => {
+      const contentBefore = [
+        "Claude finished the task.",
+        "All tests passing.",
         "──────────────────────────────────────────",
-        "❯ これは動作",
+        "❯ ",
         "───────────────────────────────────────────",
         "[Opus 4.6] 82% context remaining",
-        "-- INSERT -- ⏵⏵ accept edits on",
       ].join("\n");
 
-      const result = stripPromptArea(content);
-      expect(result).toBe("Done. All tests passing.");
-    });
-
-    it("preserves content with dashed lines (╌) from selection/diff UI", () => {
-      const content = [
-        "Conversation content above",
-        "Do you want to proceed?",
-        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
-        " ❯ 1. Yes",
-        "   2. No",
-        "",
-        " Esc to cancel",
-      ].join("\n");
-
-      // ╌ (dashed) is NOT matched as a prompt border
-      expect(stripPromptArea(content)).toBe(content);
-    });
-
-    it("does not match ─ lines far above ❯ (outside search range)", () => {
-      const content = [
-        "Some text",
+      const contentAfter = [
+        "Claude finished the task.",
+        "All tests passing.",
+        "──────────────────────────────────────────",
+        "❯ fix the bug",
         "───────────────────────────────────────────",
-        "Diff output line 1",
-        "Diff output line 2",
-        "Diff output line 3",
-        "Diff output line 4",
-        "Diff output line 5",
-        "Diff output line 6",
-        "Diff output line 7",
-        "More text with ❯ symbol",
+        "[Opus 4.6] 82% context remaining",
       ].join("\n");
 
-      // ─ line is more than BORDER_SEARCH_RANGE lines above ❯, so not matched
-      expect(stripPromptArea(content)).toBe(content);
+      // Both produce the same result because the prompt area is in the bottom lines
+      expect(skipBottomLines(contentBefore)).toBe(skipBottomLines(contentAfter));
     });
   });
 
@@ -233,7 +136,7 @@ describe("sanitize", () => {
   });
 
   describe("sanitizePaneContent", () => {
-    it("applies full pipeline: dim text + ANSI + prompt area", () => {
+    it("strips dim text and ANSI codes, preserves prompt area", () => {
       const input = [
         "\x1b[1mClaude\x1b[0m finished the task.",
         "╭──────────────────────────────────────╮",
@@ -242,7 +145,13 @@ describe("sanitize", () => {
       ].join("\n");
 
       const result = sanitizePaneContent(input);
-      expect(result).toBe("Claude finished the task.");
+      // Prompt area is preserved (Gemini needs it for interaction detection)
+      expect(result).toContain("Claude finished the task.");
+      expect(result).toContain("❯");
+      // Suggestion ghost text is stripped
+      expect(result).not.toContain("in the auth module");
+      // ANSI codes are stripped
+      expect(result).not.toContain("\x1b[");
     });
 
     it("handles plain text without ANSI (passthrough)", () => {
@@ -256,42 +165,30 @@ describe("sanitize", () => {
       expect(result).toBe("text more text");
     });
 
-    it("handles realistic Claude Code terminal output", () => {
+    it("preserves prompt area and selection UIs for Gemini", () => {
       const input = [
-        "\x1b[1m\x1b[34m❯\x1b[0m \x1b[1mClaude\x1b[0m",
+        "\x1b[1mClaude\x1b[0m",
         "",
-        "I've fixed the authentication bug. The issue was in the token validation.",
+        "Which database should we use?",
         "",
-        "\x1b[32m✓\x1b[0m All tests passing (42/42)",
+        " \x1b[34m❯\x1b[0m 1. PostgreSQL",
+        "   2. MySQL",
+        "   3. SQLite",
         "",
-        "╭──────────────────────────────────────────────────╮",
-        "│ \x1b[34m❯\x1b[0m fix\x1b[2m the login timeout issue\x1b[22m          │",
-        "╰──────────────────────────────────────────────────╯",
-        "  \x1b[90m!builds  ↩ send  ⌥↩ newline  /help\x1b[0m",
+        " Esc to cancel",
       ].join("\n");
 
       const result = sanitizePaneContent(input);
-      expect(result).toContain("fixed the authentication bug");
-      expect(result).toContain("All tests passing");
-      // Suggestion ghost text and prompt box are stripped
-      expect(result).not.toContain("login timeout");
-      expect(result).not.toContain("╭");
-      expect(result).not.toContain("╰");
-      // The ❯ in the header (line 1) is preserved — only the prompt area is stripped
-      expect(result).toContain("Claude");
+      expect(result).toContain("Which database should we use?");
+      // Selection UI is preserved for Gemini to generate dynamic UI
+      expect(result).toContain("❯ 1. PostgreSQL");
+      expect(result).toContain("2. MySQL");
+      expect(result).toContain("3. SQLite");
     });
 
-    it("handles empty string", () => {
-      expect(sanitizePaneContent("")).toBe("");
-    });
-
-    it("handles realistic Claude Code output with solid-border prompt", () => {
+    it("preserves solid-border prompt area for Gemini", () => {
       const input = [
-        "\x1b[1m\x1b[34m❯\x1b[0m \x1b[1mClaude\x1b[0m",
-        "",
-        "I've fixed the authentication bug. The issue was in the token validation.",
-        "",
-        "\x1b[32m✓\x1b[0m All tests passing (42/42)",
+        "\x1b[1mClaude\x1b[0m finished the task.",
         "",
         "──────────────── @worker-name ──",
         "\x1b[34m❯\x1b[0m fix\x1b[2m the login timeout issue\x1b[22m",
@@ -300,13 +197,16 @@ describe("sanitize", () => {
       ].join("\n");
 
       const result = sanitizePaneContent(input);
-      expect(result).toContain("fixed the authentication bug");
-      expect(result).toContain("All tests passing");
-      // Suggestion ghost text and prompt area are stripped
-      expect(result).not.toContain("login timeout");
-      expect(result).not.toContain("──────────────── @worker-name");
-      // The ❯ in the header (line 1) is preserved
-      expect(result).toContain("Claude");
+      expect(result).toContain("Claude finished the task.");
+      // Prompt area borders are preserved
+      expect(result).toContain("──────────────── @worker-name ──");
+      expect(result).toContain("❯ fix");
+      // Suggestion ghost text is still stripped
+      expect(result).not.toContain("login timeout issue");
+    });
+
+    it("handles empty string", () => {
+      expect(sanitizePaneContent("")).toBe("");
     });
   });
 });

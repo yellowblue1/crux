@@ -1588,14 +1588,21 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("prompt area stripping", () => {
-    it("ignores prompt area changes in pane content diff detection", async () => {
-      let paneContent = [
-        "Claude finished the task.",
-        "╭──────────────────────────────────────╮",
-        "│ ❯                                     │",
-        "╰──────────────────────────────────────╯",
-      ].join("\n");
+  describe("bottom-line skipping for state detection", () => {
+    it("ignores prompt area changes at the bottom of pane content", async () => {
+      // Content with 15 lines — bottom 10 are skipped for comparison
+      const makeContent = (promptText: string) => {
+        const lines = [];
+        for (let i = 0; i < 12; i++) {
+          lines.push(`Conversation line ${i}`);
+        }
+        lines.push("──────────────────────────────────────────");
+        lines.push(`❯ ${promptText}`);
+        lines.push("───────────────────────────────────────────");
+        return lines.join("\n");
+      };
+
+      let paneContent = makeContent("");
 
       const { deps } = createMockDeps({
         createFifo: () => false, // disable pipe-pane to isolate capture-pane
@@ -1615,16 +1622,11 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
       // Simulate user typing in the prompt area (only bottom changes)
-      paneContent = [
-        "Claude finished the task.",
-        "╭──────────────────────────────────────╮",
-        "│ ❯ fix the auth bug                    │",
-        "╰──────────────────────────────────────╯",
-      ].join("\n");
+      paneContent = makeContent("fix the auth bug");
 
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      // Should still be WAITING — prompt area change is ignored
+      // Should still be WAITING — bottom line changes are ignored
       expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
 
@@ -1633,7 +1635,7 @@ describe("SessionManager", () => {
 
       const { deps } = createMockDeps({
         capturePaneContent: () => "raw pane with prompt area",
-        capturePaneContentForSummary: () => "sanitized content without prompt",
+        capturePaneContentForSummary: () => "sanitized content with prompt preserved",
         generateSummary: async (content) => {
           receivedContents.push(content);
           return "test summary";
@@ -1650,7 +1652,7 @@ describe("SessionManager", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      expect(receivedContents).toContain("sanitized content without prompt");
+      expect(receivedContents).toContain("sanitized content with prompt preserved");
       expect(receivedContents).not.toContain("raw pane with prompt area");
     });
   });

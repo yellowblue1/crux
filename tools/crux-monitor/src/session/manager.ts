@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stripPromptArea } from "../tmux/sanitize.js";
+import { skipBottomLines } from "../tmux/sanitize.js";
 import * as tmux from "../tmux/utils.js";
 import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
 
@@ -593,9 +593,9 @@ export class SessionManager {
         const rawContent = this.deps.capturePaneContent(session.pane_id);
         if (rawContent === null) continue;
 
-        // Strip the Claude Code prompt input area so that user typing
+        // Skip bottom lines (prompt area, status bar) so that user typing
         // and suggestion changes don't trigger false state transitions.
-        const content = stripPromptArea(rawContent);
+        const content = skipBottomLines(rawContent);
 
         const isStatic =
           session.previousPaneContent !== null && content === session.previousPaneContent;

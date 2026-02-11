@@ -365,9 +365,9 @@ export function capturePaneContentEscaped(
 
 /**
  * Capture pane content with ANSI escape sequences, then sanitize:
- * strips dim/faint suggestion text, remaining ANSI codes, and the
- * Claude Code prompt input area. Returns clean text suitable for
- * Gemini summarization.
+ * strips dim/faint suggestion text and remaining ANSI codes.
+ * Preserves prompt area and interactive UI elements for Gemini
+ * to analyze (attention detection, dynamic UI generation).
  */
 export function capturePaneContentSanitized(
   paneId: string,
