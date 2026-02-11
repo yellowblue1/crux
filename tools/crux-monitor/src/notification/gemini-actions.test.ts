@@ -80,8 +80,8 @@ describe("gemini-actions", () => {
       const action: PaneAction = {
         type: "choices",
         options: [
-          { label: "1. Create file", value: "1" },
-          { label: "2. Delete file", value: "2" },
+          { label: "1. Create file", value: "1", autoEnter: true },
+          { label: "2. Delete file", value: "2", autoEnter: true },
         ],
       };
       const result = await detectPaneActions(

@@ -106,6 +106,7 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
       <DynamicActions
         action={action ?? { type: "none" }}
         onQuickAction={handleQuickAction}
+        onRawKey={handleRawKey}
         isPending={sendKeys.isPending}
       />
 
@@ -149,10 +150,12 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
 function DynamicActions({
   action,
   onQuickAction,
+  onRawKey,
   isPending,
 }: {
   action: PaneAction;
   onQuickAction: (value: string) => void;
+  onRawKey: (key: string, label: string) => void;
   isPending: boolean;
 }) {
   if (action.type === "none") return null;
@@ -190,7 +193,9 @@ function DynamicActions({
             key={opt.value}
             type="button"
             className="quick-action-btn"
-            onClick={() => onQuickAction(opt.value)}
+            onClick={() =>
+              opt.autoEnter ? onQuickAction(opt.value) : onRawKey(opt.value, opt.label)
+            }
             disabled={isPending}
           >
             {opt.label}

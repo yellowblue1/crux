@@ -60,8 +60,8 @@ describe("action-cache", () => {
       const action: PaneAction = {
         type: "choices",
         options: [
-          { label: "1", value: "1" },
-          { label: "2", value: "2" },
+          { label: "1", value: "1", autoEnter: true },
+          { label: "2", value: "2", autoEnter: true },
         ],
       };
       setCachedAction("content", action);

@@ -37,7 +37,7 @@ export interface SendKeysResponse {
 
 // Action detection types for dynamic action buttons
 export type PaneAction =
-  | { type: "choices"; options: { label: string; value: string }[] }
+  | { type: "choices"; options: { label: string; value: string; autoEnter: boolean }[] }
   | { type: "yesno" }
   | { type: "freeform"; placeholder: string }
   | { type: "none" };
