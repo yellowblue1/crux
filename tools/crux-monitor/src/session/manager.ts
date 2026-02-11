@@ -424,8 +424,11 @@ export class SessionManager {
       return;
     }
 
-    // Content hash guard: skip Gemini call if content hasn't changed since last summary
-    const currentHash = simpleHash(content);
+    // Content hash guard: skip Gemini call if content hasn't changed since last summary.
+    // Hash only the non-prompt portion (skip bottom lines) so that user typing
+    // in the prompt area doesn't invalidate the cache and trigger redundant calls.
+    // The full content (including prompt area) is still sent to Gemini.
+    const currentHash = simpleHash(skipBottomLines(content));
     if (
       session.summaryContentHash !== null &&
       currentHash === session.summaryContentHash &&
