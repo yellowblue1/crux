@@ -1,6 +1,6 @@
 import type { PaneAction } from "@shared/types";
 import { Send } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActionDetection } from "@/hooks/use-action-detection";
 import { useSendKeys } from "@/hooks/use-send-keys";
@@ -13,8 +13,29 @@ interface SendKeysInputProps {
 export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const sendKeys = useSendKeys();
   const { action, isDetecting, detect } = useActionDetection(paneId);
+
+  // Adjust send-keys-bar position when the virtual keyboard opens/closes
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      if (!barRef.current) return;
+      // Keyboard height = layout viewport height - visual viewport height
+      const offset = window.innerHeight - vv.height - vv.offsetTop;
+      barRef.current.style.bottom = `${Math.max(0, offset)}px`;
+    };
+
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
 
   const handleInputFocus = () => {
     const scroll = () => inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -81,9 +102,9 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
   };
 
   return (
-    <div className="send-keys-bar">
+    <div ref={barRef} className="send-keys-bar">
       {/* Raw key buttons + AI detect (always visible) */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs text-text-muted">Keys:</span>
         <button
           type="button"
