@@ -12,5 +12,5 @@
     "lib": ["ESNext", "DOM"]
   },
   "include": ["plugins/**/*.ts", "tools/**/*.ts"],
-  "exclude": ["node_modules", "**/node_modules", "tools/crux-monitor/web/**"]
+  "exclude": ["node_modules", "**/node_modules", "tools/panopticon/web/**"]
 }

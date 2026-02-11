@@ -15,7 +15,7 @@ All 8 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary
 | SessionStart | `src/ensure-gtrconfig.ts` | Configures git-gtr hooks (preRemove/postCreate) and injects worker mode instructions when running under an orchestrator |
 | PreToolUse (Bash) | `scripts/hooks/auto-approve-watcher.ts` | Auto-approves the documented notification watcher Bash command (Step 2 of orchestrator-mode.md) |
 
-### crux-monitor Plugin (4 hooks)
+### panopticon Plugin (4 hooks)
 
 | Hook Type | File | Purpose |
 |-----------|------|---------|
@@ -59,14 +59,14 @@ Both hooks are actively used and documented:
    - `.claude/settings.local.json` - User's local Claude settings
    - `CLAUDE.local.md` - User's personal project instructions
 
-### Redundancy Check: crux-hive vs crux-monitor SessionStart
+### Redundancy Check: crux-hive vs panopticon SessionStart
 
 **Finding: NO REDUNDANCY**
 
 Both plugins have SessionStart hooks but serve completely different purposes:
 
 - **crux-hive SessionStart:** Git-gtr configuration + orchestrator context injection (worker mode setup)
-- **crux-monitor SessionStart:** Event logging to SQLite database for the monitoring dashboard
+- **panopticon SessionStart:** Event logging to SQLite database for the monitoring dashboard
 
 These hooks are complementary, not redundant.
 
@@ -79,7 +79,7 @@ Session Lifecycle:
 └────────┬────────┘
          │
          ├── crux-hive: Configure git-gtr, inject worker mode
-         └── crux-monitor: Log session start event
+         └── panopticon: Log session start event
          │
 ┌────────▼────────┐
 │  Tool Use       │
@@ -91,19 +91,19 @@ Session Lifecycle:
 │  Notifications  │
 └────────┬────────┘
          │
-         └── crux-monitor: Log notification events
+         └── panopticon: Log notification events
          │
 ┌────────▼────────┐
 │  Session Stop   │
 └────────┬────────┘
          │
-         └── crux-monitor: Log stop event
+         └── panopticon: Log stop event
          │
 ┌────────▼────────┐
 │  Session End    │
 └─────────────────┘
          │
-         └── crux-monitor: Log session end with reason
+         └── panopticon: Log session end with reason
 
 Worktree Lifecycle (via git-gtr):
 ┌─────────────────┐
@@ -131,4 +131,4 @@ All hooks in the CRUX monorepo are necessary and actively used. The investigatio
 
 - [orchestrator-mode.md](../plugins/crux-hive/docs/orchestrator-mode.md) - Orchestrator workflow documentation
 - [crux-hive plugin.json](../plugins/crux-hive/.claude-plugin/plugin.json) - Hook configuration
-- [crux-monitor plugin.json](../plugins/crux-monitor/.claude-plugin/plugin.json) - Hook configuration
+- [panopticon plugin.json](../tools/panopticon/.claude-plugin/plugin.json) - Hook configuration

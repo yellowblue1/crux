@@ -26,7 +26,7 @@ export type FetchFn = (url: string | URL | Request, options?: RequestInit) => Pr
 /**
  * Dependencies that can be injected for testing
  */
-export interface SummaryDeps {
+interface SummaryDeps {
   fetch: FetchFn;
   getAccessToken: () => string | null;
   getGcpProject: () => string | null;

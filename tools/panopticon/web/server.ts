@@ -88,7 +88,7 @@ sessionManager.onPaneActivity((paneId) => {
   );
 });
 
-// Check if a crux-monitor server is already running on the port
+// Check if a panopticon server is already running on the port
 async function isOurServerRunning(port: number): Promise<boolean> {
   try {
     const response = await fetch(`http://localhost:${port}/api/sessions`, {
@@ -161,7 +161,7 @@ export type { AppType };
 async function main() {
   // Check if our server is already running on the target port
   if (await isOurServerRunning(PORT)) {
-    console.log(`CRUX Monitor Web UI already running at http://localhost:${PORT}`);
+    console.log(`Panopticon Web UI already running at http://localhost:${PORT}`);
     process.exit(0);
   }
 
@@ -186,7 +186,7 @@ async function main() {
     }
   }
 
-  console.log(`CRUX Monitor Web UI running at http://localhost:${server.port}`);
+  console.log(`Panopticon Web UI running at http://localhost:${server.port}`);
 
   // Start session polling
   sessionManager.start();

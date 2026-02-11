@@ -1,5 +1,5 @@
 {
-  "name": "crux-monitor-web",
+  "name": "panopticon-web",
   "version": "3.0.0",
   "description": "Web UI for Claude Code session monitoring",
   "type": "module",

@@ -1,4 +1,4 @@
-# crux-monitor Web UI
+# panopticon Web UI
 
 Web dashboard for monitoring Claude Code sessions with real-time updates.
 

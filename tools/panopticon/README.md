@@ -1,10 +1,10 @@
-# crux-monitor
+# panopticon
 
 Real-time Claude Code session monitoring via tmux polling.
 
 ## Overview
 
-crux-monitor is a standalone tool that detects Claude Code sessions running in tmux panes, monitors their activity status, and provides a web dashboard with browser notifications. It works by polling tmux and process tables to discover sessions, then watches Claude Code's JSONL session files for activity.
+panopticon is a standalone tool that detects Claude Code sessions running in tmux panes, monitors their activity status, and provides a web dashboard with browser notifications. It works by polling tmux and process tables to discover sessions, then watches Claude Code's JSONL session files for activity.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ crux-monitor is a standalone tool that detects Claude Code sessions running in t
 Start the monitoring dashboard:
 
 ```bash
-bun run --cwd tools/crux-monitor/web start
+bun run --cwd tools/panopticon/web start
 ```
 
 The server runs on port 3847 by default (auto-selects next available port if busy).
@@ -51,7 +51,7 @@ export GEMINI_GCP_PROJECT=your-project-id
 export GEMINI_GCP_LOCATION=asia-northeast1  # optional, defaults to asia-northeast1
 ```
 
-**Option 2: Settings file** (`~/.claude/crux-monitor.local.md`)
+**Option 2: Settings file** (`~/.claude/panopticon.local.md`)
 ```yaml
 ---
 gcp_project: your-project-id
@@ -66,12 +66,12 @@ If no GCP project is configured, summaries will not be generated.
 ### Running Tests
 
 ```bash
-bun test --cwd tools/crux-monitor              # Run all tests
-bun test --cwd tools/crux-monitor --watch      # Watch mode
+bun test --cwd tools/panopticon              # Run all tests
+bun test --cwd tools/panopticon --watch      # Watch mode
 ```
 
 ### Web UI Development
 
 ```bash
-bun run --cwd tools/crux-monitor/web dev       # Vite + API server with auto-reload
+bun run --cwd tools/panopticon/web dev       # Vite + API server with auto-reload
 ```

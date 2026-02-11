@@ -37,7 +37,7 @@ export interface SessionManagerDeps {
   spawnFifoReader: (path: string) => ChildProcess;
 }
 
-export interface SessionManagerOptions {
+interface SessionManagerOptions {
   pollIntervalMs?: number;
   idleThresholdMs?: number;
   summaryDelayMs?: number;

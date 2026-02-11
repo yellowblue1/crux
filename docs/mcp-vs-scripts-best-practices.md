@@ -212,14 +212,14 @@ Scenario: Orchestrator waiting for worker notifications
    Token savings: 99.8%
 ```
 
-## 4. Case Study: crux-monitor Plugin
+## 4. Case Study: panopticon Plugin
 
-The crux-monitor plugin demonstrates a hooks-only approach.
+The panopticon plugin demonstrates a hooks-only approach.
 
 ### 4.1 Hooks-Only Architecture
 
 ```
-crux-monitor Plugin Architecture
+panopticon Plugin Architecture
 ═══════════════════════════════════════════════════════
 
 No MCP Tools                      CLI Facade Pattern
@@ -433,4 +433,4 @@ These are not required but could be considered for future iterations:
 
 ### Plugin Implementations
 - [crux-hive plugin.json](../plugins/crux-hive/.claude-plugin/plugin.json) - MCP + Hooks configuration
-- [crux-monitor plugin.json](../plugins/crux-monitor/.claude-plugin/plugin.json) - Hooks-only configuration
+- [panopticon plugin.json](../tools/panopticon/.claude-plugin/plugin.json) - Hooks-only configuration

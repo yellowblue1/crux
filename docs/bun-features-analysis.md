@@ -14,14 +14,14 @@ The CRUX project demonstrates **strong adoption** of Bun features. Most major Bu
 
 | Feature | Usage | Location |
 |---------|-------|----------|
-| `bun:sqlite` | Database operations with native SQLite bindings | `plugins/crux-monitor/src/database.ts` |
+| `bun:sqlite` | Database operations with native SQLite bindings | `tools/panopticon/src/database.ts` |
 | `bun:test` | Full test framework (describe, it, expect, mock, skipIf) | 7+ test files across plugins |
 | `Bun.file()` | File metadata and static file serving | `database.ts`, `server.ts` |
 | `Bun.write()` | Async file writing with optimized performance | `generate-embed.ts` |
 | `Bun.spawn()` | Async subprocess execution | `cli.ts`, `build-binary.ts` |
 | `Bun.serve()` | HTTP server integrated with Hono framework | `server.ts` |
 | `Bun.stdin.stream()` | Async stdin reading for CLI | `cli.ts` |
-| `bunfig.toml` | Test configuration per plugin | `crux-monitor/`, `crux-monitor/web/` |
+| `bunfig.toml` | Test configuration per plugin | `panopticon/`, `panopticon/web/` |
 
 ## Improvements Made
 

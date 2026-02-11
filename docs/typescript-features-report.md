@@ -128,7 +128,7 @@ return startWorktreeSession(args as unknown as StartWorktreeSessionArgs);
 
 ### 3. Database Query Result Assertions
 
-**Location:** `plugins/crux-monitor/src/db/cleanup.ts`
+**Location:** `tools/panopticon/src/db/cleanup.ts`
 
 ```typescript
 const changes = db.query("SELECT changes() as count").get() as { count: number };

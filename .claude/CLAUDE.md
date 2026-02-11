@@ -12,16 +12,16 @@ IMPORTANT: All content in this repository MUST be in English. This includes code
 - Single `bun install` at root installs all workspace dependencies
 - Single root `bun.lock` consolidates all dependencies
 - `plugins/crux-hive`: Claude Code plugin with hooks and MCP server
-- `tools/crux-monitor`: Standalone tmux-based monitoring tool
+- `tools/panopticon`: Standalone tmux-based monitoring tool
 
 ## Development Commands
 
 ```bash
-# crux-monitor
-bun test --cwd tools/crux-monitor              # Run tests
-bun test --cwd tools/crux-monitor --watch      # Watch mode
-bun run --cwd tools/crux-monitor/web start     # Start server
-bun run --cwd tools/crux-monitor/web dev       # Dev server (Vite + API)
+# panopticon
+bun test --cwd tools/panopticon              # Run tests
+bun test --cwd tools/panopticon --watch      # Watch mode
+bun run --cwd tools/panopticon/web start     # Start server
+bun run --cwd tools/panopticon/web dev       # Dev server (Vite + API)
 ```
 
 ## Quality Standards

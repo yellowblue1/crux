@@ -6,11 +6,11 @@
       "project": [],
       "ignoreDependencies": ["@modelcontextprotocol/sdk"]
     },
-    "tools/crux-monitor": {
+    "tools/panopticon": {
       "entry": ["shared/types.ts", "**/*.test.ts"],
       "project": ["src/**/*.ts", "shared/**/*.ts"]
     },
-    "tools/crux-monitor/web": {
+    "tools/panopticon/web": {
       "vite": true,
       "entry": ["src/client/main.tsx", "**/*.test.ts"],
       "project": ["**/*.ts", "**/*.tsx"],

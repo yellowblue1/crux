@@ -8,13 +8,13 @@ paths: plugins/**/*.test.ts, plugins/**/__tests__/**
 - Bun test runner (built-in, fast)
 - Commands:
   ```bash
-  bun test --cwd tools/crux-monitor        # Run all tests
-  bun test --cwd tools/crux-monitor --watch  # Watch mode
+  bun test --cwd tools/panopticon        # Run all tests
+  bun test --cwd tools/panopticon --watch  # Watch mode
   ```
 
 ## Test Structure
 ```
-tools/crux-monitor/src/
+tools/panopticon/src/
 ├── __tests__/
 │   ├── index.ts           # Barrel export for test utilities
 │   └── helpers/

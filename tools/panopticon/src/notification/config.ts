@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const SETTINGS_FILE = join(homedir(), ".claude", "crux-monitor.local.md");
+const SETTINGS_FILE = join(homedir(), ".claude", "panopticon.local.md");
 
 interface ConfigOptions {
   envVar: string;
