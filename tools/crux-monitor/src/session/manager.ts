@@ -426,11 +426,13 @@ export class SessionManager {
     }
 
     // Content hash guard: skip Gemini call if the conversation area hasn't
-    // changed. Hash only the non-prompt portion (skipBottomLines) so that
-    // user typing in the prompt doesn't trigger redundant calls.
-    // The full content (including prompt area) is still sent to Gemini
-    // when the hash differs, so interactive UI elements are visible.
-    const currentHash = simpleHash(skipBottomLines(content));
+    // changed. Use scrollback capture (capturePaneContent) for the hash key
+    // because it's stable against terminal scrolling caused by multi-line
+    // prompt input. skipBottomLines excludes the prompt area.
+    // The sanitized visible content (including prompt area) is still sent
+    // to Gemini when the hash differs, so interactive UI elements are visible.
+    const scrollback = this.deps.capturePaneContent(session.pane_id) ?? content;
+    const currentHash = simpleHash(skipBottomLines(scrollback));
     if (
       session.summaryContentHash !== null &&
       currentHash === session.summaryContentHash &&

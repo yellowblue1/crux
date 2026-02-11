@@ -336,13 +336,15 @@ export function sendRawKey(paneId: string, key: string, exec: ExecFn = defaultEx
 }
 
 /**
- * Capture the current visible content of a tmux pane.
- * Used for diff-based idle detection — if content doesn't change between
- * two consecutive captures, the pane is considered static.
+ * Capture pane content from the tmux scrollback buffer (last 100 lines).
+ * Uses -S -100 to include lines that scrolled off the visible area.
+ * This makes content comparison stable even when terminal scrolls
+ * (e.g., user typing multi-line input in the prompt area).
+ * Used for diff-based idle detection and content hash deduplication.
  */
 export function capturePaneContent(paneId: string, exec: ExecFn = defaultExec): string | null {
   try {
-    return exec(`tmux capture-pane -p -t ${shellEscape(paneId)}`);
+    return exec(`tmux capture-pane -p -S -100 -t ${shellEscape(paneId)}`);
   } catch {
     return null;
   }

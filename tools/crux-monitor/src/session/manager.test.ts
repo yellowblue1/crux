@@ -1282,6 +1282,45 @@ describe("SessionManager", () => {
       expect(generateSpy).toHaveBeenCalledTimes(2);
     });
 
+    it("skips Gemini when visible content shifts but scrollback is stable", async () => {
+      // Simulates multi-line prompt typing: visible content shifts due to
+      // terminal scrolling, but scrollback (capturePaneContent) is stable.
+      let callCount = 0;
+      const generateSpy = mock(async () => `Summary v${++callCount}`);
+      let visibleContent = "line1\nline2\nline3\nprompt> ";
+      const scrollbackContent = "line0\nline1\nline2\nline3\nprompt> ";
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => scrollbackContent, // scrollback never changes
+        capturePaneContentForSummary: () => visibleContent, // visible shifts
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First WAITING period → Gemini called
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Go BUSY then WAITING. Visible content changed (scrolling) but
+      // scrollback is stable — simulates user typing multi-line prompt.
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      visibleContent = "line2\nline3\nprompt> aaaa\nmore typing";
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should NOT call Gemini — scrollback hash unchanged
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
+    });
+
     it("retries after null even with same content hash", async () => {
       let geminiResult: string | null = null;
       const generateSpy = mock(async () => geminiResult);
