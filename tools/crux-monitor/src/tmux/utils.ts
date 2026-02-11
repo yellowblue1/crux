@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
+import { sanitizePaneContent } from "./sanitize.js";
 
 /**
  * Escape a string for safe use in shell commands.
@@ -360,6 +361,19 @@ export function capturePaneContentEscaped(
   } catch {
     return null;
   }
+}
+
+/**
+ * Capture pane content with ANSI escapes, then sanitize:
+ * strips dim/faint text (autocomplete suggestions) and remaining ANSI codes.
+ * Used for Gemini summarization where ghost text should be excluded.
+ */
+export function capturePaneContentSanitized(
+  paneId: string,
+  exec: ExecFn = defaultExec,
+): string | null {
+  const raw = capturePaneContentEscaped(paneId, exec);
+  return raw ? sanitizePaneContent(raw) : null;
 }
 
 /**
