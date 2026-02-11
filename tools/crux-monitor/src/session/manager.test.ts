@@ -67,6 +67,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     generateSummary: async () => null,
     getJsonlMtime: () => 1000,
     capturePaneContent: () => null,
+    capturePaneContentForSummary: () => null,
     startPipePane: () => true,
     stopPipePane: () => true,
     createFifo: () => true,
@@ -76,6 +77,11 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
       return reader as unknown as ChildProcess;
     },
     ...overrides,
+    // Auto-link: if capturePaneContent is overridden but capturePaneContentForSummary is not,
+    // default the latter to the former (minimizes changes to existing tests)
+    ...(overrides.capturePaneContent && !overrides.capturePaneContentForSummary
+      ? { capturePaneContentForSummary: overrides.capturePaneContent }
+      : {}),
   };
 
   return { deps, fifoReaders };
@@ -646,6 +652,36 @@ describe("SessionManager", () => {
 
       // Should only call Gemini once despite two trigger paths
       expect(generateSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses capturePaneContentForSummary instead of capturePaneContent for summary generation", async () => {
+      const paneContentSpy = mock(() => "raw pane content");
+      const sanitizedSpy = mock(() => "sanitized pane content");
+      const receivedContents: string[] = [];
+
+      const { deps } = createMockDeps({
+        capturePaneContent: paneContentSpy,
+        capturePaneContentForSummary: sanitizedSpy,
+        generateSummary: async (content) => {
+          receivedContents.push(content);
+          return "Summary";
+        },
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 50,
+        paneCheckIntervalMs: 5000,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      // generateSummary should receive sanitized content, not raw
+      expect(receivedContents).toHaveLength(1);
+      expect(receivedContents[0]).toBe("sanitized pane content");
+      expect(sanitizedSpy).toHaveBeenCalled();
     });
   });
 

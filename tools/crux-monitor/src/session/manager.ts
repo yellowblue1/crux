@@ -29,6 +29,7 @@ export interface SessionManagerDeps {
   generateSummary: (content: string) => Promise<string | null>;
   getJsonlMtime: (jsonlPath: string) => number | null;
   capturePaneContent: (paneId: string) => string | null;
+  capturePaneContentForSummary: (paneId: string) => string | null;
   startPipePane: (paneId: string, target: string) => boolean;
   stopPipePane: (paneId: string) => boolean;
   createFifo: (path: string) => boolean;
@@ -99,6 +100,8 @@ export class SessionManager {
       generateSummary: deps?.generateSummary ?? (async () => null),
       getJsonlMtime: deps?.getJsonlMtime ?? tmux.getJsonlMtime,
       capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
+      capturePaneContentForSummary:
+        deps?.capturePaneContentForSummary ?? tmux.capturePaneContentSanitized,
       startPipePane: deps?.startPipePane ?? tmux.startPipePane,
       stopPipePane: deps?.stopPipePane ?? tmux.stopPipePane,
       createFifo: deps?.createFifo ?? defaultCreateFifo,
@@ -406,8 +409,8 @@ export class SessionManager {
     if (session.summary_pending) return;
     session.summary_pending = true;
 
-    // Try pane content first, fall back to JSONL
-    let content = this.deps.capturePaneContent(session.pane_id);
+    // Try sanitized pane content first (strips autocomplete ghost text), fall back to JSONL
+    let content = this.deps.capturePaneContentForSummary(session.pane_id);
     let contentSource: "pane" | "jsonl" = "pane";
 
     if (!content && session.jsonl_path) {
