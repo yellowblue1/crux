@@ -25,10 +25,7 @@ export interface SessionManagerDeps {
     panes: TmuxPane[],
     processTable: ProcessInfo[],
   ) => Map<string, { process: ClaudeProcess; pane: TmuxPane }>;
-  findSessionJsonlPath: (cwd: string) => string | null;
-  extractJsonlConversation: (jsonlPath: string) => string | null;
   generateSummary: (content: string) => Promise<string | null>;
-  getJsonlMtime: (jsonlPath: string) => number | null;
   capturePaneContent: (paneId: string) => string | null;
   capturePaneContentForSummary: (paneId: string) => string | null;
   startPipePane: (paneId: string, target: string) => boolean;
@@ -67,7 +64,6 @@ interface PipePaneState {
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
- * Uses pane content as primary source for summaries, with JSONL as fallback.
  * Content hash guard prevents redundant Gemini calls when content hasn't changed.
  */
 export class SessionManager {
@@ -97,10 +93,7 @@ export class SessionManager {
       getGitBranch: deps?.getGitBranch ?? tmux.getGitBranch,
       buildTmuxTarget: deps?.buildTmuxTarget ?? tmux.buildTmuxTarget,
       matchProcessesToPanes: deps?.matchProcessesToPanes ?? tmux.matchProcessesToPanes,
-      findSessionJsonlPath: deps?.findSessionJsonlPath ?? tmux.findSessionJsonlPath,
-      extractJsonlConversation: deps?.extractJsonlConversation ?? tmux.extractJsonlConversation,
       generateSummary: deps?.generateSummary ?? (async () => null),
-      getJsonlMtime: deps?.getJsonlMtime ?? tmux.getJsonlMtime,
       capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
       capturePaneContentForSummary:
         deps?.capturePaneContentForSummary ?? tmux.capturePaneContentSanitized,
@@ -240,12 +233,6 @@ export class SessionManager {
           this.removeSession(paneId);
           const didCreate = this.createSession(paneId, process.pid, pane);
           if (didCreate) changed = true;
-        } else if (!existing.jsonl_path) {
-          // Retry finding JSONL path — file may not have existed at session creation
-          const jsonlPath = this.deps.findSessionJsonlPath(existing.cwd);
-          if (jsonlPath) {
-            existing.jsonl_path = jsonlPath;
-          }
         }
       } catch {
         // Continue processing other panes — one pane's error should not
@@ -273,8 +260,6 @@ export class SessionManager {
     const cwd = this.deps.getProcessCwd(processPid);
     if (!cwd) return false;
 
-    const jsonlPath = this.deps.findSessionJsonlPath(cwd);
-
     this.sessions.set(paneId, {
       pane_id: paneId,
       process_pid: processPid,
@@ -284,12 +269,10 @@ export class SessionManager {
       status: "busy",
       summary: null,
       tmux_target: this.deps.buildTmuxTarget(pane),
-      jsonl_path: jsonlPath,
       last_activity: this.deps.getProcessStartTime(processPid) ?? new Date().toISOString(),
       previousPaneContent: null,
       summary_pending: false,
       pipePaneActive: false,
-      summaryJsonlMtime: null,
       summaryContentHash: null,
     });
 
@@ -400,7 +383,7 @@ export class SessionManager {
 
   /**
    * Generate AI summary in background for a waiting session.
-   * Uses pane content as primary source, falls back to JSONL conversation.
+   * Uses pane content as the source for summaries.
    * Guards against duplicate invocations via summary_pending flag.
    */
   private async generateSummaryAsync(paneId: string): Promise<void> {
@@ -411,14 +394,7 @@ export class SessionManager {
     if (session.summary_pending) return;
     session.summary_pending = true;
 
-    // Try sanitized pane content first (strips autocomplete ghost text), fall back to JSONL
-    let content = this.deps.capturePaneContentForSummary(session.pane_id);
-    let contentSource: "pane" | "jsonl" = "pane";
-
-    if (!content && session.jsonl_path) {
-      content = this.deps.extractJsonlConversation(session.jsonl_path);
-      contentSource = "jsonl";
-    }
+    const content = this.deps.capturePaneContentForSummary(session.pane_id);
 
     if (!content) {
       session.summary_pending = false;
@@ -451,9 +427,6 @@ export class SessionManager {
         // conversations where the session transitions to BUSY during the call.
         current.summary = summary;
         current.summaryContentHash = currentHash;
-        if (contentSource === "jsonl" && current.jsonl_path) {
-          current.summaryJsonlMtime = this.deps.getJsonlMtime(current.jsonl_path);
-        }
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
