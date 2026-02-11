@@ -49,19 +49,18 @@ export function buildActionPrompt(contentTail: string): string {
   return `Analyze the following terminal output from a Claude Code session.
 Determine what type of user interaction is expected based on the last visible prompt or question.
 
-Rules:
-- If the terminal shows a numbered list of options with a cursor indicator, return type "choices" with each numbered option. Use the number as the value and a short label for each.
-- If the terminal shows a Yes/No permission prompt (e.g., "Do you want to proceed?" with Yes/No options), return type "yesno".
-- If one of the options is "Type something" or similar free-form input, return type "freeform" with an appropriate placeholder.
-- If no interactive prompt is detected (e.g., the process is still running, just completed output, or showing a status report), return type "none".
+Rules (apply in this priority order):
+1. If the terminal shows a numbered list of options (e.g., "1. Option A", "2. Option B"), return type "choices" with ALL options including "Type something" or "Chat about this" if present. Use the number as the value and a short label for each. This rule takes priority — any numbered list is always "choices".
+2. If the terminal shows a Yes/No permission prompt (e.g., "Do you want to proceed?" with Yes/No options), return type "yesno".
+3. If the terminal is waiting for free-form text input with NO numbered options (e.g., a standalone prompt asking for a name, path, or description), return type "freeform" with an appropriate placeholder.
+4. If no interactive prompt is detected (e.g., the process is still running, just completed output, or showing a status report), return type "none".
 
 Claude Code UI patterns to recognize:
-1. AskUserQuestion with numbered choices — bordered region with header, question text, numbered options (1. Option, 2. Option...), sometimes with a cursor, and footer "Enter to select / to navigate / Esc to cancel"
+1. AskUserQuestion with numbered choices — bordered region with header, question text, numbered options (1. Option, 2. Option...), sometimes with a cursor, footer "Enter to select / to navigate / Esc to cancel". May include options like "Type something" or "Chat about this" — include ALL of them as choices.
 2. Permission/confirmation prompt — "Do you want to proceed?" with Yes/No options and footer "Esc to cancel / Tab to amend"
-3. Free-form input — when one option says "Type something" or the prompt asks for text input
 
 Return ONLY valid JSON matching one of these schemas:
-{"type":"choices","options":[{"label":"1. Mango","value":"1"},{"label":"2. Strawberry","value":"2"}]}
+{"type":"choices","options":[{"label":"1. Mango","value":"1"},{"label":"2. Strawberry","value":"2"},{"label":"3. Type something","value":"3"}]}
 {"type":"yesno"}
 {"type":"freeform","placeholder":"Enter your response..."}
 {"type":"none"}
