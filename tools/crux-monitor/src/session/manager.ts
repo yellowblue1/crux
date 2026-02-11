@@ -63,9 +63,8 @@ interface PipePaneState {
  *   - BUSY → WAITING: no pipe data for idleThresholdMs
  * Capture-pane polling runs as a redundant signal alongside pipe-pane, providing
  * self-healing when pipe-pane dies silently (e.g. tmux disconnects the writer).
- * Summary generation: dual-condition — when WAITING AND tmux pane content is
- * static (unchanged between consecutive captures), triggers Gemini immediately.
- * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
+ * Summary generation: scheduled after summaryDelayMs of sustained WAITING.
+ * Capture-pane polling ensures the timer is running when content is static.
  * Uses pane content as primary source for summaries, with JSONL as fallback.
  * Content hash guard prevents redundant Gemini calls when content hasn't changed.
  */
@@ -623,10 +622,15 @@ export class SessionManager {
           continue;
         }
 
-        // Dual-condition: pane static AND WAITING → trigger summary immediately
+        // Dual-condition: pane static AND WAITING → ensure summary timer is
+        // running. Don't call immediately — that would bypass the delay and
+        // trigger Gemini during brief typing pauses (user typing multi-line
+        // input causes terminal scrolling which shows as static content after
+        // the BUSY→WAITING cycle settles).
         if (isStatic && session.status === "waiting" && !session.summary_pending) {
-          this.cancelSummaryTimer(paneId);
-          this.generateSummaryAsync(paneId);
+          if (!this.summaryTimers.has(paneId)) {
+            this.scheduleSummaryTimer(paneId);
+          }
         }
       } catch {
         // Best effort — skip this pane and continue with others
