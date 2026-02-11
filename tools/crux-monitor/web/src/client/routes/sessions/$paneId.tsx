@@ -61,7 +61,7 @@ function SessionDetailPage() {
         <XtermViewer content={paneData.content} className="pane-viewer" />
       )}
 
-      <SendKeysInput paneId={paneId} />
+      <SendKeysInput paneId={paneId} contentTimestamp={paneData?.timestamp} />
     </>
   );
 }

@@ -10,5 +10,6 @@ export const authKeys = {
 
 export const actionKeys = {
   all: ["actions"] as const,
-  detect: (paneId: string) => [...actionKeys.all, "detect", paneId] as const,
+  detect: (paneId: string, contentTimestamp?: number) =>
+    [...actionKeys.all, "detect", paneId, contentTimestamp] as const,
 };

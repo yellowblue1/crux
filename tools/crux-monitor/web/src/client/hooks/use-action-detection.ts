@@ -2,8 +2,6 @@ import type { PaneAction, PaneActionsResponse } from "@shared/types";
 import { useQuery } from "@tanstack/react-query";
 import { actionKeys } from "@/lib/query-keys";
 
-const POLL_INTERVAL_MS = 3000;
-
 const DEFAULT_ACTION: PaneAction = { type: "none" };
 
 async function fetchActions(paneId: string): Promise<PaneAction> {
@@ -13,12 +11,17 @@ async function fetchActions(paneId: string): Promise<PaneAction> {
   return data.action;
 }
 
-export function useActionDetection(paneId: string) {
+/**
+ * Detects pane actions using Gemini, triggered by pane content changes.
+ * The contentTimestamp parameter drives refetches — the query only runs
+ * when the timestamp changes (i.e., when SSE delivers new pane content).
+ */
+export function useActionDetection(paneId: string, contentTimestamp: number | undefined) {
   return useQuery({
-    queryKey: actionKeys.detect(paneId),
+    queryKey: actionKeys.detect(paneId, contentTimestamp),
     queryFn: () => fetchActions(paneId),
-    refetchInterval: POLL_INTERVAL_MS,
-    staleTime: 2000,
+    enabled: contentTimestamp !== undefined,
+    staleTime: Number.POSITIVE_INFINITY,
     placeholderData: DEFAULT_ACTION,
   });
 }

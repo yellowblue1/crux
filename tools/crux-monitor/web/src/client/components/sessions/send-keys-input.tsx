@@ -8,13 +8,14 @@ import { cn } from "@/lib/cn";
 
 interface SendKeysInputProps {
   paneId: string;
+  contentTimestamp?: number;
 }
 
-export function SendKeysInput({ paneId }: SendKeysInputProps) {
+export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const sendKeys = useSendKeys();
-  const { data: action } = useActionDetection(paneId);
+  const { data: action } = useActionDetection(paneId, contentTimestamp);
 
   const handleInputFocus = () => {
     setTimeout(() => {
