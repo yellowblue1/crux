@@ -69,10 +69,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
       }
       return result;
     },
-    findSessionJsonlPath: () => "/home/user/.claude/projects/test/session.jsonl",
-    extractJsonlConversation: () => "[user]: Help me fix a bug\n\n[assistant]: I'll help.",
     generateSummary: async () => null,
-    getJsonlMtime: () => 1000,
     capturePaneContent: () => null,
     capturePaneContentForSummary: () => null,
     startPipePane: () => true,
@@ -328,73 +325,6 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("JSONL path retry", () => {
-    it("retries finding JSONL path on subsequent polls when initially null", async () => {
-      let jsonlAvailable = false;
-      const findSessionJsonlPathSpy = mock(() =>
-        jsonlAvailable ? "/home/user/.claude/projects/test/session.jsonl" : null,
-      );
-
-      const { deps } = createMockDeps({
-        findSessionJsonlPath: findSessionJsonlPathSpy,
-      });
-
-      manager = new SessionManager(deps, { pollIntervalMs: 50 });
-      manager.start();
-
-      // Session created with null JSONL path
-      expect(manager.getSessions()).toHaveLength(1);
-
-      // JSONL becomes available
-      jsonlAvailable = true;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Should have retried — findSessionJsonlPath called more than once
-      expect(findSessionJsonlPathSpy.mock.calls.length).toBeGreaterThan(1);
-    });
-
-    it("generates summary using pane content even without JSONL path", async () => {
-      const generateSpy = mock(async () => "Waiting for input");
-
-      const { deps } = createMockDeps({
-        findSessionJsonlPath: () => null,
-        generateSummary: generateSpy,
-        capturePaneContent: () => "static pane content",
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 50,
-        idleThresholdMs: 30,
-        summaryDelayMs: 100,
-        paneCheckIntervalMs: 30,
-      });
-      manager.start();
-
-      // Pane content is available, so summary should be generated even without JSONL
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      expect(generateSpy).toHaveBeenCalled();
-    });
-
-    it("does not retry when JSONL path is already set", async () => {
-      const findSessionJsonlPathSpy = mock(() => "/home/user/.claude/projects/test/session.jsonl");
-
-      const { deps } = createMockDeps({
-        findSessionJsonlPath: findSessionJsonlPathSpy,
-      });
-
-      manager = new SessionManager(deps, { pollIntervalMs: 50 });
-      manager.start();
-
-      const initialCallCount = findSessionJsonlPathSpy.mock.calls.length;
-
-      // Wait for several polls
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Should not have called findSessionJsonlPath again
-      expect(findSessionJsonlPathSpy.mock.calls.length).toBe(initialCallCount);
-    });
-  });
-
   describe("tmux unavailable", () => {
     it("returns empty sessions when tmux is not available", () => {
       const { deps } = createMockDeps({
@@ -480,6 +410,7 @@ describe("SessionManager", () => {
 
       const { deps } = createMockDeps({
         generateSummary: generateSpy,
+        capturePaneContent: () => "static pane content",
       });
 
       manager = new SessionManager(deps, {
@@ -535,6 +466,7 @@ describe("SessionManager", () => {
 
       const { deps, fifoReaders } = createMockDeps({
         generateSummary: generateSpy,
+        capturePaneContent: () => "static pane content",
       });
 
       manager = new SessionManager(deps, {
@@ -587,37 +519,10 @@ describe("SessionManager", () => {
       expect(receivedContents[0]).toBe(paneText);
     });
 
-    it("falls back to JSONL when pane content is null", async () => {
-      const conversationText = "[user]: Fix the bug\n\n[assistant]: Done.";
-      const receivedContents: string[] = [];
-
-      const { deps } = createMockDeps({
-        capturePaneContent: () => null, // Pane gone
-        extractJsonlConversation: () => conversationText,
-        generateSummary: async (content) => {
-          receivedContents.push(content);
-          return "Fixed a bug";
-        },
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 50,
-        summaryDelayMs: 50,
-      });
-      manager.start();
-
-      await new Promise((resolve) => setTimeout(resolve, 250));
-
-      expect(receivedContents).toHaveLength(1);
-      expect(receivedContents[0]).toBe(conversationText);
-    });
-
-    it("does not generate summary when both pane content and JSONL are null", async () => {
+    it("does not generate summary when pane content is null", async () => {
       const generateSpy = mock(async () => "test");
 
       const { deps } = createMockDeps({
-        findSessionJsonlPath: () => null,
         capturePaneContent: () => null,
         generateSummary: generateSpy,
       });
@@ -749,6 +654,7 @@ describe("SessionManager", () => {
       const { deps } = createMockDeps({
         generateSummary: generateSpy,
         capturePaneContent: () => null,
+        capturePaneContentForSummary: () => "summary content from sanitized capture",
       });
 
       manager = new SessionManager(deps, {

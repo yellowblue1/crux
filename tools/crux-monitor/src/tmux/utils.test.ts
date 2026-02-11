@@ -3,13 +3,9 @@ import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 import {
   buildTmuxTarget,
   capturePaneContent,
-  encodeCwdPath,
-  extractJsonlConversation,
-  findSessionJsonlPath,
   getAllTmuxPanes,
   getClaudeProcesses,
   getGitBranch,
-  getJsonlMtime,
   getProcessCwd,
   getProcessStartTime,
   getProcessTable,
@@ -440,99 +436,6 @@ describe("matchProcessesToPanes", () => {
   });
 });
 
-describe("encodeCwdPath", () => {
-  it("encodes slashes to dashes", () => {
-    expect(encodeCwdPath("/Users/test/project")).toBe("-Users-test-project");
-  });
-
-  it("encodes dots to dashes", () => {
-    expect(encodeCwdPath("/Users/test/my.project")).toBe("-Users-test-my-project");
-  });
-
-  it("handles complex paths", () => {
-    expect(encodeCwdPath("/Users/akirasosa/ghq/github.com/yellowblue1/crux")).toBe(
-      "-Users-akirasosa-ghq-github-com-yellowblue1-crux",
-    );
-  });
-});
-
-describe("findSessionJsonlPath", () => {
-  it("returns null for non-existent directory", () => {
-    expect(findSessionJsonlPath("/nonexistent/path/that/surely/does/not/exist")).toBeNull();
-  });
-});
-
-describe("extractJsonlConversation", () => {
-  it("returns null for non-existent file", () => {
-    expect(extractJsonlConversation("/nonexistent/file.jsonl")).toBeNull();
-  });
-
-  it("extracts text from user and assistant messages", () => {
-    const { writeFileSync, mkdtempSync, rmSync } = require("node:fs");
-    const { join } = require("node:path");
-    const { tmpdir } = require("node:os");
-
-    const tmpDir = mkdtempSync(join(tmpdir(), "crux-test-"));
-    const jsonlPath = join(tmpDir, "test.jsonl");
-
-    try {
-      const lines = [
-        JSON.stringify({ type: "progress", data: {} }),
-        JSON.stringify({ type: "user", message: { content: "Hello, help me fix a bug" } }),
-        JSON.stringify({
-          type: "assistant",
-          message: {
-            content: [{ type: "text", text: "I'll help you fix that bug." }],
-          },
-        }),
-        JSON.stringify({ type: "progress", data: {} }),
-        JSON.stringify({
-          type: "user",
-          message: {
-            content: [{ type: "tool_result" }],
-          },
-        }),
-        JSON.stringify({
-          type: "assistant",
-          message: {
-            content: [
-              { type: "text", text: "The fix is ready." },
-              { type: "tool_use", name: "write" },
-            ],
-          },
-        }),
-      ];
-      writeFileSync(jsonlPath, lines.join("\n"));
-
-      const result = extractJsonlConversation(jsonlPath);
-      expect(result).not.toBeNull();
-      expect(result).toContain("[user]: Hello, help me fix a bug");
-      expect(result).toContain("[assistant]: I'll help you fix that bug.");
-      expect(result).toContain("[assistant]: The fix is ready.");
-      // tool_result-only messages should be excluded (no text content)
-      expect(result).not.toContain("tool_result");
-    } finally {
-      rmSync(tmpDir, { recursive: true });
-    }
-  });
-
-  it("handles empty JSONL file", () => {
-    const { writeFileSync, mkdtempSync, rmSync } = require("node:fs");
-    const { join } = require("node:path");
-    const { tmpdir } = require("node:os");
-
-    const tmpDir = mkdtempSync(join(tmpdir(), "crux-test-"));
-    const jsonlPath = join(tmpDir, "empty.jsonl");
-
-    try {
-      writeFileSync(jsonlPath, "");
-      expect(extractJsonlConversation(jsonlPath)).toBeNull();
-    } finally {
-      rmSync(tmpDir, { recursive: true });
-    }
-  });
-});
-
 describe("startPipePane", () => {
   it("calls tmux pipe-pane with output-only flag", () => {
     let executedCommand = "";
@@ -579,18 +482,5 @@ describe("stopPipePane", () => {
     };
 
     expect(stopPipePane("%99", exec)).toBe(false);
-  });
-});
-
-describe("getJsonlMtime", () => {
-  it("returns mtime for existing file", () => {
-    // Test with the test file itself (it exists)
-    const mtime = getJsonlMtime(import.meta.path);
-    expect(mtime).toBeNumber();
-    expect(mtime).toBeGreaterThan(0);
-  });
-
-  it("returns null for non-existent file", () => {
-    expect(getJsonlMtime("/nonexistent/path/file.jsonl")).toBeNull();
   });
 });

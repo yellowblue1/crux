@@ -1,6 +1,3 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type { ClaudeProcess, ProcessInfo, TmuxPane } from "../types";
 import { sanitizePaneContent } from "./sanitize.js";
 
@@ -147,123 +144,6 @@ export function getProcessCwd(pid: number, exec: ExecFn = defaultExec): string |
   } catch {
     return null;
   }
-}
-
-/**
- * Encode a CWD path to the Claude projects directory format.
- * Replaces / with - and . with - (keeps leading -)
- * Example: /Users/test/my.project -> -Users-test-my-project
- */
-export function encodeCwdPath(cwd: string): string {
-  return cwd.replace(/\//g, "-").replace(/\./g, "-");
-}
-
-/**
- * Find the most recently modified JSONL file for a Claude session.
- * Looks in ~/.claude/projects/<encoded-cwd>/ for *.jsonl files.
- */
-export function findSessionJsonlPath(cwd: string): string | null {
-  const encoded = encodeCwdPath(cwd);
-  const projectDir = join(homedir(), ".claude", "projects", encoded);
-
-  if (!existsSync(projectDir)) return null;
-
-  try {
-    const entries = readdirSync(projectDir);
-    let newest: { path: string; mtime: number } | null = null;
-
-    for (const entry of entries) {
-      if (!entry.endsWith(".jsonl")) continue;
-      const fullPath = join(projectDir, entry);
-      try {
-        const stat = statSync(fullPath);
-        if (!newest || stat.mtimeMs > newest.mtime) {
-          newest = { path: fullPath, mtime: stat.mtimeMs };
-        }
-      } catch {
-        // Skip files we can't stat
-      }
-    }
-
-    return newest?.path ?? null;
-  } catch {
-    return null;
-  }
-}
-
-const JSONL_TAIL_LINES = 200;
-const JSONL_MAX_CHARS = 8000;
-
-interface JsonlContentBlock {
-  type?: string;
-  text?: string;
-}
-
-interface JsonlMessage {
-  role?: string;
-  content?: string | JsonlContentBlock[];
-}
-
-interface JsonlEntry {
-  type?: string;
-  message?: JsonlMessage;
-}
-
-/**
- * Extract conversation text from the tail of a JSONL file.
- * Reads last N lines and extracts text from user/assistant messages.
- */
-export function extractJsonlConversation(jsonlPath: string): string | null {
-  try {
-    const content = readFileSync(jsonlPath, "utf-8");
-    const lines = content.split("\n").filter(Boolean);
-    const tailLines = lines.slice(-JSONL_TAIL_LINES);
-
-    const messages: string[] = [];
-    let totalChars = 0;
-
-    // Process from newest to oldest, then reverse
-    for (let i = tailLines.length - 1; i >= 0; i--) {
-      try {
-        const entry = JSON.parse(tailLines[i]) as JsonlEntry;
-        if (entry.type !== "user" && entry.type !== "assistant") continue;
-
-        const text = extractTextFromMessage(entry.message);
-        if (!text) continue;
-
-        if (totalChars + text.length > JSONL_MAX_CHARS) break;
-        messages.unshift(`[${entry.type}]: ${text}`);
-        totalChars += text.length;
-      } catch {
-        // Skip malformed lines
-      }
-    }
-
-    return messages.length > 0 ? messages.join("\n\n") : null;
-  } catch {
-    return null;
-  }
-}
-
-function extractTextFromMessage(message: JsonlMessage | undefined): string | null {
-  if (!message?.content) return null;
-
-  if (typeof message.content === "string") {
-    return message.content.trim() || null;
-  }
-
-  if (Array.isArray(message.content)) {
-    const textParts: string[] = [];
-    for (const block of message.content) {
-      if (block.type === "text" && block.text) {
-        textParts.push(block.text);
-      }
-    }
-    const joined = textParts.join("\n").trim();
-    return joined || null;
-  }
-
-  return null;
 }
 
 /**
@@ -416,18 +296,6 @@ export function stopPipePane(paneId: string, exec: ExecFn = defaultExec): boolea
     return true;
   } catch {
     return false;
-  }
-}
-
-/**
- * Get the modification time (in milliseconds) of a JSONL file.
- * Used by the summary change guard to skip Gemini calls when content hasn't changed.
- */
-export function getJsonlMtime(jsonlPath: string): number | null {
-  try {
-    return statSync(jsonlPath).mtimeMs;
-  } catch {
-    return null;
   }
 }
 

@@ -12,12 +12,10 @@ export interface SessionState {
   status: "busy" | "waiting";
   summary: string | null;
   tmux_target: string;
-  jsonl_path: string | null;
   last_activity: string;
   previousPaneContent: string | null;
   summary_pending: boolean;
   pipePaneActive: boolean;
-  summaryJsonlMtime: number | null;
   summaryContentHash: number | null;
 }
 
