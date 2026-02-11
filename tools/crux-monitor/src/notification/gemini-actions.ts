@@ -50,16 +50,16 @@ export function buildActionPrompt(contentTail: string): string {
 Determine what type of user interaction is expected based on the last visible prompt or question.
 
 Rules (apply in this priority order):
-1. If the terminal shows a numbered list of options (e.g., "1. Option A", "2. Option B"), return type "choices" with ALL options including "Type something" or "Chat about this" if present. Use the number as the value and a short label for each. This rule takes priority — any numbered list is always "choices".
+1. If the terminal shows a numbered list of options (e.g., "1. Option A", "2. Option B"), return type "choices". Use the number as the value and a short label for each. This rule takes priority — any numbered list is always "choices". IMPORTANT: Only include options that appear ABOVE the horizontal separator line (─────). Exclude any options below the separator such as "Chat about this" — those cannot be selected by number key.
 2. If the terminal shows a Yes/No permission prompt (e.g., "Do you want to proceed?" with Yes/No options), return type "yesno".
 3. If the terminal is waiting for free-form text input with NO numbered options (e.g., a standalone prompt asking for a name, path, or description), return type "freeform" with an appropriate placeholder.
 4. If no interactive prompt is detected (e.g., the process is still running, just completed output, or showing a status report), return type "none".
 
 autoEnter field for choices:
-- Each option has an "autoEnter" boolean. Set to true for options that are complete selections (e.g., "1. Mango" — selecting it is the final action). Set to false for options that require further user input after selection (e.g., "Type something", "Chat about this", or any option that opens a text input).
+- Each option has an "autoEnter" boolean. Set to true for options that are complete selections (e.g., "1. Mango" — selecting it is the final action). Set to false for options that require further user input after selection (e.g., "Type something" or any option that opens a text input).
 
 Claude Code UI patterns to recognize:
-1. AskUserQuestion with numbered choices — bordered region with header, question text, numbered options (1. Option, 2. Option...), sometimes with a cursor, footer "Enter to select / to navigate / Esc to cancel". May include options like "Type something" or "Chat about this" — include ALL of them as choices.
+1. AskUserQuestion with numbered choices — bordered region with header, question text, numbered options (1. Option, 2. Option...), sometimes with a cursor, footer "Enter to select / to navigate / Esc to cancel". Options below the separator line (like "Chat about this") should be EXCLUDED.
 2. Permission/confirmation prompt — "Do you want to proceed?" with Yes/No options and footer "Esc to cancel / Tab to amend"
 
 Return ONLY valid JSON matching one of these schemas:
