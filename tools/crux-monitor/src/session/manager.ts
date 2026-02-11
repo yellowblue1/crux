@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { detectSpinner, detectUserPrompt } from "../tmux/detect.js";
 import * as tmux from "../tmux/utils.js";
 import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
 
@@ -61,11 +62,16 @@ interface PipePaneState {
  * Session discovery: polls ps + tmux list-panes periodically.
  * Status detection: pipe-pane (FIFO) is the primary signal for both directions:
  *   - WAITING → BUSY: any data on the pipe
- *   - BUSY → WAITING: no pipe data for idleThresholdMs
+ *   - BUSY → WAITING: no pipe data for idleThresholdMs (with spinner override)
+ * Spinner-based override: when the idle timer fires, capture-pane content is
+ * checked for Claude Code's spinner characters (✽ ✻ ✶ · ✢). If a spinner is
+ * found, the session stays BUSY and the idle timer is re-armed.
  * Capture-pane polling runs as a redundant signal alongside pipe-pane, providing
  * self-healing when pipe-pane dies silently (e.g. tmux disconnects the writer).
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
+ * Suppressed when user input prompt (>) is detected to avoid premature
+ * summarization while the user is composing input.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
  * Uses pane content as primary source for summaries, with JSONL as fallback.
  * Content hash guard prevents redundant Gemini calls when content hasn't changed.
@@ -354,9 +360,25 @@ export class SessionManager {
     const session = this.sessions.get(paneId);
     if (!session || session.status !== "busy") return;
 
+    // Before transitioning to WAITING, check if spinner is visible.
+    // Spinner means Claude is actively thinking — stay BUSY and re-arm.
+    const content = this.deps.capturePaneContent(session.pane_id);
+    if (content !== null && detectSpinner(content)) {
+      session.previousPaneContent = content;
+      session.last_activity = new Date().toISOString();
+      this.resetIdleTimer(paneId);
+      return;
+    }
+
     session.status = "waiting";
     session.last_activity = new Date().toISOString();
     this.notifyChange();
+
+    // If user is at prompt, suppress summary — they may be composing input.
+    // The session IS waiting (Claude finished), but summary is not useful yet.
+    if (content !== null && detectUserPrompt(content)) {
+      return;
+    }
 
     // Schedule summary generation after sustained WAITING period.
     // If the session goes BUSY before the timer fires, it gets cancelled.
@@ -616,10 +638,13 @@ export class SessionManager {
           continue;
         }
 
-        // Dual-condition: pane static AND WAITING → trigger summary immediately
+        // Dual-condition: pane static AND WAITING → trigger summary immediately.
+        // Suppress if user is at prompt — they may be composing input.
         if (isStatic && session.status === "waiting" && !session.summary_pending) {
-          this.cancelSummaryTimer(paneId);
-          this.generateSummaryAsync(paneId);
+          if (!detectUserPrompt(content)) {
+            this.cancelSummaryTimer(paneId);
+            this.generateSummaryAsync(paneId);
+          }
         }
       } catch {
         // Best effort — skip this pane and continue with others

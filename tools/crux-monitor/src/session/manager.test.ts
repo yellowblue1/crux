@@ -1655,4 +1655,249 @@ describe("SessionManager", () => {
       expect(reader.killSignals).toContain("SIGKILL");
     });
   });
+
+  describe("spinner-based BUSY detection", () => {
+    it("stays BUSY when spinner is visible at idle timeout", async () => {
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "output\n\u273d Thinking...\n",
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000,
+      });
+      manager.start();
+
+      // Wait well past idle threshold
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should still be BUSY because spinner is detected
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("transitions to WAITING after spinner disappears", async () => {
+      let paneContent = "output\n\u273d Thinking...\n";
+      const { deps } = createMockDeps({
+        capturePaneContent: () => paneContent,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000,
+      });
+      manager.start();
+
+      // Wait with spinner active — should stay BUSY
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Remove spinner — next idle timeout should transition to WAITING
+      paneContent = "Done! Here is the result.\n";
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("does not trigger summary while spinner is active", async () => {
+      const generateSpy = mock(async () => "summary text");
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "\u273b Working for 10s\n",
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000,
+        summaryDelayMs: 50,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      // Should never have called generateSummary because session stayed BUSY
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("detects each spinner character variant", async () => {
+      for (const char of ["\u273d", "\u273b", "\u2736", "\u00b7", "\u2722"]) {
+        const { deps } = createMockDeps({
+          capturePaneContent: () => `output\n${char} Processing\n`,
+        });
+        const mgr = new SessionManager(deps, {
+          pollIntervalMs: 5000,
+          idleThresholdMs: 50,
+          paneCheckIntervalMs: 5000,
+        });
+        mgr.start();
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect(mgr.getSessions()[0]?.status).toBe("busy");
+
+        mgr.stop();
+      }
+    });
+
+    it("re-arms idle timer repeatedly while spinner persists", async () => {
+      let callCount = 0;
+      const { deps } = createMockDeps({
+        capturePaneContent: () => {
+          callCount++;
+          return `output\n\u273d Thinking for ${callCount}s\n`;
+        },
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000,
+      });
+      manager.start();
+
+      // Wait long enough for multiple idle timer re-arms
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      // Should still be BUSY after many re-arms
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+      // capturePaneContent should have been called multiple times (re-arming)
+      expect(callCount).toBeGreaterThan(3);
+    });
+
+    it("falls through to WAITING when capturePaneContent returns null", async () => {
+      const { deps } = createMockDeps({
+        capturePaneContent: () => null,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 5000,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Should transition to WAITING since content is null (no spinner check possible)
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+  });
+
+  describe("user prompt-aware summary suppression", () => {
+    it("transitions to WAITING but suppresses summary timer when user is at prompt", async () => {
+      const generateSpy = mock(async () => "summary text");
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "Claude output\n> \n",
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        summaryDelayMs: 50,
+        paneCheckIntervalMs: 5000, // Disable pane check to isolate timer test
+      });
+      manager.start();
+
+      // Wait for idle + summary delay
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      // Should be WAITING (no spinner)
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      // But should NOT have generated summary (prompt detected)
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("suppresses summary in checkPaneContent when pane is static with prompt", async () => {
+      const generateSpy = mock(async () => "summary text");
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "Claude output\n> help me\n",
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000, // Large delay to isolate pane check test
+      });
+      manager.start();
+
+      // Wait for WAITING + multiple pane checks (static content)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // WAITING but no summary generated (prompt suppresses both paths)
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("generates summary normally when no prompt detected", async () => {
+      const generateSpy = mock(async () => "summary text");
+      const { deps } = createMockDeps({
+        capturePaneContent: () => "Done! Here is the result.\nSome output.\n",
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 50,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Should have generated summary (no prompt, no spinner)
+      expect(generateSpy).toHaveBeenCalled();
+    });
+
+    it("does not suppress summary when prompt is not the last line", async () => {
+      const generateSpy = mock(async () => "summary text");
+      const { deps } = createMockDeps({
+        // > Fix the bug is past input, not current prompt
+        capturePaneContent: () => "$ claude\n> Fix the bug\nDone. Waiting for input.\n",
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 50,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Summary should be generated — the > is not the last line
+      expect(generateSpy).toHaveBeenCalled();
+    });
+
+    it("triggers summary once user submits prompt and Claude finishes", async () => {
+      let paneContent = "Claude output\n> \n";
+      const generateSpy = mock(async () => "summary text");
+      const { deps, fifoReaders } = createMockDeps({
+        capturePaneContent: () => paneContent,
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 50,
+      });
+      manager.start();
+
+      // Wait for WAITING with prompt — no summary
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).not.toHaveBeenCalled();
+
+      // Simulate user submitting: pipe-pane data → BUSY
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("user submitted");
+
+      // Claude finishes, updates pane content (no prompt at end)
+      paneContent = "Done processing your request.\n";
+
+      // Wait for idle + summary
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).toHaveBeenCalled();
+    });
+  });
 });
