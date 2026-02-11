@@ -166,27 +166,26 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("busy");
     });
 
-    it("transitions back to BUSY when pipe-pane data arrives after WAITING", async () => {
+    it("does not transition to BUSY when pipe-pane data arrives during WAITING", async () => {
       const { deps, fifoReaders } = createMockDeps();
-      const onChangeSpy = mock(() => {});
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 100,
+        paneCheckIntervalMs: 5000, // Disable pane polling
       });
-      manager.onChange(onChangeSpy);
       manager.start();
 
-      // Wait for idle
+      // Wait for idle → WAITING
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Simulate pipe-pane data (Claude starts outputting)
+      // Simulate pipe-pane data (user typing in bordered input area)
       const reader = Array.from(fifoReaders.values())[0];
       reader?.simulateData("output");
 
-      // Should be back to BUSY
-      expect(manager.getSessions()[0]?.status).toBe("busy");
+      // Should remain WAITING — pipe-pane is ignored during WAITING
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
 
     it("resets idle timer when pipe-pane data arrives during BUSY", async () => {
@@ -500,64 +499,66 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.summary).toBe("Waiting for user approval");
     });
 
-    it("cancels summary when session goes BUSY before delay fires", async () => {
+    it("cancels summary timer when session goes BUSY via content change", async () => {
       const generateSpy = mock(async () => "Should not appear");
+      let counter = 0;
+      let contentActive = false;
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
+        capturePaneContent: () => (contentActive ? `output ${counter++}` : null),
       });
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
         summaryDelayMs: 200,
+        paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // Wait for WAITING (50ms idle threshold)
+      // Wait for WAITING (pane null → only timer-based summary)
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Go BUSY before summary delay fires via pipe-pane data
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
+      // Start content output → BUSY via checkPaneContent
+      contentActive = true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
       // Wait past the original summary delay
       await new Promise((resolve) => setTimeout(resolve, 250));
 
-      // Gemini should NOT have been called — the timer was cancelled
+      // Gemini never called — timer cancelled, content keeps changing
       expect(generateSpy).not.toHaveBeenCalled();
     });
 
-    it("does not call Gemini during brief BUSY↔WAITING cycling", async () => {
+    it("does not call Gemini during rapid content changes", async () => {
       const generateSpy = mock(async () => "test");
+      let contentVersion = 0;
+      let contentChanging = true;
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
+        capturePaneContent: () => (contentChanging ? `output ${contentVersion++}` : "final output"),
       });
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
         summaryDelayMs: 200,
+        paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // Rapid BUSY↔WAITING cycling: go idle, then active, repeat
-      const reader = Array.from(fifoReaders.values())[0];
-      for (let i = 0; i < 5; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 50)); // idle → WAITING
-        reader?.simulateData("output"); // → BUSY (cancels summary timer)
-      }
+      // Content keeps changing for 250ms → session stays BUSY, no static detection
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(generateSpy).not.toHaveBeenCalled();
 
-      // Wait past summary delay
+      // Content stabilizes → idle → WAITING → static → summary generated once
+      contentChanging = false;
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // The final cycle left the session BUSY (last action was simulateData),
-      // then idle again. Only the LAST sustained WAITING should trigger Gemini.
-      // But since we ended with simulateData (BUSY) and then waited,
-      // it should have triggered exactly once for the final sustained idle.
       expect(generateSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -999,7 +1000,7 @@ describe("SessionManager", () => {
       expect(startPipePaneSpy).toHaveBeenCalledTimes(1);
     });
 
-    it("transitions from WAITING to BUSY when pipe-pane receives data", async () => {
+    it("does not transition from WAITING to BUSY when pipe-pane receives data", async () => {
       const { deps, fifoReaders } = createMockDeps();
 
       manager = new SessionManager(deps, {
@@ -1013,21 +1014,22 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
-      // Simulate pipe-pane data
+      // Simulate pipe-pane data (user typing in bordered input)
       const reader = Array.from(fifoReaders.values())[0];
       reader?.simulateData("some output");
 
-      // Should transition to BUSY immediately
+      // Should remain WAITING — pipe-pane is ignored during WAITING
       await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(manager.getSessions()[0]?.status).toBe("busy");
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
 
-    it("returns null summary via API when pipe-pane triggers BUSY (cached internally)", async () => {
+    it("returns null summary via API when session goes BUSY (summary cached internally)", async () => {
       const generateSpy = mock(async () => "Some summary");
+      let paneContent = "static content";
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
-        capturePaneContent: () => "static content",
+        capturePaneContent: () => paneContent,
       });
 
       manager = new SessionManager(deps, {
@@ -1043,18 +1045,16 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.status).toBe("waiting");
       expect(manager.getSessions()[0]?.summary).toBe("Some summary");
 
-      // Pipe-pane data → BUSY, API returns null summary
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("new output");
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Content change → BUSY, API returns null summary
+      paneContent = "new output from claude";
+      await new Promise((resolve) => setTimeout(resolve, 50));
       expect(manager.getSessions()[0]?.status).toBe("busy");
       // API should return null summary for BUSY sessions
       expect(manager.getSessions()[0]?.summary).toBeNull();
       expect(manager.getSession("%0")?.summary).toBeNull();
     });
 
-    it("fires onChange when pipe-pane triggers WAITING → BUSY", async () => {
+    it("does not fire onChange when pipe-pane data arrives during WAITING", async () => {
       const onChangeSpy = mock(() => {});
 
       const { deps, fifoReaders } = createMockDeps();
@@ -1062,7 +1062,7 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
-        paneCheckIntervalMs: 5000,
+        paneCheckIntervalMs: 5000, // Disable pane polling
       });
       manager.onChange(onChangeSpy);
       manager.start();
@@ -1071,12 +1071,13 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const countAfterWaiting = onChangeSpy.mock.calls.length;
 
-      // Pipe-pane data
+      // Pipe-pane data during WAITING
       const reader = Array.from(fifoReaders.values())[0];
       reader?.simulateData("output");
 
       await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(onChangeSpy.mock.calls.length).toBeGreaterThan(countAfterWaiting);
+      // No onChange should fire — pipe-pane ignored during WAITING
+      expect(onChangeSpy.mock.calls.length).toBe(countAfterWaiting);
     });
 
     it("tears down pipe-pane on session removal", async () => {
@@ -1204,31 +1205,34 @@ describe("SessionManager", () => {
     it("skips Gemini when pane content unchanged since last summary", async () => {
       let callCount = 0;
       const generateSpy2 = mock(async () => `Summary v${++callCount}`);
-      const { deps, fifoReaders } = createMockDeps({
+      let paneContent = "static content";
+
+      const { deps } = createMockDeps({
         generateSummary: generateSpy2,
-        capturePaneContent: () => "static content", // content never changes
+        capturePaneContent: () => paneContent,
       });
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 30,
+        idleThresholdMs: 100,
         summaryDelayMs: 5000,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
       // First cycle: generates summary (hash=null → new hash)
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(generateSpy2).toHaveBeenCalledTimes(1);
 
-      // Go BUSY via pipe-pane data, then idle → WAITING again
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Go BUSY via content change, then restore original content
+      paneContent = "temporary new output";
+      await new Promise((resolve) => setTimeout(resolve, 50));
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
+      paneContent = "static content"; // Back to original
+
       // Wait for idle → WAITING again + static pane check
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
       // Should NOT have called Gemini again — content hash unchanged
@@ -1241,7 +1245,7 @@ describe("SessionManager", () => {
       let paneContent = "initial pane content";
       const generateSpy = mock(async () => `Summary for: ${paneContent}`);
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
         capturePaneContent: () => paneContent,
       });
@@ -1258,14 +1262,10 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
-      // Go BUSY, change pane content, then back to WAITING
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Content change → BUSY, then idle → WAITING + static → new summary
+      paneContent = "updated pane content";
 
-      paneContent = "updated pane content"; // Content changed
-
-      // Wait for idle → WAITING + static pane → summary
+      // Wait for content change detection + idle → WAITING + static pane → summary
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Should have called Gemini again because content changed
@@ -1307,36 +1307,37 @@ describe("SessionManager", () => {
     it("does not update content hash when Gemini returns null", async () => {
       let geminiResult: string | null = null;
       const generateSpy = mock(async () => geminiResult);
+      let paneContent = "same pane content";
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
-        capturePaneContent: () => "same pane content",
+        capturePaneContent: () => paneContent,
       });
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 30,
-        // Short delay so the retry timer fires within the test.
-        // After null return, the retry goes through scheduleSummaryTimer.
-        summaryDelayMs: 100,
+        idleThresholdMs: 100,
+        // Long delay so the retry timer doesn't fire before we trigger BUSY.
+        // Static pane detection fires first (within ~2 pane checks of WAITING).
+        summaryDelayMs: 5000,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // First attempt returns null
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // First attempt: static detection fires, returns null
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
-      // Go BUSY then WAITING again
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      // Now Gemini will succeed
+      // Set Gemini to succeed BEFORE content changes, so the next call succeeds
       geminiResult = "Success summary";
 
-      // Wait for idle → WAITING → retry timer fires → Gemini called again
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      // Go BUSY then WAITING again via content change
+      paneContent = "brief output";
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      paneContent = "same pane content"; // Back to original
+
+      // Wait for idle → WAITING → static detection → Gemini called again
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Gemini should be called again because hash was NOT cached on null return
       expect(generateSpy).toHaveBeenCalledTimes(2);
@@ -1351,28 +1352,28 @@ describe("SessionManager", () => {
             pending.resolve = resolve;
           }),
       );
+      let paneContent = "pane content about new topic";
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
-        capturePaneContent: () => "pane content about new topic",
+        capturePaneContent: () => paneContent,
       });
 
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
-        idleThresholdMs: 30,
+        idleThresholdMs: 100,
         summaryDelayMs: 5000,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
       // Wait for WAITING + pane static → Gemini call starts
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
-      // Session goes BUSY while Gemini is still processing
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("user typing");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Session goes BUSY while Gemini is still processing (via content change)
+      paneContent = "user typing response";
+      await new Promise((resolve) => setTimeout(resolve, 50));
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
       // Gemini returns — session is now BUSY
@@ -1383,17 +1384,18 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.summary).toBeNull();
 
       // Session goes back to WAITING — summary should reflect the new topic
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
       expect(manager.getSessions()[0]?.summary).toBe("Summary about new topic");
     });
 
     it("cancels retry timer when session goes BUSY", async () => {
       const generateSpy = mock(async () => null); // Always fail
+      let paneContent = "static content";
 
-      const { deps, fifoReaders } = createMockDeps({
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
-        capturePaneContent: () => "static content",
+        capturePaneContent: () => paneContent,
       });
 
       manager = new SessionManager(deps, {
@@ -1408,18 +1410,16 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
-      // Go BUSY (cancels retry timer via onPipePaneActivity → cancelSummaryTimer)
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Go BUSY via content change (cancels retry timer via checkPaneContent → cancelSummaryTimer)
+      paneContent = "new output";
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Wait past original retry time
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Retry timer was cancelled — no extra Gemini call during BUSY
-      // (a new attempt may happen if session goes WAITING again, that's expected)
-      // The key assertion: the retry timer from the failed attempt was cancelled
-      // when going BUSY, not carried over
+      // Retry timer was cancelled — the timer from the failed attempt was cancelled
+      // when going BUSY via content change, not carried over.
+      // (a new attempt may happen when session goes WAITING again, that's expected)
       expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
   });

@@ -60,11 +60,13 @@ interface PipePaneState {
  * Manages Claude Code session state via tmux polling + pipe-pane activity detection.
  *
  * Session discovery: polls ps + tmux list-panes periodically.
- * Status detection: pipe-pane (FIFO) is the primary signal for both directions:
- *   - WAITING → BUSY: any data on the pipe
- *   - BUSY → WAITING: no pipe data for idleThresholdMs
- * Capture-pane polling runs as a redundant signal alongside pipe-pane, providing
- * self-healing when pipe-pane dies silently (e.g. tmux disconnects the writer).
+ * Status detection:
+ *   - WAITING → BUSY: capture-pane detects content change above bordered input area
+ *   - BUSY → WAITING: no pipe data for idleThresholdMs (pipe-pane idle timer)
+ * Pipe-pane is only active during BUSY state (resets idle timer); it is ignored
+ * during WAITING to prevent false transitions from user typing in the bordered
+ * input area. Capture-pane polling filters out the bordered region via
+ * extractContentAboveBorder and only transitions on real content changes.
  * Summary generation: dual-condition — when WAITING AND tmux pane content is
  * static (unchanged between consecutive captures), triggers Gemini immediately.
  * Falls back to summaryDelayMs timeout if capture-pane is unavailable.
@@ -564,27 +566,21 @@ export class SessionManager {
   }
 
   /**
-   * Called when pipe-pane receives any output — session is active.
-   * Resets idle timer on every data event (both BUSY and WAITING).
-   * Summary is preserved internally for cache restoration; API methods filter it.
+   * Called when pipe-pane receives any output.
+   * Only processes data during BUSY state to reset the idle timer.
    *
-   * NOTE: summary_pending is intentionally NOT reset here. Pipe-pane fires on
-   * all terminal output including user keystrokes (typing, cursor movement).
-   * Resetting summary_pending here would allow false Gemini re-triggers when
-   * the user types and pauses. Instead, summary_pending only resets when
-   * capture-pane detects real content change above the bordered input area
-   * (in checkPaneContent), or via the scheduleSummaryTimer safety net.
+   * Pipe-pane fires on ALL terminal output including user keystrokes
+   * (typing, cursor movement) in the bordered input area. To prevent
+   * false WAITING→BUSY transitions from typing, pipe-pane is ignored
+   * during WAITING. WAITING→BUSY detection relies exclusively on
+   * checkPaneContent, which filters out the bordered input region
+   * (via extractContentAboveBorder) and only transitions on real
+   * content changes above the border.
    */
   private onPipePaneActivity(paneId: string): void {
     const session = this.sessions.get(paneId);
-    if (!session) return;
+    if (!session || session.status !== "busy") return;
 
-    if (session.status === "waiting") {
-      session.status = "busy";
-      this.cancelSummaryTimer(paneId);
-      this.notifyChange();
-    }
-    // Always reset idle timer — pipe data resets idle timer even during BUSY
     this.resetIdleTimer(paneId);
     session.last_activity = new Date().toISOString();
     this.paneActivityCallback?.(paneId);
@@ -592,7 +588,7 @@ export class SessionManager {
 
   /**
    * Check pane content for all sessions.
-   * Always detects content changes for WAITING → BUSY transition (redundant with pipe-pane).
+   * Detects content changes for WAITING → BUSY transition (primary signal).
    * Also checks for static screen to trigger summary generation.
    */
   private checkPaneContent(): void {
