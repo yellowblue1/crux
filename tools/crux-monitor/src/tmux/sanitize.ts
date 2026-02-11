@@ -7,6 +7,19 @@
 /** How many lines from the bottom to scan for the prompt area */
 const PROMPT_SCAN_LINES = 20;
 
+/** Max lines to search backwards from ❯ for the top border */
+const BORDER_SEARCH_RANGE = 5;
+
+/**
+ * Check if a line is a prompt border.
+ * Matches:
+ * - ╭ (U+256D) — box-drawing arc corner (older or alternative prompt style)
+ * - 10+ consecutive ─ (U+2500) — solid horizontal line (current Claude Code prompt)
+ * Does NOT match:
+ * - ╌ (U+254C) — dashed horizontal line (used in selection/diff UIs)
+ */
+const SOLID_BORDER_RE = /─{10,}/;
+
 // Build ESC-based regex patterns from strings to satisfy the
 // noControlCharactersInRegex lint rule (the control chars are intentional here).
 const ESC = String.fromCharCode(0x1b);
@@ -23,17 +36,24 @@ const ANSI_RE = new RegExp(
 
 /**
  * Strip the Claude Code prompt input area from captured pane content.
- * Claude Code renders an input box at the bottom of the terminal:
+ * Claude Code renders an input area at the bottom of the terminal in two styles:
  *
+ * Style 1 (box-drawing):
  *   ╭───────────────────────────╮
  *   │ ❯ user input [suggestion] │
  *   ╰───────────────────────────╯
  *   status bar...
  *
- * This function finds the input box by looking for BOTH the ❯ (U+276F) prompt
- * marker AND a ╭ top border in the last N lines. Both must be present to
- * identify the input prompt — this avoids stripping selection UIs where ❯
- * appears as a selection indicator without a ╭ border.
+ * Style 2 (solid horizontal lines):
+ *   ──────────────── @session ──
+ *   ❯ user input
+ *   ───────────────────────────
+ *   status bar...
+ *
+ * This function finds the prompt by looking for BOTH the ❯ (U+276F) prompt
+ * marker AND a top border (╭ or ─{10,}) within a few lines above it.
+ * This avoids stripping selection UIs where ❯ appears as a selection
+ * indicator (those use ╌ dashed lines, not solid ─ lines).
  * Returns content unchanged if no bordered prompt area is found.
  */
 export function stripPromptArea(content: string): string {
@@ -44,16 +64,18 @@ export function stripPromptArea(content: string): string {
   for (let i = lines.length - 1; i >= scanStart; i--) {
     if (!lines[i].includes("❯")) continue;
 
-    // Found prompt marker — look backwards for the top border (╭).
-    // Only strip if a ╭ border is found: this distinguishes the input
-    // prompt box from selection UIs (which use ❯ without a box border).
-    for (let j = i - 1; j >= scanStart; j--) {
-      if (lines[j].includes("╭")) {
+    // Found prompt marker — look backwards (limited range) for the top border.
+    // Matches ╭ (box-drawing corner) or ─{10,} (solid horizontal line).
+    // Limited to BORDER_SEARCH_RANGE lines above ❯ to avoid matching
+    // ─ lines in diff displays or other content higher up.
+    const borderSearchStart = Math.max(scanStart, i - BORDER_SEARCH_RANGE);
+    for (let j = i - 1; j >= borderSearchStart; j--) {
+      if (lines[j].includes("╭") || SOLID_BORDER_RE.test(lines[j])) {
         return lines.slice(0, j).join("\n").trimEnd();
       }
     }
 
-    // No ╭ border found — this ❯ is a selection indicator, not the input prompt.
+    // No border found nearby — this ❯ is a selection indicator, not the input prompt.
     // Continue scanning for another ❯ higher up (unlikely but safe).
   }
 

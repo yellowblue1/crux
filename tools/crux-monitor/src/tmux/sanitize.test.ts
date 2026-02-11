@@ -90,6 +90,68 @@ describe("sanitize", () => {
       const result = stripPromptArea(content);
       expect(result).toBe("Conversation output");
     });
+
+    it("strips prompt area with solid horizontal line border (real Claude Code format)", () => {
+      const content = [
+        "Some conversation output above",
+        "Claude finished working on the task.",
+        "──────────────── @worker-name ──",
+        "❯ fix the bug",
+        "───────────────────────────────────────────",
+      ].join("\n");
+
+      const result = stripPromptArea(content);
+      expect(result).toBe(
+        ["Some conversation output above", "Claude finished working on the task."].join("\n"),
+      );
+    });
+
+    it("strips prompt with solid border and status bar below", () => {
+      const content = [
+        "Done. All tests passing.",
+        "──────────────────────────────────────────",
+        "❯ これは動作",
+        "───────────────────────────────────────────",
+        "[Opus 4.6] 82% context remaining",
+        "-- INSERT -- ⏵⏵ accept edits on",
+      ].join("\n");
+
+      const result = stripPromptArea(content);
+      expect(result).toBe("Done. All tests passing.");
+    });
+
+    it("preserves content with dashed lines (╌) from selection/diff UI", () => {
+      const content = [
+        "Conversation content above",
+        "Do you want to proceed?",
+        "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+        " ❯ 1. Yes",
+        "   2. No",
+        "",
+        " Esc to cancel",
+      ].join("\n");
+
+      // ╌ (dashed) is NOT matched as a prompt border
+      expect(stripPromptArea(content)).toBe(content);
+    });
+
+    it("does not match ─ lines far above ❯ (outside search range)", () => {
+      const content = [
+        "Some text",
+        "───────────────────────────────────────────",
+        "Diff output line 1",
+        "Diff output line 2",
+        "Diff output line 3",
+        "Diff output line 4",
+        "Diff output line 5",
+        "Diff output line 6",
+        "Diff output line 7",
+        "More text with ❯ symbol",
+      ].join("\n");
+
+      // ─ line is more than BORDER_SEARCH_RANGE lines above ❯, so not matched
+      expect(stripPromptArea(content)).toBe(content);
+    });
   });
 
   describe("stripDimText", () => {
@@ -221,6 +283,30 @@ describe("sanitize", () => {
 
     it("handles empty string", () => {
       expect(sanitizePaneContent("")).toBe("");
+    });
+
+    it("handles realistic Claude Code output with solid-border prompt", () => {
+      const input = [
+        "\x1b[1m\x1b[34m❯\x1b[0m \x1b[1mClaude\x1b[0m",
+        "",
+        "I've fixed the authentication bug. The issue was in the token validation.",
+        "",
+        "\x1b[32m✓\x1b[0m All tests passing (42/42)",
+        "",
+        "──────────────── @worker-name ──",
+        "\x1b[34m❯\x1b[0m fix\x1b[2m the login timeout issue\x1b[22m",
+        "───────────────────────────────────────────",
+        "  \x1b[90m[Opus 4.6] 82% context remaining\x1b[0m",
+      ].join("\n");
+
+      const result = sanitizePaneContent(input);
+      expect(result).toContain("fixed the authentication bug");
+      expect(result).toContain("All tests passing");
+      // Suggestion ghost text and prompt area are stripped
+      expect(result).not.toContain("login timeout");
+      expect(result).not.toContain("──────────────── @worker-name");
+      // The ❯ in the header (line 1) is preserved
+      expect(result).toContain("Claude");
     });
   });
 });
