@@ -16,6 +16,7 @@ export interface SessionManagerDeps {
   getProcessTable: () => ProcessInfo[];
   getClaudeProcesses: (processTable: ProcessInfo[]) => ClaudeProcess[];
   getProcessCwd: (pid: number) => string | null;
+  getProcessStartTime: (pid: number) => string | null;
   getProjectName: (cwd: string) => string;
   getGitBranch: (cwd: string) => string | null;
   buildTmuxTarget: (pane: TmuxPane) => string;
@@ -91,6 +92,7 @@ export class SessionManager {
       getProcessTable: deps?.getProcessTable ?? tmux.getProcessTable,
       getClaudeProcesses: deps?.getClaudeProcesses ?? tmux.getClaudeProcesses,
       getProcessCwd: deps?.getProcessCwd ?? tmux.getProcessCwd,
+      getProcessStartTime: deps?.getProcessStartTime ?? tmux.getProcessStartTime,
       getProjectName: deps?.getProjectName ?? tmux.getProjectName,
       getGitBranch: deps?.getGitBranch ?? tmux.getGitBranch,
       buildTmuxTarget: deps?.buildTmuxTarget ?? tmux.buildTmuxTarget,
@@ -283,7 +285,7 @@ export class SessionManager {
       summary: null,
       tmux_target: this.deps.buildTmuxTarget(pane),
       jsonl_path: jsonlPath,
-      last_activity: new Date().toISOString(),
+      last_activity: this.deps.getProcessStartTime(processPid) ?? new Date().toISOString(),
       previousPaneContent: null,
       summary_pending: false,
       pipePaneActive: false,

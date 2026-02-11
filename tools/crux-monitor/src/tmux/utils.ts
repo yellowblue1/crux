@@ -115,6 +115,22 @@ export function getClaudeProcesses(processTable: ProcessInfo[]): ClaudeProcess[]
 }
 
 /**
+ * Get the start time of a process as an ISO 8601 string via `ps -o lstart=`.
+ * Returns null if the process doesn't exist or the command fails.
+ */
+export function getProcessStartTime(pid: number, exec: ExecFn = defaultExec): string | null {
+  try {
+    const output = exec(`ps -o lstart= -p ${pid}`);
+    if (!output) return null;
+    const date = new Date(output);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get the current working directory of a process via lsof
  */
 export function getProcessCwd(pid: number, exec: ExecFn = defaultExec): string | null {
