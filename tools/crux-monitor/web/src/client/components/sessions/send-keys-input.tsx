@@ -8,14 +8,13 @@ import { cn } from "@/lib/cn";
 
 interface SendKeysInputProps {
   paneId: string;
-  contentTimestamp?: number;
 }
 
-export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) {
+export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const sendKeys = useSendKeys();
-  const { data: action, isDetecting } = useActionDetection(paneId, contentTimestamp);
+  const { action, isDetecting, detect } = useActionDetection(paneId);
 
   const handleInputFocus = () => {
     setTimeout(() => {
@@ -82,7 +81,7 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
 
   return (
     <div className="send-keys-bar">
-      {/* Raw key buttons (always visible) */}
+      {/* Raw key buttons + AI detect (always visible) */}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-xs text-text-muted">Keys:</span>
         <button
@@ -130,15 +129,23 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
         >
           Enter
         </button>
+        <button
+          type="button"
+          className="quick-action-btn"
+          onClick={() => detect()}
+          disabled={isDetecting}
+          title="Detect actions with AI"
+        >
+          {isDetecting ? "..." : "\u{1FA84}"}
+        </button>
       </div>
 
       {/* Dynamic AI-detected actions */}
       <DynamicActions
-        action={action ?? { type: "none" }}
+        action={action}
         onQuickAction={handleQuickAction}
         onRawKey={handleRawKey}
         isPending={sendKeys.isPending}
-        isDetecting={isDetecting}
       />
 
       {/* Input row */}
@@ -151,7 +158,7 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
           onKeyDown={handleKeyDown}
           onFocus={handleInputFocus}
           enterKeyHint="send"
-          placeholder={action?.type === "freeform" ? action.placeholder : "Send text to pane..."}
+          placeholder={action.type === "freeform" ? action.placeholder : "Send text to pane..."}
           disabled={sendKeys.isPending}
           className={cn(
             "flex-1 bg-bg-secondary border border-border-default rounded-lg px-3 py-2",
@@ -183,22 +190,12 @@ function DynamicActions({
   onQuickAction,
   onRawKey,
   isPending,
-  isDetecting,
 }: {
   action: PaneAction;
   onQuickAction: (value: string) => void;
   onRawKey: (key: string, label: string) => void;
   isPending: boolean;
-  isDetecting: boolean;
 }) {
-  if (isDetecting) {
-    return (
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-text-muted animate-pulse">Detecting actions...</span>
-      </div>
-    );
-  }
-
   if (action.type === "none") return null;
 
   if (action.type === "yesno") {
