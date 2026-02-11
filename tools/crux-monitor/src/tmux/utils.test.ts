@@ -11,6 +11,7 @@ import {
   getGitBranch,
   getJsonlMtime,
   getProcessCwd,
+  getProcessStartTime,
   getProcessTable,
   getProjectName,
   isClaudeBinary,
@@ -219,6 +220,26 @@ describe("getProcessCwd", () => {
   });
 });
 
+describe("getProcessStartTime", () => {
+  it("parses ps lstart output and returns ISO string", () => {
+    const exec = () => "Wed Feb 11 11:46:36 2026";
+    const result = getProcessStartTime(1234, exec);
+    expect(result).toBe(new Date("Wed Feb 11 11:46:36 2026").toISOString());
+  });
+
+  it("returns null on failure", () => {
+    const exec = () => {
+      throw new Error("ps failed");
+    };
+    expect(getProcessStartTime(1234, exec)).toBeNull();
+  });
+
+  it("returns null on empty output", () => {
+    const exec = () => "";
+    expect(getProcessStartTime(1234, exec)).toBeNull();
+  });
+});
+
 describe("getProjectName", () => {
   it("extracts repo name from SSH remote URL", () => {
     const exec = () => "git@github.com:user/my-repo.git";
@@ -297,7 +318,13 @@ describe("matchProcessesToPanes", () => {
   it("matches claude process whose direct parent is pane_pid", () => {
     const processes: ClaudeProcess[] = [{ pid: 100, ppid: 1234 }];
     const panes: TmuxPane[] = [
-      { pane_id: "%0", pane_pid: 1234, session_name: "main", window_index: 0, pane_index: 0 },
+      {
+        pane_id: "%0",
+        pane_pid: 1234,
+        session_name: "main",
+        window_index: 0,
+        pane_index: 0,
+      },
     ];
     const processTable: ProcessInfo[] = [
       { pid: 1234, ppid: 1, command: "-bash" },
@@ -315,7 +342,13 @@ describe("matchProcessesToPanes", () => {
     // shell (pane_pid=1000) → bun (pid=1500) → claude (pid=2000)
     const processes: ClaudeProcess[] = [{ pid: 2000, ppid: 1500 }];
     const panes: TmuxPane[] = [
-      { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
+      {
+        pane_id: "%0",
+        pane_pid: 1000,
+        session_name: "main",
+        window_index: 0,
+        pane_index: 0,
+      },
     ];
     const processTable: ProcessInfo[] = [
       { pid: 1000, ppid: 1, command: "-bash" },
@@ -335,8 +368,20 @@ describe("matchProcessesToPanes", () => {
       { pid: 200, ppid: 5678 },
     ];
     const panes: TmuxPane[] = [
-      { pane_id: "%0", pane_pid: 1234, session_name: "main", window_index: 0, pane_index: 0 },
-      { pane_id: "%1", pane_pid: 5678, session_name: "work", window_index: 1, pane_index: 0 },
+      {
+        pane_id: "%0",
+        pane_pid: 1234,
+        session_name: "main",
+        window_index: 0,
+        pane_index: 0,
+      },
+      {
+        pane_id: "%1",
+        pane_pid: 5678,
+        session_name: "work",
+        window_index: 1,
+        pane_index: 0,
+      },
     ];
     const processTable: ProcessInfo[] = [
       { pid: 1234, ppid: 1, command: "-bash" },
@@ -354,7 +399,13 @@ describe("matchProcessesToPanes", () => {
   it("returns empty map when no matches", () => {
     const processes: ClaudeProcess[] = [{ pid: 100, ppid: 9999 }];
     const panes: TmuxPane[] = [
-      { pane_id: "%0", pane_pid: 1234, session_name: "main", window_index: 0, pane_index: 0 },
+      {
+        pane_id: "%0",
+        pane_pid: 1234,
+        session_name: "main",
+        window_index: 0,
+        pane_index: 0,
+      },
     ];
     const processTable: ProcessInfo[] = [
       { pid: 1234, ppid: 1, command: "-bash" },
@@ -373,7 +424,13 @@ describe("matchProcessesToPanes", () => {
   it("works with empty process table (falls back to no match)", () => {
     const processes: ClaudeProcess[] = [{ pid: 100, ppid: 1234 }];
     const panes: TmuxPane[] = [
-      { pane_id: "%0", pane_pid: 1234, session_name: "main", window_index: 0, pane_index: 0 },
+      {
+        pane_id: "%0",
+        pane_pid: 1234,
+        session_name: "main",
+        window_index: 0,
+        pane_index: 0,
+      },
     ];
 
     // With empty processTable, direct PPID match still works via paneByPid check

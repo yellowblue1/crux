@@ -34,7 +34,13 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
   fifoReaders: Map<string, MockFifoReader>;
 } {
   const defaultPanes: TmuxPane[] = [
-    { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
+    {
+      pane_id: "%0",
+      pane_pid: 1000,
+      session_name: "main",
+      window_index: 0,
+      pane_index: 0,
+    },
   ];
   const defaultProcesses: ClaudeProcess[] = [{ pid: 2000, ppid: 1000 }];
   const defaultProcessTable: ProcessInfo[] = [
@@ -49,6 +55,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     getProcessTable: () => defaultProcessTable,
     getClaudeProcesses: () => defaultProcesses,
     getProcessCwd: () => "/home/user/project",
+    getProcessStartTime: () => "2023-11-14T22:13:20.000Z",
     getProjectName: () => "my-project",
     getGitBranch: () => "main",
     buildTmuxTarget: (pane) => `${pane.session_name}:${pane.window_index}.${pane.pane_index}`,
@@ -1535,7 +1542,13 @@ describe("SessionManager", () => {
   describe("poll error resilience", () => {
     it("removes stale sessions even when a new pane's creation throws", async () => {
       let currentPanes: TmuxPane[] = [
-        { pane_id: "%0", pane_pid: 1000, session_name: "main", window_index: 0, pane_index: 0 },
+        {
+          pane_id: "%0",
+          pane_pid: 1000,
+          session_name: "main",
+          window_index: 0,
+          pane_index: 0,
+        },
       ];
       let currentProcesses: ClaudeProcess[] = [{ pid: 2000, ppid: 1000 }];
       let currentProcessTable: ProcessInfo[] = [
@@ -1572,7 +1585,13 @@ describe("SessionManager", () => {
 
       // Second poll: pane %0 gone, new pane %1 appears but createSession throws
       currentPanes = [
-        { pane_id: "%1", pane_pid: 1001, session_name: "main", window_index: 0, pane_index: 1 },
+        {
+          pane_id: "%1",
+          pane_pid: 1001,
+          session_name: "main",
+          window_index: 0,
+          pane_index: 1,
+        },
       ];
       currentProcesses = [{ pid: 3000, ppid: 1001 }];
       currentProcessTable = [
