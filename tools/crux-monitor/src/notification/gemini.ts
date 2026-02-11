@@ -111,6 +111,7 @@ export async function generatePaneSummary(
   }
 
   const conversationTail = getConversationTail(conversation);
+  console.log(`[Gemini] Sanitized content tail:\n${conversationTail}\n---`);
 
   const cached = getCachedSummary(conversationTail);
   if (cached !== null) {
