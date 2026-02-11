@@ -136,7 +136,7 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
           disabled={isDetecting}
           title="Detect actions with AI"
         >
-          {isDetecting ? "..." : "\u{1FA84}"}
+          {isDetecting ? "..." : "\u{1F9E0}"}
         </button>
       </div>
 
