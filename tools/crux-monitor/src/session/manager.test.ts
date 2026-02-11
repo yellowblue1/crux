@@ -1316,13 +1316,15 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        // Short delay so the retry timer fires within the test.
+        // After null return, the retry goes through scheduleSummaryTimer.
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
       // First attempt returns null
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
       // Go BUSY then WAITING again
@@ -1332,7 +1334,9 @@ describe("SessionManager", () => {
 
       // Now Gemini will succeed
       geminiResult = "Success summary";
-      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Wait for idle → WAITING → retry timer fires → Gemini called again
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       // Gemini should be called again because hash was NOT cached on null return
       expect(generateSpy).toHaveBeenCalledTimes(2);

@@ -567,6 +567,13 @@ export class SessionManager {
    * Called when pipe-pane receives any output — session is active.
    * Resets idle timer on every data event (both BUSY and WAITING).
    * Summary is preserved internally for cache restoration; API methods filter it.
+   *
+   * NOTE: summary_pending is intentionally NOT reset here. Pipe-pane fires on
+   * all terminal output including user keystrokes (typing, cursor movement).
+   * Resetting summary_pending here would allow false Gemini re-triggers when
+   * the user types and pauses. Instead, summary_pending only resets when
+   * capture-pane detects real content change above the bordered input area
+   * (in checkPaneContent), or via the scheduleSummaryTimer safety net.
    */
   private onPipePaneActivity(paneId: string): void {
     const session = this.sessions.get(paneId);
@@ -574,7 +581,6 @@ export class SessionManager {
 
     if (session.status === "waiting") {
       session.status = "busy";
-      session.summary_pending = false;
       this.cancelSummaryTimer(paneId);
       this.notifyChange();
     }
@@ -608,10 +614,13 @@ export class SessionManager {
         // When pipe-pane is working, both signals fire (pipe-pane first, capture-pane ~1s later).
         // When pipe-pane is broken (writer died silently), capture-pane catches it within 1s.
         if (isContentChanged) {
+          // Real content change above the border → reset summary gate regardless
+          // of current status. This ensures a new summary is generated after
+          // the current activity settles, even if pipe-pane already set BUSY.
+          session.summary_pending = false;
           if (session.status === "waiting") {
             session.status = "busy";
             session.last_activity = new Date().toISOString();
-            session.summary_pending = false;
             this.cancelSummaryTimer(paneId);
             this.notifyChange();
           }
