@@ -1,5 +1,5 @@
 import type { PaneAction, PaneActionsResponse } from "@shared/types";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { actionKeys } from "@/lib/query-keys";
 
 const DEFAULT_ACTION: PaneAction = { type: "none" };
@@ -14,11 +14,13 @@ async function fetchActions(paneId: string): Promise<PaneAction> {
 /**
  * Detects pane actions using Gemini, triggered manually by user click.
  * Returns a `detect` function that the user invokes via the wand button.
- * Results persist until the user triggers detection again.
+ * Results persist until the user triggers detection again or `clear` is called.
  */
 export function useActionDetection(paneId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = actionKeys.detect(paneId);
   const query = useQuery({
-    queryKey: actionKeys.detect(paneId),
+    queryKey,
     queryFn: () => fetchActions(paneId),
     enabled: false,
     staleTime: Number.POSITIVE_INFINITY,
@@ -27,5 +29,6 @@ export function useActionDetection(paneId: string) {
     action: query.data ?? DEFAULT_ACTION,
     isDetecting: query.isFetching,
     detect: () => query.refetch(),
+    clear: () => queryClient.setQueryData(queryKey, DEFAULT_ACTION),
   };
 }

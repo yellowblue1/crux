@@ -15,7 +15,7 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const sendKeys = useSendKeys();
-  const { action, isDetecting, detect } = useActionDetection(paneId);
+  const { action, isDetecting, detect, clear } = useActionDetection(paneId);
 
   // Adjust send-keys-bar position when the virtual keyboard opens/closes
   useEffect(() => {
@@ -54,6 +54,7 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
 
     if (typeOption) {
       // 1) Send raw key to select "Type something", 2) wait, 3) send text
+      clear();
       sendKeys.mutate(
         { paneId, text: typeOption.value, raw: true },
         {
@@ -100,13 +101,14 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
     }
   };
 
-  /** Send text with Enter (y, n, etc.) */
+  /** Send text with Enter (y, n, etc.) and hide action buttons */
   const handleQuickAction = (value: string) => {
     sendKeys.mutate(
       { paneId, text: value },
       {
         onSuccess: () => {
           toast.success(`Sent: ${value}`);
+          clear();
           inputRef.current?.focus();
         },
       },
@@ -194,7 +196,6 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
       <DynamicActions
         action={action}
         onQuickAction={handleQuickAction}
-        onRawKey={handleRawKey}
         isPending={sendKeys.isPending}
       />
 
@@ -244,12 +245,10 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
 function DynamicActions({
   action,
   onQuickAction,
-  onRawKey,
   isPending,
 }: {
   action: PaneAction;
   onQuickAction: (value: string) => void;
-  onRawKey: (key: string, label: string) => void;
   isPending: boolean;
 }) {
   if (action.type === "none") return null;
@@ -279,17 +278,19 @@ function DynamicActions({
   }
 
   if (action.type === "choices") {
+    // Hide "Type something" options — handled automatically by the text input
+    const visibleOptions = action.options.filter((o) => o.autoEnter);
+    if (visibleOptions.length === 0) return null;
+
     return (
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs text-text-muted">Options:</span>
-        {action.options.map((opt) => (
+        {visibleOptions.map((opt) => (
           <button
             key={opt.value}
             type="button"
             className="quick-action-btn"
-            onClick={() =>
-              opt.autoEnter ? onQuickAction(opt.value) : onRawKey(opt.value, opt.label)
-            }
+            onClick={() => onQuickAction(opt.value)}
             disabled={isPending}
           >
             {opt.label}
