@@ -17,6 +17,7 @@ export interface SessionManagerDeps {
   getClaudeProcesses: (processTable: ProcessInfo[]) => ClaudeProcess[];
   getProcessCwd: (pid: number) => string | null;
   getProcessStartTime: (pid: number) => string | null;
+  hasActiveNetworkConnections: (pid: number) => boolean;
   getProjectName: (cwd: string) => string;
   getGitBranch: (cwd: string) => string | null;
   buildTmuxTarget: (pane: TmuxPane) => string;
@@ -93,6 +94,8 @@ export class SessionManager {
       getClaudeProcesses: deps?.getClaudeProcesses ?? tmux.getClaudeProcesses,
       getProcessCwd: deps?.getProcessCwd ?? tmux.getProcessCwd,
       getProcessStartTime: deps?.getProcessStartTime ?? tmux.getProcessStartTime,
+      hasActiveNetworkConnections:
+        deps?.hasActiveNetworkConnections ?? tmux.hasActiveNetworkConnections,
       getProjectName: deps?.getProjectName ?? tmux.getProjectName,
       getGitBranch: deps?.getGitBranch ?? tmux.getGitBranch,
       buildTmuxTarget: deps?.buildTmuxTarget ?? tmux.buildTmuxTarget,
@@ -353,6 +356,13 @@ export class SessionManager {
   private onIdleTimeout(paneId: string): void {
     const session = this.sessions.get(paneId);
     if (!session || session.status !== "busy") return;
+
+    // If the process has active network connections (e.g. API calls),
+    // stay BUSY and re-check after another idle interval.
+    if (this.deps.hasActiveNetworkConnections(session.process_pid)) {
+      this.resetIdleTimer(paneId);
+      return;
+    }
 
     session.status = "waiting";
     session.last_activity = new Date().toISOString();

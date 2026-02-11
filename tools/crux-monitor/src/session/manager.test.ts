@@ -56,6 +56,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     getClaudeProcesses: () => defaultProcesses,
     getProcessCwd: () => "/home/user/project",
     getProcessStartTime: () => "2023-11-14T22:13:20.000Z",
+    hasActiveNetworkConnections: () => false,
     getProjectName: () => "my-project",
     getGitBranch: () => "main",
     buildTmuxTarget: (pane) => `${pane.session_name}:${pane.window_index}.${pane.pane_index}`,
@@ -212,6 +213,91 @@ describe("SessionManager", () => {
       // At 300ms (200ms after last data, past 150ms threshold)
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+  });
+
+  describe("network activity prevents idle transition", () => {
+    it("stays BUSY when network connections are active at idle timeout", async () => {
+      const { deps } = createMockDeps({
+        hasActiveNetworkConnections: () => true,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+      });
+      manager.start();
+
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Wait well past the idle threshold
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Should still be BUSY because network is active
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("transitions to WAITING when network becomes inactive", async () => {
+      let networkActive = true;
+      const { deps } = createMockDeps({
+        hasActiveNetworkConnections: () => networkActive,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+      });
+      manager.start();
+
+      // Wait a bit with network active
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Simulate API call finishing
+      networkActive = false;
+
+      // Wait for the next idle timeout cycle to fire
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("does not trigger summary generation while network is active", async () => {
+      const generateSpy = mock(async () => "test summary");
+      const { deps } = createMockDeps({
+        hasActiveNetworkConnections: () => true,
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        summaryDelayMs: 100,
+      });
+      manager.start();
+
+      // Wait well past both idle and summary thresholds
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Summary should never have been triggered because we never entered WAITING
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("re-checks network activity on each idle timer cycle", async () => {
+      let checkCount = 0;
+      const { deps } = createMockDeps({
+        hasActiveNetworkConnections: () => {
+          checkCount++;
+          return true;
+        },
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should have been checked multiple times (roughly 500/100 = 5 times, allow margin)
+      expect(checkCount).toBeGreaterThanOrEqual(3);
+      expect(manager.getSessions()[0]?.status).toBe("busy");
     });
   });
 

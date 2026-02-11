@@ -150,6 +150,20 @@ export function getProcessCwd(pid: number, exec: ExecFn = defaultExec): string |
 }
 
 /**
+ * Check if a process has active (ESTABLISHED) TCP connections.
+ * Used to detect ongoing API calls that indicate the process is still busy.
+ */
+export function hasActiveNetworkConnections(pid: number, exec: ExecFn = defaultExec): boolean {
+  try {
+    const output = exec(`lsof -i -a -p ${pid} -sTCP:ESTABLISHED`);
+    return output.length > 0;
+  } catch {
+    // lsof exits 1 when no connections found — this is the normal "no activity" case
+    return false;
+  }
+}
+
+/**
  * Encode a CWD path to the Claude projects directory format.
  * Replaces / with - and . with - (keeps leading -)
  * Example: /Users/test/my.project -> -Users-test-my-project

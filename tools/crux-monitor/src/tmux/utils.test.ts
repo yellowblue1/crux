@@ -14,6 +14,7 @@ import {
   getProcessStartTime,
   getProcessTable,
   getProjectName,
+  hasActiveNetworkConnections,
   isClaudeBinary,
   isTmuxAvailable,
   matchProcessesToPanes,
@@ -437,6 +438,26 @@ describe("matchProcessesToPanes", () => {
     const result = matchProcessesToPanes(processes, panes, []);
     expect(result.size).toBe(1);
     expect(result.has("%0")).toBe(true);
+  });
+});
+
+describe("hasActiveNetworkConnections", () => {
+  it("returns true when lsof reports established connections", () => {
+    const exec = () =>
+      "node    2000 user   23u  IPv4 0x1234  0t0  TCP 127.0.0.1:52341->api.anthropic.com:443 (ESTABLISHED)";
+    expect(hasActiveNetworkConnections(2000, exec)).toBe(true);
+  });
+
+  it("returns false when lsof throws (no connections)", () => {
+    const exec = () => {
+      throw new Error("lsof failed");
+    };
+    expect(hasActiveNetworkConnections(2000, exec)).toBe(false);
+  });
+
+  it("returns false when lsof returns empty output", () => {
+    const exec = () => "";
+    expect(hasActiveNetworkConnections(2000, exec)).toBe(false);
   });
 });
 
