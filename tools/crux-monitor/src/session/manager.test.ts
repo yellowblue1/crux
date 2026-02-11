@@ -326,6 +326,77 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("minimum BUSY duration for summary", () => {
+    it("does not trigger summary when BUSY duration is below threshold", async () => {
+      const generateSpy = mock(async () => "test summary");
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        summaryDelayMs: 100,
+        minBusyDurationForSummaryMs: 5000, // 5 seconds — much longer than idle threshold
+      });
+      manager.start();
+
+      // Wait for idle transition + summary delay
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Session should be WAITING but no summary triggered (BUSY was too short)
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+
+    it("triggers summary when BUSY duration exceeds threshold", async () => {
+      const generateSpy = mock(async () => "test summary");
+      const { deps } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 300,
+        summaryDelayMs: 100,
+        minBusyDurationForSummaryMs: 200, // BUSY must last 200ms before summary
+      });
+      manager.start();
+
+      // idle fires at 300ms (BUSY duration = 300ms > 200ms threshold), summary at 400ms
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).toHaveBeenCalled();
+    });
+
+    it("resets BUSY start time on WAITING to BUSY transition", async () => {
+      const generateSpy = mock(async () => "test summary");
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+      });
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        summaryDelayMs: 100,
+        minBusyDurationForSummaryMs: 5000, // long threshold
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Trigger WAITING→BUSY with pipe-pane data (resets busyStartTime)
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // Wait for idle again — BUSY duration is short again, no summary
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+      expect(generateSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("session removal", () => {
     it("removes sessions when process disappears", async () => {
       let hasProcess = true;
@@ -597,6 +668,7 @@ describe("SessionManager", () => {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
         summaryDelayMs: 150,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -622,6 +694,7 @@ describe("SessionManager", () => {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
         summaryDelayMs: 200,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -652,6 +725,7 @@ describe("SessionManager", () => {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
         summaryDelayMs: 200,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -689,6 +763,7 @@ describe("SessionManager", () => {
         idleThresholdMs: 50,
         summaryDelayMs: 50,
         paneCheckIntervalMs: 5000, // Disable pane check to use summaryDelay
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -715,6 +790,7 @@ describe("SessionManager", () => {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
         summaryDelayMs: 50,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -737,6 +813,7 @@ describe("SessionManager", () => {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
         summaryDelayMs: 50,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -762,6 +839,7 @@ describe("SessionManager", () => {
         idleThresholdMs: 30,
         summaryDelayMs: 60, // Close to pane check timing to maximize overlap chance
         paneCheckIntervalMs: 30,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -791,6 +869,7 @@ describe("SessionManager", () => {
         idleThresholdMs: 50,
         summaryDelayMs: 50,
         paneCheckIntervalMs: 5000,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -817,6 +896,7 @@ describe("SessionManager", () => {
         idleThresholdMs: 50,
         summaryDelayMs: 5000, // Intentionally long — should NOT be needed
         paneCheckIntervalMs: 30,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -842,6 +922,7 @@ describe("SessionManager", () => {
         idleThresholdMs: 50,
         summaryDelayMs: 5000,
         paneCheckIntervalMs: 30,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 
@@ -865,6 +946,7 @@ describe("SessionManager", () => {
         idleThresholdMs: 50,
         summaryDelayMs: 150,
         paneCheckIntervalMs: 30,
+        minBusyDurationForSummaryMs: 0,
       });
       manager.start();
 

@@ -44,6 +44,7 @@ export interface SessionManagerOptions {
   summaryDelayMs?: number;
   paneCheckIntervalMs?: number;
   maxNetworkIdleResets?: number;
+  minBusyDurationForSummaryMs?: number;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
@@ -51,6 +52,7 @@ const DEFAULT_IDLE_THRESHOLD_MS = 1000;
 const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
 const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
 const DEFAULT_MAX_NETWORK_IDLE_RESETS = 1; // max times network activity can postpone WAITING
+const DEFAULT_MIN_BUSY_DURATION_FOR_SUMMARY_MS = 2000; // minimum BUSY duration to trigger summary
 
 /** State for a single FIFO-based pipe-pane monitor */
 interface PipePaneState {
@@ -79,6 +81,7 @@ export class SessionManager {
   private summaryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private pipePanes = new Map<string, PipePaneState>();
   private networkIdleResets = new Map<string, number>();
+  private busyStartTimes = new Map<string, number>();
   private deps: SessionManagerDeps;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private paneCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -87,6 +90,7 @@ export class SessionManager {
   private readonly summaryDelayMs: number;
   private readonly paneCheckIntervalMs: number;
   private readonly maxNetworkIdleResets: number;
+  private readonly minBusyDurationForSummaryMs: number;
   private onChangeCallback: (() => void) | null = null;
   private paneActivityCallback: ((paneId: string) => void) | null = null;
 
@@ -121,6 +125,8 @@ export class SessionManager {
     this.summaryDelayMs = options?.summaryDelayMs ?? DEFAULT_SUMMARY_DELAY_MS;
     this.paneCheckIntervalMs = options?.paneCheckIntervalMs ?? DEFAULT_PANE_CHECK_INTERVAL_MS;
     this.maxNetworkIdleResets = options?.maxNetworkIdleResets ?? DEFAULT_MAX_NETWORK_IDLE_RESETS;
+    this.minBusyDurationForSummaryMs =
+      options?.minBusyDurationForSummaryMs ?? DEFAULT_MIN_BUSY_DURATION_FOR_SUMMARY_MS;
   }
 
   /**
@@ -301,6 +307,9 @@ export class SessionManager {
       summaryContentHash: null,
     });
 
+    // Record BUSY start time for minimum duration check
+    this.busyStartTimes.set(paneId, Date.now());
+
     // Set up pipe-pane for real-time activity detection
     this.setupPipePane(paneId);
 
@@ -317,6 +326,7 @@ export class SessionManager {
     this.sessions.delete(paneId);
     this.teardownPipePane(paneId);
     this.networkIdleResets.delete(paneId);
+    this.busyStartTimes.delete(paneId);
     const idleTimer = this.idleTimers.get(paneId);
     if (idleTimer) {
       clearTimeout(idleTimer);
@@ -337,6 +347,7 @@ export class SessionManager {
     this.sessions.clear();
     this.idleTimers.clear();
     this.networkIdleResets.clear();
+    this.busyStartTimes.clear();
     for (const timer of this.summaryTimers.values()) {
       clearTimeout(timer);
     }
@@ -381,6 +392,13 @@ export class SessionManager {
     session.status = "waiting";
     session.last_activity = new Date().toISOString();
     this.notifyChange();
+
+    // Skip summary if the BUSY period was too short (e.g. trivial pane click).
+    const busyStart = this.busyStartTimes.get(paneId);
+    const busyDuration = busyStart != null ? Date.now() - busyStart : 0;
+    if (busyDuration < this.minBusyDurationForSummaryMs) {
+      return;
+    }
 
     // Schedule summary generation after sustained WAITING period.
     // If the session goes BUSY before the timer fires, it gets cancelled.
@@ -598,6 +616,7 @@ export class SessionManager {
     if (session.status === "waiting") {
       session.status = "busy";
       session.summary_pending = false;
+      this.busyStartTimes.set(paneId, Date.now());
       this.cancelSummaryTimer(paneId);
       this.notifyChange();
     }
@@ -633,6 +652,7 @@ export class SessionManager {
             session.status = "busy";
             session.last_activity = new Date().toISOString();
             session.summary_pending = false;
+            this.busyStartTimes.set(paneId, Date.now());
             this.cancelSummaryTimer(paneId);
             this.notifyChange();
           }
