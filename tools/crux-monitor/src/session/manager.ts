@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { extractContentAboveBorder } from "../tmux/border.js";
 import * as tmux from "../tmux/utils.js";
 import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
 
@@ -591,8 +592,11 @@ export class SessionManager {
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
       try {
-        const content = this.deps.capturePaneContent(session.pane_id);
-        if (content === null) continue;
+        const rawContent = this.deps.capturePaneContent(session.pane_id);
+        if (rawContent === null) continue;
+        // Filter out the bordered input region so user typing doesn't
+        // trigger false content-change detections.
+        const content = extractContentAboveBorder(rawContent);
 
         const isStatic =
           session.previousPaneContent !== null && content === session.previousPaneContent;

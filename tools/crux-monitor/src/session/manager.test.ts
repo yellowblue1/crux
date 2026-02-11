@@ -1655,4 +1655,120 @@ describe("SessionManager", () => {
       expect(reader.killSignals).toContain("SIGKILL");
     });
   });
+
+  describe("bordered region filtering in checkPaneContent", () => {
+    const border = "─".repeat(40);
+
+    function makePaneContent(aboveBorder: string, userInput: string): string {
+      return [aboveBorder, border, `❯ ${userInput}`, border, "  [Opus 4.6] 78% context"].join("\n");
+    }
+
+    it("does not transition to BUSY when only bordered input area changes", async () => {
+      let userInput = "Hello";
+      const { deps } = createMockDeps({
+        createFifo: () => false,
+        capturePaneContent: () => makePaneContent("Claude output", userInput),
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Simulate user typing — only the input area changes
+      userInput = "Hello world, this is a long message";
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      // Should still be WAITING because content above border hasn't changed
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("transitions to BUSY when content above border changes", async () => {
+      let aboveContent = "Claude output line 1";
+      const { deps } = createMockDeps({
+        createFifo: () => false,
+        capturePaneContent: () => makePaneContent(aboveContent, "user input"),
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Simulate Claude outputting new content above the border
+      aboveContent = "Claude output line 1\nClaude output line 2";
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("triggers summary when above-border content is static despite input area changes", async () => {
+      let userInput = "Hello";
+      const generateSpy = mock(async () => "Summary text");
+      const { deps } = createMockDeps({
+        createFifo: () => false,
+        capturePaneContent: () => makePaneContent("Static output", userInput),
+        generateSummary: generateSpy,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING + static detection → summary
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // User types, changing only the input area
+      userInput = "Hello world";
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Summary should have been generated (above-border content is static)
+      expect(generateSpy).toHaveBeenCalled();
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("falls back to full content comparison when no border present", async () => {
+      let content = "plain content without borders";
+      const { deps } = createMockDeps({
+        createFifo: () => false,
+        capturePaneContent: () => content,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 100,
+        paneCheckIntervalMs: 30,
+        summaryDelayMs: 5000,
+      });
+      manager.start();
+
+      // Wait for WAITING
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+
+      // Content changes → should trigger BUSY (no border to filter)
+      content = "different content without borders";
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+  });
 });
