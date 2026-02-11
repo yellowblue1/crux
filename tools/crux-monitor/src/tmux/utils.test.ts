@@ -7,6 +7,7 @@ import {
   extractJsonlConversation,
   findSessionJsonlPath,
   getAllTmuxPanes,
+  getAnthropicConnectionCount,
   getClaudeProcesses,
   getGitBranch,
   getJsonlMtime,
@@ -579,6 +580,69 @@ describe("stopPipePane", () => {
     };
 
     expect(stopPipePane("%99", exec)).toBe(false);
+  });
+});
+
+describe("getAnthropicConnectionCount", () => {
+  it("counts ESTABLISHED connections to Anthropic API IP range", () => {
+    const exec = () =>
+      [
+        "COMMAND   PID USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME",
+        "claude  1234 user   10u  IPv4 0x1234      0t0  TCP 192.168.1.5:54321->160.79.104.42:443 (ESTABLISHED)",
+        "claude  1234 user   11u  IPv4 0x1235      0t0  TCP 192.168.1.5:54322->160.79.104.42:443 (ESTABLISHED)",
+        "claude  1234 user   12u  IPv4 0x1236      0t0  TCP 192.168.1.5:54323->160.79.105.10:443 (ESTABLISHED)",
+      ].join("\n");
+
+    expect(getAnthropicConnectionCount(1234, exec)).toBe(3);
+  });
+
+  it("returns 0 when no Anthropic connections exist", () => {
+    const exec = () =>
+      [
+        "COMMAND   PID USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME",
+        "claude  1234 user   10u  IPv4 0x1234      0t0  TCP 192.168.1.5:54321->142.250.80.46:443 (ESTABLISHED)",
+      ].join("\n");
+
+    expect(getAnthropicConnectionCount(1234, exec)).toBe(0);
+  });
+
+  it("returns 0 when exec throws (lsof exit code 1)", () => {
+    const exec = () => {
+      throw new Error("lsof: no matching connections");
+    };
+    expect(getAnthropicConnectionCount(1234, exec)).toBe(0);
+  });
+
+  it("returns 1 for single keep-alive connection", () => {
+    const exec = () =>
+      [
+        "COMMAND   PID USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME",
+        "claude  1234 user   10u  IPv4 0x1234      0t0  TCP 192.168.1.5:54321->160.79.104.42:443 (ESTABLISHED)",
+      ].join("\n");
+
+    expect(getAnthropicConnectionCount(1234, exec)).toBe(1);
+  });
+
+  it("constructs correct lsof command with given PID", () => {
+    let executedCommand = "";
+    const exec = (cmd: string) => {
+      executedCommand = cmd;
+      return "";
+    };
+
+    getAnthropicConnectionCount(9876, exec);
+    expect(executedCommand).toBe("lsof -nP -iTCP -a -p 9876");
+  });
+
+  it("ignores non-ESTABLISHED connections", () => {
+    const exec = () =>
+      [
+        "COMMAND   PID USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME",
+        "claude  1234 user   10u  IPv4 0x1234      0t0  TCP 192.168.1.5:54321->160.79.104.42:443 (CLOSE_WAIT)",
+        "claude  1234 user   11u  IPv4 0x1235      0t0  TCP 192.168.1.5:54322->160.79.104.42:443 (ESTABLISHED)",
+      ].join("\n");
+
+    expect(getAnthropicConnectionCount(1234, exec)).toBe(1);
   });
 });
 

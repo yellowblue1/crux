@@ -59,6 +59,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     getProjectName: () => "my-project",
     getGitBranch: () => "main",
     buildTmuxTarget: (pane) => `${pane.session_name}:${pane.window_index}.${pane.pane_index}`,
+    getAnthropicConnectionCount: () => 0,
     matchProcessesToPanes: (processes, panes, _processTable) => {
       const paneByPid = new Map<number, TmuxPane>();
       for (const pane of panes) paneByPid.set(pane.pane_pid, pane);
@@ -1416,6 +1417,83 @@ describe("SessionManager", () => {
       // (a new attempt may happen if session goes WAITING again, that's expected)
       // The key assertion: the retry timer from the failed attempt was cancelled
       // when going BUSY, not carried over
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+  });
+
+  describe("network-based busy detection", () => {
+    it("stays BUSY when API connections >= 2 at idle timeout", async () => {
+      const { deps } = createMockDeps({
+        getAnthropicConnectionCount: () => 3,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+      });
+      manager.start();
+
+      // Wait well past idle threshold
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should still be BUSY — API connections prevent transition
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+    });
+
+    it("transitions to WAITING when API connections < 2 at idle timeout", async () => {
+      const { deps } = createMockDeps({
+        getAnthropicConnectionCount: () => 1,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Single connection (keep-alive) should not prevent WAITING
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("transitions to WAITING when API connections are 0", async () => {
+      const { deps } = createMockDeps({
+        getAnthropicConnectionCount: () => 0,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+      });
+      manager.start();
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      expect(manager.getSessions()[0]?.status).toBe("waiting");
+    });
+
+    it("eventually transitions to WAITING when API connections drop", async () => {
+      let connectionCount = 3;
+      const { deps } = createMockDeps({
+        getAnthropicConnectionCount: () => connectionCount,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 50,
+      });
+      manager.start();
+
+      // Initially stays BUSY due to active connections
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(manager.getSessions()[0]?.status).toBe("busy");
+
+      // API connections drop
+      connectionCount = 0;
+
+      // Wait for re-armed idle timer to fire and check again
+      await new Promise((resolve) => setTimeout(resolve, 150));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
     });
   });

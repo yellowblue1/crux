@@ -25,6 +25,7 @@ export interface SessionManagerDeps {
     panes: TmuxPane[],
     processTable: ProcessInfo[],
   ) => Map<string, { process: ClaudeProcess; pane: TmuxPane }>;
+  getAnthropicConnectionCount: (pid: number) => number;
   findSessionJsonlPath: (cwd: string) => string | null;
   extractJsonlConversation: (jsonlPath: string) => string | null;
   generateSummary: (content: string) => Promise<string | null>;
@@ -97,6 +98,8 @@ export class SessionManager {
       getGitBranch: deps?.getGitBranch ?? tmux.getGitBranch,
       buildTmuxTarget: deps?.buildTmuxTarget ?? tmux.buildTmuxTarget,
       matchProcessesToPanes: deps?.matchProcessesToPanes ?? tmux.matchProcessesToPanes,
+      getAnthropicConnectionCount:
+        deps?.getAnthropicConnectionCount ?? tmux.getAnthropicConnectionCount,
       findSessionJsonlPath: deps?.findSessionJsonlPath ?? tmux.findSessionJsonlPath,
       extractJsonlConversation: deps?.extractJsonlConversation ?? tmux.extractJsonlConversation,
       generateSummary: deps?.generateSummary ?? (async () => null),
@@ -348,11 +351,19 @@ export class SessionManager {
   }
 
   /**
-   * Called when idle timer expires — transition to WAITING
+   * Called when idle timer expires — transition to WAITING unless API connections are active.
+   * Network socket monitoring prevents false WAITING during thinking/spinner phases
+   * where pipe-pane sees no output but Claude is actively making API calls.
    */
   private onIdleTimeout(paneId: string): void {
     const session = this.sessions.get(paneId);
     if (!session || session.status !== "busy") return;
+
+    const apiConnections = this.deps.getAnthropicConnectionCount(session.process_pid);
+    if (apiConnections >= 2) {
+      this.resetIdleTimer(paneId);
+      return;
+    }
 
     session.status = "waiting";
     session.last_activity = new Date().toISOString();
