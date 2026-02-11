@@ -63,7 +63,7 @@ export function SessionRow({ session, isRead, onMarkAsRead }: SessionRowProps) {
           </Link>
           <button
             type="button"
-            className={cn("action-btn", isRead && "copied")}
+            className={cn("action-btn copy-action", isRead && "copied")}
             title={tmuxCommand}
             onClick={handleCopy}
           >
