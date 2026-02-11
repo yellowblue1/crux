@@ -28,7 +28,6 @@ export interface SessionManagerDeps {
   findSessionJsonlPath: (cwd: string) => string | null;
   extractJsonlConversation: (jsonlPath: string) => string | null;
   generateSummary: (content: string) => Promise<string | null>;
-  getJsonlMtime: (jsonlPath: string) => number | null;
   capturePaneContent: (paneId: string) => string | null;
   capturePaneContentForSummary: (paneId: string) => string | null;
   startPipePane: (paneId: string, target: string) => boolean;
@@ -99,7 +98,6 @@ export class SessionManager {
       findSessionJsonlPath: deps?.findSessionJsonlPath ?? tmux.findSessionJsonlPath,
       extractJsonlConversation: deps?.extractJsonlConversation ?? tmux.extractJsonlConversation,
       generateSummary: deps?.generateSummary ?? (async () => null),
-      getJsonlMtime: deps?.getJsonlMtime ?? tmux.getJsonlMtime,
       capturePaneContent: deps?.capturePaneContent ?? tmux.capturePaneContent,
       capturePaneContentForSummary:
         deps?.capturePaneContentForSummary ?? tmux.capturePaneContentSanitized,
@@ -288,8 +286,6 @@ export class SessionManager {
       previousPaneContent: null,
       summary_pending: false,
       pipePaneActive: false,
-      summaryJsonlMtime: null,
-      summaryContentHash: null,
     });
 
     // Set up pipe-pane for real-time activity detection
@@ -398,7 +394,14 @@ export class SessionManager {
   /**
    * Generate AI summary in background for a waiting session.
    * Uses pane content as primary source, falls back to JSONL conversation.
-   * Guards against duplicate invocations via summary_pending flag.
+   *
+   * Deduplication strategy:
+   * - summary_pending flag prevents multiple calls within the same WAITING period
+   * - Gemini response cache (summary-cache.ts) prevents redundant API calls
+   *   for identical content across WAITING periods
+   * - No content hash guard here — it was unreliable because interactive UI
+   *   elements (dialogs, permission requests) don't update JSONL, and terminal
+   *   content hashing is fragile with variable prompt area sizes
    */
   private async generateSummaryAsync(paneId: string): Promise<void> {
     const session = this.sessions.get(paneId);
@@ -412,31 +415,13 @@ export class SessionManager {
 
     // Try sanitized pane content first, fall back to JSONL
     let content = this.deps.capturePaneContentForSummary(session.pane_id);
-    let contentSource: "pane" | "jsonl" = "pane";
 
     if (!content && session.jsonl_path) {
       content = this.deps.extractJsonlConversation(session.jsonl_path);
-      contentSource = "jsonl";
     }
 
     if (!content) {
       session.summary_pending = false;
-      return;
-    }
-
-    // Content change guard: use JSONL mtime to detect conversation changes.
-    // This is independent of terminal layout — user typing in the prompt area
-    // doesn't change the JSONL file, so it won't trigger redundant Gemini calls.
-    // Falls back to content hash when JSONL is unavailable.
-    const currentMtime = session.jsonl_path ? this.deps.getJsonlMtime(session.jsonl_path) : null;
-    const currentHash = currentMtime ?? simpleHash(content);
-    if (
-      session.summaryContentHash !== null &&
-      currentHash === session.summaryContentHash &&
-      session.summary !== null
-    ) {
-      session.summary_pending = true;
-      this.notifyChange();
       return;
     }
 
@@ -453,16 +438,11 @@ export class SessionManager {
         // never shown. This prevents summaries from getting stuck in active
         // conversations where the session transitions to BUSY during the call.
         current.summary = summary;
-        current.summaryContentHash = currentHash;
-        if (contentSource === "jsonl" && current.jsonl_path) {
-          current.summaryJsonlMtime = this.deps.getJsonlMtime(current.jsonl_path);
-        }
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
       } else if (current.status === "waiting") {
         // Gemini returned null (error, auth failure, empty response, etc.).
-        // Don't update summaryContentHash — don't cache failed results.
         // Schedule retry after summaryDelayMs. Keep summary_pending = true
         // to prevent checkPaneContent() from triggering immediately.
         this.scheduleSummaryTimer(paneId);
@@ -656,16 +636,4 @@ function defaultSpawnFifoReader(path: string): ChildProcess {
   return spawn("cat", [path], {
     stdio: ["ignore", "pipe", "ignore"],
   });
-}
-
-/**
- * Simple string hash for content deduplication (DJB2 algorithm).
- * Not cryptographic — only used to detect content changes.
- */
-function simpleHash(str: string): number {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 33) ^ str.charCodeAt(i);
-  }
-  return hash >>> 0; // Convert to unsigned 32-bit integer
 }

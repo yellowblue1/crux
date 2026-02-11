@@ -65,7 +65,6 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
     findSessionJsonlPath: () => "/home/user/.claude/projects/test/session.jsonl",
     extractJsonlConversation: () => "[user]: Help me fix a bug\n\n[assistant]: I'll help.",
     generateSummary: async () => null,
-    getJsonlMtime: () => 1000,
     capturePaneContent: () => null,
     capturePaneContentForSummary: () => null,
     startPipePane: () => true,
@@ -1165,52 +1164,13 @@ describe("SessionManager", () => {
     });
   });
 
-  describe("content hash guard", () => {
-    it("skips Gemini when pane content unchanged since last summary", async () => {
+  describe("summary generation", () => {
+    it("generates summary once per WAITING period via summary_pending guard", async () => {
       let callCount = 0;
-      const generateSpy2 = mock(async () => `Summary v${++callCount}`);
-      const { deps, fifoReaders } = createMockDeps({
-        generateSummary: generateSpy2,
-        capturePaneContent: () => "static content", // content never changes
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 30,
-        summaryDelayMs: 5000,
-        paneCheckIntervalMs: 30,
-      });
-      manager.start();
-
-      // First cycle: generates summary (hash=null → new hash)
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(generateSpy2).toHaveBeenCalledTimes(1);
-
-      // Go BUSY via pipe-pane data, then idle → WAITING again
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(manager.getSessions()[0]?.status).toBe("busy");
-
-      // Wait for idle → WAITING again + static pane check
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(manager.getSessions()[0]?.status).toBe("waiting");
-
-      // Should NOT have called Gemini again — content hash unchanged
-      expect(generateSpy2).toHaveBeenCalledTimes(1);
-      // Summary should still be available (cached)
-      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
-    });
-
-    it("calls Gemini when JSONL mtime has changed", async () => {
-      let paneContent = "initial pane content";
-      let jsonlMtime = 1000;
-      const generateSpy = mock(async () => `Summary for: ${paneContent}`);
-
-      const { deps, fifoReaders } = createMockDeps({
+      const generateSpy = mock(async () => `Summary v${++callCount}`);
+      const { deps } = createMockDeps({
         generateSummary: generateSpy,
-        capturePaneContent: () => paneContent,
-        getJsonlMtime: () => jsonlMtime,
+        capturePaneContent: () => "static content",
       });
 
       manager = new SessionManager(deps, {
@@ -1221,23 +1181,10 @@ describe("SessionManager", () => {
       });
       manager.start();
 
-      // First summary generation
+      // Should call Gemini exactly once during this WAITING period
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
-
-      // Go BUSY, change content + mtime (Claude wrote new message), then back to WAITING
-      const reader = Array.from(fifoReaders.values())[0];
-      reader?.simulateData("output");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      paneContent = "updated pane content";
-      jsonlMtime = 2000; // JSONL mtime changed — Claude wrote a new message
-
-      // Wait for idle → WAITING + static pane → summary
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Should have called Gemini again because JSONL mtime changed
-      expect(generateSpy).toHaveBeenCalledTimes(2);
+      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
     });
 
     it("retries after Gemini returns null", async () => {
@@ -1272,7 +1219,7 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.summary).toBe("Recovered summary");
     });
 
-    it("does not update content hash when Gemini returns null", async () => {
+    it("calls Gemini again after BUSY→WAITING even if content unchanged", async () => {
       let geminiResult: string | null = null;
       const generateSpy = mock(async () => geminiResult);
 
@@ -1302,7 +1249,7 @@ describe("SessionManager", () => {
       geminiResult = "Success summary";
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Gemini should be called again because hash was NOT cached on null return
+      // Gemini called again — no content hash guard, each WAITING period gets a call
       expect(generateSpy).toHaveBeenCalledTimes(2);
       expect(manager.getSessions()[0]?.summary).toBe("Success summary");
     });
