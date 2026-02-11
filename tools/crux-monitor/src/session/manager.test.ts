@@ -365,13 +365,13 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 50,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
       // Pane content is available, so summary should be generated even without JSONL
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(generateSpy).toHaveBeenCalled();
     });
 
@@ -634,7 +634,7 @@ describe("SessionManager", () => {
       expect(generateSpy).not.toHaveBeenCalled();
     });
 
-    it("does not call generateSummary twice when both timer and pane check trigger", async () => {
+    it("does not call generateSummary twice in the same WAITING period", async () => {
       const generateSpy = mock(async () => {
         // Simulate slow Gemini response
         await new Promise((resolve) => setTimeout(resolve, 200));
@@ -649,15 +649,15 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 60, // Close to pane check timing to maximize overlap chance
+        summaryDelayMs: 60,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // Wait for idle + both triggers to have a chance to fire + Gemini response
+      // Wait for idle + summary delay + Gemini response
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Should only call Gemini once despite two trigger paths
+      // Should only call Gemini once via summary timer
       expect(generateSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -693,7 +693,7 @@ describe("SessionManager", () => {
   });
 
   describe("dual-condition idle detection (pane diff + JSONL idle)", () => {
-    it("triggers summary immediately when pane is static and session is WAITING", async () => {
+    it("triggers summary only after summaryDelay even when pane is static", async () => {
       const generateSpy = mock(async () => "Waiting for approval");
 
       const { deps } = createMockDeps({
@@ -704,15 +704,17 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
-        summaryDelayMs: 5000, // Intentionally long — should NOT be needed
+        summaryDelayMs: 200,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // Wait for: idle threshold (50ms) + pane checks to detect static (2x30ms)
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // After idle threshold (50ms) but before summaryDelay (200ms): no summary yet
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(generateSpy).not.toHaveBeenCalled();
 
-      // Summary should have been triggered via pane check, NOT the 5s delay
+      // After summaryDelay fires: summary generated
+      await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
       expect(manager.getSessions()[0]?.summary).toBe("Waiting for approval");
     });
@@ -737,7 +739,7 @@ describe("SessionManager", () => {
       // Wait well past idle threshold but not near summaryDelay
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Pane content keeps changing, so dual-condition not met — no immediate trigger
+      // Pane content keeps changing, so summary timer keeps getting cancelled
       expect(generateSpy).not.toHaveBeenCalled();
     });
 
@@ -796,31 +798,6 @@ describe("SessionManager", () => {
       // Should NOT have triggered — first check has null previousPaneContent,
       // and subsequent checks return different content
       expect(generateSpy).not.toHaveBeenCalled();
-    });
-
-    it("cancels summary timer when pane check triggers early", async () => {
-      const generateSpy = mock(async () => "Early trigger");
-
-      const { deps } = createMockDeps({
-        generateSummary: generateSpy,
-        capturePaneContent: () => "static content",
-      });
-
-      manager = new SessionManager(deps, {
-        pollIntervalMs: 5000,
-        idleThresholdMs: 50,
-        summaryDelayMs: 300,
-        paneCheckIntervalMs: 30,
-      });
-      manager.start();
-
-      // Wait for pane check to trigger (well before summaryDelay of 300ms)
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(generateSpy).toHaveBeenCalledTimes(1);
-
-      // Wait past summaryDelay — should NOT trigger again
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      expect(generateSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1034,12 +1011,12 @@ describe("SessionManager", () => {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
         paneCheckIntervalMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 100,
       });
       manager.start();
 
-      // Wait for WAITING + static pane → summary generated
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Wait for WAITING + summary delay → summary generated
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
       expect(manager.getSessions()[0]?.summary).toBe("Some summary");
 
@@ -1212,13 +1189,13 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
       // First cycle: generates summary (hash=null → new hash)
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(generateSpy2).toHaveBeenCalledTimes(1);
 
       // Go BUSY via pipe-pane data, then idle → WAITING again
@@ -1227,8 +1204,8 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
-      // Wait for idle → WAITING again + static pane check
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Wait for idle → WAITING again + summary delay
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(manager.getSessions()[0]?.status).toBe("waiting");
 
       // Should NOT have called Gemini again — content hash unchanged
@@ -1249,13 +1226,13 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
       // First summary generation
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
       // Go BUSY, change pane content, then back to WAITING
@@ -1265,8 +1242,8 @@ describe("SessionManager", () => {
 
       paneContent = "updated pane content"; // Content changed
 
-      // Wait for idle → WAITING + static pane → summary
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Wait for idle → WAITING + summary delay
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       // Should have called Gemini again because content changed
       expect(generateSpy).toHaveBeenCalledTimes(2);
@@ -1293,7 +1270,7 @@ describe("SessionManager", () => {
       });
       manager.start();
 
-      // First attempt: pane static triggers immediately, returns null
+      // First attempt: summary delay triggers, returns null
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect(generateSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
       expect(manager.getSessions()[0]?.summary).toBeNull();
@@ -1316,12 +1293,12 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 150,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // First attempt returns null
+      // First attempt returns null (idle 30ms + delay 150ms = ~180ms)
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
@@ -1332,7 +1309,7 @@ describe("SessionManager", () => {
 
       // Now Gemini will succeed
       geminiResult = "Success summary";
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Gemini should be called again because hash was NOT cached on null return
       expect(generateSpy).toHaveBeenCalledTimes(2);
@@ -1356,13 +1333,13 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // Wait for WAITING + pane static → Gemini call starts
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Wait for WAITING + summary delay → Gemini call starts
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
       // Session goes BUSY while Gemini is still processing
@@ -1395,13 +1372,13 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 200,
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      // First attempt fails, retry scheduled
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // First attempt fails, retry scheduled (idle 30ms + delay 100ms = ~130ms)
+      await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
       // Go BUSY (cancels retry timer via onPipePaneActivity → cancelSummaryTimer)
@@ -1455,12 +1432,12 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 30,
-        summaryDelayMs: 5000,
+        summaryDelayMs: 100,
         paneCheckIntervalMs: 30,
       });
       manager.start();
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       const sessions = manager.getSessions();
       expect(sessions[0]?.status).toBe("waiting");

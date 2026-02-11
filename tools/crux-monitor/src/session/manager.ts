@@ -46,7 +46,7 @@ export interface SessionManagerOptions {
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 const DEFAULT_IDLE_THRESHOLD_MS = 1000;
-const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
+const DEFAULT_SUMMARY_DELAY_MS = 3_000; // 3 seconds debounce after entering WAITING
 const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
 
 /** State for a single FIFO-based pipe-pane monitor */
@@ -358,14 +358,16 @@ export class SessionManager {
     session.last_activity = new Date().toISOString();
     this.notifyChange();
 
-    // Schedule summary generation after sustained WAITING period.
-    // If the session goes BUSY before the timer fires, it gets cancelled.
+    // Schedule summary generation after debounce period.
+    // This is the sole trigger path for summaries — if the session goes
+    // BUSY before the timer fires, it gets cancelled and reset on next WAITING.
     this.scheduleSummaryTimer(paneId);
   }
 
   /**
-   * Schedule a summary generation after a delay.
-   * Only fires if the session is still WAITING when the timer expires.
+   * Schedule a summary generation after a debounce delay.
+   * This is the sole trigger for Gemini calls — fires only if the session
+   * is still WAITING when the timer expires. Cancelled on BUSY transition.
    */
   private scheduleSummaryTimer(paneId: string): void {
     this.cancelSummaryTimer(paneId);
@@ -406,8 +408,6 @@ export class SessionManager {
     if (!session) return;
 
     // Atomic guard: if already pending, skip. Otherwise claim the slot.
-    // This prevents duplicate Gemini calls when both the summary delay timer
-    // and checkPaneContent trigger generateSummaryAsync near-simultaneously.
     if (session.summary_pending) return;
     session.summary_pending = true;
 
@@ -460,8 +460,7 @@ export class SessionManager {
       } else if (current.status === "waiting") {
         // Gemini returned null (error, auth failure, empty response, etc.).
         // Don't update summaryContentHash — don't cache failed results.
-        // Schedule retry after summaryDelayMs. Keep summary_pending = true
-        // to prevent checkPaneContent() from triggering immediately.
+        // Schedule retry after summaryDelayMs.
         this.scheduleSummaryTimer(paneId);
       }
     } catch {
@@ -585,8 +584,7 @@ export class SessionManager {
 
   /**
    * Check pane content for all sessions.
-   * Always detects content changes for WAITING → BUSY transition (redundant with pipe-pane).
-   * Also checks for static screen to trigger summary generation.
+   * Detects content changes for WAITING → BUSY transition (redundant with pipe-pane).
    */
   private checkPaneContent(): void {
     for (const [paneId, session] of this.sessions) {
@@ -594,13 +592,11 @@ export class SessionManager {
         const content = this.deps.capturePaneContent(session.pane_id);
         if (content === null) continue;
 
-        const isStatic =
-          session.previousPaneContent !== null && content === session.previousPaneContent;
         const isContentChanged =
           session.previousPaneContent !== null && content !== session.previousPaneContent;
         session.previousPaneContent = content;
 
-        // Content change detection: always active as redundant signal alongside pipe-pane.
+        // Content change detection: redundant signal alongside pipe-pane.
         // When pipe-pane is working, both signals fire (pipe-pane first, capture-pane ~1s later).
         // When pipe-pane is broken (writer died silently), capture-pane catches it within 1s.
         if (isContentChanged) {
@@ -613,13 +609,6 @@ export class SessionManager {
           }
           this.resetIdleTimer(paneId);
           this.paneActivityCallback?.(paneId);
-          continue;
-        }
-
-        // Dual-condition: pane static AND WAITING → trigger summary immediately
-        if (isStatic && session.status === "waiting" && !session.summary_pending) {
-          this.cancelSummaryTimer(paneId);
-          this.generateSummaryAsync(paneId);
         }
       } catch {
         // Best effort — skip this pane and continue with others
