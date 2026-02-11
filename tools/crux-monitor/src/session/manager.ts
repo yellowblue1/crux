@@ -50,7 +50,7 @@ const DEFAULT_POLL_INTERVAL_MS = 5000;
 const DEFAULT_IDLE_THRESHOLD_MS = 1000;
 const DEFAULT_SUMMARY_DELAY_MS = 10_000; // 10 seconds of sustained WAITING (fallback)
 const DEFAULT_PANE_CHECK_INTERVAL_MS = 1000; // 1 second pane diff polling
-const DEFAULT_MAX_NETWORK_IDLE_RESETS = 10; // max times network activity can postpone WAITING
+const DEFAULT_MAX_NETWORK_IDLE_RESETS = 1; // max times network activity can postpone WAITING
 
 /** State for a single FIFO-based pipe-pane monitor */
 interface PipePaneState {
