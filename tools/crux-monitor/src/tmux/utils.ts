@@ -432,21 +432,6 @@ export function getJsonlMtime(jsonlPath: string): number | null {
 }
 
 /**
- * Count active TCP connections to Anthropic API for a Claude process.
- * Uses lsof to check for ESTABLISHED connections to 160.79.104.0/23.
- * Returns the count of API connections (0 = likely idle, 2+ = definitely busy).
- */
-export function getAnthropicConnectionCount(pid: number, exec: ExecFn = defaultExec): number {
-  try {
-    const output = exec(`lsof -nP -iTCP -a -p ${pid}`);
-    const matches = output.match(/->160\.79\.10[4-5]\.\d+:\d+.*ESTABLISHED/g);
-    return matches ? matches.length : 0;
-  } catch {
-    return 0;
-  }
-}
-
-/**
  * Match Claude processes to tmux panes by walking the process tree.
  * For each Claude process, walks up the PPID chain to find an ancestor
  * that is a tmux pane's initial process (pane_pid).
