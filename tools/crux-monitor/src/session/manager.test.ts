@@ -1202,13 +1202,15 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
     });
 
-    it("calls Gemini when pane content has changed", async () => {
+    it("calls Gemini when JSONL mtime has changed", async () => {
       let paneContent = "initial pane content";
+      let jsonlMtime = 1000;
       const generateSpy = mock(async () => `Summary for: ${paneContent}`);
 
       const { deps, fifoReaders } = createMockDeps({
         generateSummary: generateSpy,
         capturePaneContent: () => paneContent,
+        getJsonlMtime: () => jsonlMtime,
       });
 
       manager = new SessionManager(deps, {
@@ -1223,17 +1225,18 @@ describe("SessionManager", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
-      // Go BUSY, change pane content, then back to WAITING
+      // Go BUSY, change content + mtime (Claude wrote new message), then back to WAITING
       const reader = Array.from(fifoReaders.values())[0];
       reader?.simulateData("output");
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      paneContent = "updated pane content"; // Content changed
+      paneContent = "updated pane content";
+      jsonlMtime = 2000; // JSONL mtime changed — Claude wrote a new message
 
       // Wait for idle → WAITING + static pane → summary
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Should have called Gemini again because content changed
+      // Should have called Gemini again because JSONL mtime changed
       expect(generateSpy).toHaveBeenCalledTimes(2);
     });
 

@@ -424,11 +424,12 @@ export class SessionManager {
       return;
     }
 
-    // Content hash guard: skip Gemini call if content hasn't changed since last summary.
-    // Hash only the non-prompt portion (skip bottom lines) so that user typing
-    // in the prompt area doesn't invalidate the cache and trigger redundant calls.
-    // The full content (including prompt area) is still sent to Gemini.
-    const currentHash = simpleHash(skipBottomLines(content));
+    // Content change guard: use JSONL mtime to detect conversation changes.
+    // This is independent of terminal layout — user typing in the prompt area
+    // doesn't change the JSONL file, so it won't trigger redundant Gemini calls.
+    // Falls back to content hash when JSONL is unavailable.
+    const currentMtime = session.jsonl_path ? this.deps.getJsonlMtime(session.jsonl_path) : null;
+    const currentHash = currentMtime ?? simpleHash(content);
     if (
       session.summaryContentHash !== null &&
       currentHash === session.summaryContentHash &&
