@@ -40,6 +40,7 @@ function createMockDeps(overrides: Partial<SessionManagerDeps> = {}): {
       session_name: "main",
       window_index: 0,
       pane_index: 0,
+      window_activity: 1700000000,
     },
   ];
   const defaultProcesses: ClaudeProcess[] = [{ pid: 2000, ppid: 1000 }];
@@ -120,6 +121,108 @@ describe("SessionManager", () => {
       expect(sessions[0].git_branch).toBe("main");
       expect(sessions[0].status).toBe("busy");
       expect(sessions[0].tmux_target).toBe("main:0.0");
+    });
+  });
+
+  describe("last_activity initialization", () => {
+    it("uses tmux window_activity as last_activity when available", () => {
+      const activityTime = 1700000000; // Unix timestamp
+      const { deps } = createMockDeps({
+        getAllTmuxPanes: () => [
+          {
+            pane_id: "%0",
+            pane_pid: 1000,
+            session_name: "main",
+            window_index: 0,
+            pane_index: 0,
+            window_activity: activityTime,
+          },
+        ],
+      });
+
+      manager = new SessionManager(deps);
+      manager.start();
+
+      const sessions = manager.getSessions();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].last_activity).toBe(new Date(activityTime * 1000).toISOString());
+    });
+
+    it("falls back to process start time when window_activity is 0", () => {
+      const { deps } = createMockDeps({
+        getAllTmuxPanes: () => [
+          {
+            pane_id: "%0",
+            pane_pid: 1000,
+            session_name: "main",
+            window_index: 0,
+            pane_index: 0,
+            window_activity: 0,
+          },
+        ],
+        getProcessStartTime: () => "2023-11-14T22:13:20.000Z",
+      });
+
+      manager = new SessionManager(deps);
+      manager.start();
+
+      const sessions = manager.getSessions();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].last_activity).toBe("2023-11-14T22:13:20.000Z");
+    });
+
+    it("sorts multiple sessions by window_activity (most recently active first)", () => {
+      const panes: TmuxPane[] = [
+        {
+          pane_id: "%0",
+          pane_pid: 1000,
+          session_name: "main",
+          window_index: 0,
+          pane_index: 0,
+          window_activity: 1700000000,
+        },
+        {
+          pane_id: "%1",
+          pane_pid: 2000,
+          session_name: "work",
+          window_index: 1,
+          pane_index: 0,
+          window_activity: 1700003600,
+        },
+      ];
+      const processes: ClaudeProcess[] = [
+        { pid: 1001, ppid: 1000 },
+        { pid: 2001, ppid: 2000 },
+      ];
+      const processTable: ProcessInfo[] = [
+        { pid: 1000, ppid: 1, command: "-bash" },
+        { pid: 1001, ppid: 1000, command: "claude" },
+        { pid: 2000, ppid: 1, command: "-bash" },
+        { pid: 2001, ppid: 2000, command: "claude" },
+      ];
+
+      const { deps } = createMockDeps({
+        getAllTmuxPanes: () => panes,
+        getClaudeProcesses: () => processes,
+        getProcessTable: () => processTable,
+        getProcessCwd: (pid) => `/home/user/project-${pid === 1001 ? "a" : "b"}`,
+        // Process start times are reversed: project-a started LATER
+        getProcessStartTime: (pid) => {
+          if (pid === 1001) return "2023-11-14T22:00:00.000Z";
+          if (pid === 2001) return "2023-11-14T21:00:00.000Z";
+          return null;
+        },
+      });
+
+      manager = new SessionManager(deps);
+      manager.start();
+
+      const sessions = manager.getSessions();
+      expect(sessions).toHaveLength(2);
+      // Should sort by window_activity, not process start time
+      // %1 (window_activity=1700003600) first, %0 (window_activity=1700000000) second
+      expect(sessions[0].pane_id).toBe("%1");
+      expect(sessions[1].pane_id).toBe("%0");
     });
   });
 
@@ -1431,6 +1534,7 @@ describe("SessionManager", () => {
           session_name: "main",
           window_index: 0,
           pane_index: 0,
+          window_activity: 1700000000,
         },
       ];
       let currentProcesses: ClaudeProcess[] = [{ pid: 2000, ppid: 1000 }];
@@ -1474,6 +1578,7 @@ describe("SessionManager", () => {
           session_name: "main",
           window_index: 0,
           pane_index: 1,
+          window_activity: 1700000000,
         },
       ];
       currentProcesses = [{ pid: 3000, ppid: 1001 }];

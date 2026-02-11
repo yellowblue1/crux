@@ -269,7 +269,9 @@ export class SessionManager {
       status: "busy",
       summary: null,
       tmux_target: this.deps.buildTmuxTarget(pane),
-      last_activity: this.deps.getProcessStartTime(processPid) ?? new Date().toISOString(),
+      last_activity: pane.window_activity
+        ? new Date(pane.window_activity * 1000).toISOString()
+        : (this.deps.getProcessStartTime(processPid) ?? new Date().toISOString()),
       previousPaneContent: null,
       summary_pending: false,
       pipePaneActive: false,

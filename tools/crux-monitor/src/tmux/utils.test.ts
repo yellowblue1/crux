@@ -34,7 +34,8 @@ describe("isTmuxAvailable", () => {
 
 describe("getAllTmuxPanes", () => {
   it("parses tmux list-panes output correctly", () => {
-    const exec = () => "%0 1234 main 0 0\n%1 5678 work 1 0\n%2 9012 work 1 1";
+    const exec = () =>
+      "%0 1234 main 0 0 1700000000\n%1 5678 work 1 0 1700003600\n%2 9012 work 1 1 1700007200";
     const panes = getAllTmuxPanes(exec);
 
     expect(panes).toHaveLength(3);
@@ -44,6 +45,7 @@ describe("getAllTmuxPanes", () => {
       session_name: "main",
       window_index: 0,
       pane_index: 0,
+      window_activity: 1700000000,
     });
     expect(panes[1]).toEqual({
       pane_id: "%1",
@@ -51,6 +53,7 @@ describe("getAllTmuxPanes", () => {
       session_name: "work",
       window_index: 1,
       pane_index: 0,
+      window_activity: 1700003600,
     });
   });
 
@@ -62,7 +65,7 @@ describe("getAllTmuxPanes", () => {
   });
 
   it("skips malformed lines", () => {
-    const exec = () => "%0 1234 main 0 0\nbadline\n%1 5678 work 1 0";
+    const exec = () => "%0 1234 main 0 0 1700000000\nbadline\n%1 5678 work 1 0 1700003600";
     const panes = getAllTmuxPanes(exec);
     expect(panes).toHaveLength(2);
   });
@@ -277,6 +280,7 @@ describe("buildTmuxTarget", () => {
       session_name: "main",
       window_index: 2,
       pane_index: 1,
+      window_activity: 1700000000,
     };
     expect(buildTmuxTarget(pane)).toBe("main:2.1");
   });
@@ -320,6 +324,7 @@ describe("matchProcessesToPanes", () => {
         session_name: "main",
         window_index: 0,
         pane_index: 0,
+        window_activity: 1700000000,
       },
     ];
     const processTable: ProcessInfo[] = [
@@ -344,6 +349,7 @@ describe("matchProcessesToPanes", () => {
         session_name: "main",
         window_index: 0,
         pane_index: 0,
+        window_activity: 1700000000,
       },
     ];
     const processTable: ProcessInfo[] = [
@@ -370,6 +376,7 @@ describe("matchProcessesToPanes", () => {
         session_name: "main",
         window_index: 0,
         pane_index: 0,
+        window_activity: 1700000000,
       },
       {
         pane_id: "%1",
@@ -377,6 +384,7 @@ describe("matchProcessesToPanes", () => {
         session_name: "work",
         window_index: 1,
         pane_index: 0,
+        window_activity: 1700003600,
       },
     ];
     const processTable: ProcessInfo[] = [
@@ -401,6 +409,7 @@ describe("matchProcessesToPanes", () => {
         session_name: "main",
         window_index: 0,
         pane_index: 0,
+        window_activity: 1700000000,
       },
     ];
     const processTable: ProcessInfo[] = [
@@ -426,6 +435,7 @@ describe("matchProcessesToPanes", () => {
         session_name: "main",
         window_index: 0,
         pane_index: 0,
+        window_activity: 1700000000,
       },
     ];
 

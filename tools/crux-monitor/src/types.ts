@@ -25,6 +25,7 @@ export interface TmuxPane {
   session_name: string;
   window_index: number;
   pane_index: number;
+  window_activity: number;
 }
 
 export interface ClaudeProcess {

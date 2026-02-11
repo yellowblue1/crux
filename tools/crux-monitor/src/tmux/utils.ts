@@ -42,7 +42,7 @@ export function isTmuxAvailable(exec: ExecFn = defaultExec): boolean {
 export function getAllTmuxPanes(exec: ExecFn = defaultExec): TmuxPane[] {
   try {
     const output = exec(
-      "tmux list-panes -a -F '#{pane_id} #{pane_pid} #{session_name} #{window_index} #{pane_index}'",
+      "tmux list-panes -a -F '#{pane_id} #{pane_pid} #{session_name} #{window_index} #{pane_index} #{window_activity}'",
     );
     return output
       .split("\n")
@@ -56,6 +56,7 @@ export function getAllTmuxPanes(exec: ExecFn = defaultExec): TmuxPane[] {
           session_name: parts[2],
           window_index: Number.parseInt(parts[3], 10),
           pane_index: Number.parseInt(parts[4], 10),
+          window_activity: Number.parseInt(parts[5], 10) || 0,
         };
       })
       .filter((p): p is TmuxPane => p !== null && !Number.isNaN(p.pane_pid));
