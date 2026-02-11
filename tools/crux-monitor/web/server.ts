@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { serveStatic } from "hono/bun";
 import { getGcpProject } from "../src/notification/config";
 import { generatePaneSummary, getAccessToken } from "../src/notification/gemini";
+import { detectPaneActions } from "../src/notification/gemini-actions";
 import { SessionManager } from "../src/session/manager";
+import { sanitizePaneContent } from "../src/tmux/sanitize";
 import { capturePaneContentEscaped, sendKeys, sendRawKey } from "../src/tmux/utils";
 import { type AppType, createApp, type SseClient } from "./server-app";
 
@@ -111,6 +113,10 @@ const app = createApp(
     sendKeys: (paneId, text) => sendKeys(paneId, text),
     sendRawKey: (paneId, key) => sendRawKey(paneId, key),
     capturePaneContent: capturePaneContentEscaped,
+    detectPaneActions: async (rawContent: string) => {
+      const sanitized = sanitizePaneContent(rawContent);
+      return detectPaneActions(sanitized);
+    },
     getAccessToken,
     getGcpProject,
     onSseConnect: (client) => {
