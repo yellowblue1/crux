@@ -1219,7 +1219,70 @@ describe("SessionManager", () => {
       expect(manager.getSessions()[0]?.summary).toBe("Recovered summary");
     });
 
-    it("calls Gemini again after BUSY→WAITING even if content unchanged", async () => {
+    it("skips Gemini when conversation area unchanged across WAITING periods", async () => {
+      let callCount = 0;
+      const generateSpy = mock(async () => `Summary v${++callCount}`);
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => "same pane content", // content never changes
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First WAITING period → Gemini called
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Go BUSY then WAITING again with same content
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should NOT call Gemini again — conversation area hash unchanged
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getSessions()[0]?.summary).toBe("Summary v1");
+    });
+
+    it("calls Gemini when conversation area changes", async () => {
+      let paneContent = "initial conversation content";
+      const generateSpy = mock(async () => `Summary for: ${paneContent}`);
+
+      const { deps, fifoReaders } = createMockDeps({
+        generateSummary: generateSpy,
+        capturePaneContent: () => paneContent,
+      });
+
+      manager = new SessionManager(deps, {
+        pollIntervalMs: 5000,
+        idleThresholdMs: 30,
+        summaryDelayMs: 5000,
+        paneCheckIntervalMs: 30,
+      });
+      manager.start();
+
+      // First summary
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(generateSpy).toHaveBeenCalledTimes(1);
+
+      // Go BUSY, change content, then WAITING
+      const reader = Array.from(fifoReaders.values())[0];
+      reader?.simulateData("output");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      paneContent = "updated conversation content";
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Should call Gemini because conversation area hash changed
+      expect(generateSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries after null even with same content hash", async () => {
       let geminiResult: string | null = null;
       const generateSpy = mock(async () => geminiResult);
 
@@ -1236,7 +1299,7 @@ describe("SessionManager", () => {
       });
       manager.start();
 
-      // First attempt returns null
+      // First attempt returns null → hash NOT cached
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(generateSpy).toHaveBeenCalledTimes(1);
 
@@ -1245,11 +1308,10 @@ describe("SessionManager", () => {
       reader?.simulateData("output");
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Now Gemini will succeed
+      // Now Gemini will succeed — hash should not block since null wasn't cached
       geminiResult = "Success summary";
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Gemini called again — no content hash guard, each WAITING period gets a call
       expect(generateSpy).toHaveBeenCalledTimes(2);
       expect(manager.getSessions()[0]?.summary).toBe("Success summary");
     });

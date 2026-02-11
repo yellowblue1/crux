@@ -286,6 +286,7 @@ export class SessionManager {
       previousPaneContent: null,
       summary_pending: false,
       pipePaneActive: false,
+      summaryContentHash: null,
     });
 
     // Set up pipe-pane for real-time activity detection
@@ -397,11 +398,10 @@ export class SessionManager {
    *
    * Deduplication strategy:
    * - summary_pending flag prevents multiple calls within the same WAITING period
-   * - Gemini response cache (summary-cache.ts) prevents redundant API calls
-   *   for identical content across WAITING periods
-   * - No content hash guard here — it was unreliable because interactive UI
-   *   elements (dialogs, permission requests) don't update JSONL, and terminal
-   *   content hashing is fragile with variable prompt area sizes
+   * - Content hash guard (skipBottomLines) prevents redundant calls across
+   *   WAITING periods when only the prompt area changed (user typing).
+   *   The hash key excludes the bottom lines; the full content (including
+   *   prompt area) is sent to Gemini for interactive element detection.
    */
   private async generateSummaryAsync(paneId: string): Promise<void> {
     const session = this.sessions.get(paneId);
@@ -425,6 +425,22 @@ export class SessionManager {
       return;
     }
 
+    // Content hash guard: skip Gemini call if the conversation area hasn't
+    // changed. Hash only the non-prompt portion (skipBottomLines) so that
+    // user typing in the prompt doesn't trigger redundant calls.
+    // The full content (including prompt area) is still sent to Gemini
+    // when the hash differs, so interactive UI elements are visible.
+    const currentHash = simpleHash(skipBottomLines(content));
+    if (
+      session.summaryContentHash !== null &&
+      currentHash === session.summaryContentHash &&
+      session.summary !== null
+    ) {
+      session.summary_pending = true;
+      this.notifyChange();
+      return;
+    }
+
     try {
       const summary = await this.deps.generateSummary(content);
       const current = this.sessions.get(paneId);
@@ -438,11 +454,13 @@ export class SessionManager {
         // never shown. This prevents summaries from getting stuck in active
         // conversations where the session transitions to BUSY during the call.
         current.summary = summary;
+        current.summaryContentHash = currentHash;
         // Keep summary_pending = true to prevent re-triggering in the same
         // WAITING period. It resets to false when the session goes BUSY.
         this.notifyChange();
       } else if (current.status === "waiting") {
         // Gemini returned null (error, auth failure, empty response, etc.).
+        // Don't update summaryContentHash — don't cache failed results.
         // Schedule retry after summaryDelayMs. Keep summary_pending = true
         // to prevent checkPaneContent() from triggering immediately.
         this.scheduleSummaryTimer(paneId);
@@ -636,4 +654,16 @@ function defaultSpawnFifoReader(path: string): ChildProcess {
   return spawn("cat", [path], {
     stdio: ["ignore", "pipe", "ignore"],
   });
+}
+
+/**
+ * Simple string hash for content deduplication (DJB2 algorithm).
+ * Not cryptographic — only used to detect content changes.
+ */
+function simpleHash(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return hash >>> 0;
 }

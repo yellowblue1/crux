@@ -17,6 +17,7 @@ export interface SessionState {
   previousPaneContent: string | null;
   summary_pending: boolean;
   pipePaneActive: boolean;
+  summaryContentHash: number | null;
 }
 
 export interface TmuxPane {
