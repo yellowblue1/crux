@@ -72,6 +72,9 @@ export function SendKeysInput({ paneId, contentTimestamp }: SendKeysInputProps) 
         onSuccess: () => {
           toast.success(`Sent: ${label}`);
           inputRef.current?.focus();
+          setTimeout(() => {
+            inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 100);
         },
       },
     );
