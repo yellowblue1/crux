@@ -51,16 +51,18 @@ describe("sanitize", () => {
       expect(stripPromptArea("")).toBe("");
     });
 
-    it("strips prompt area even without top border (fallback to ❯ line)", () => {
+    it("preserves selection UI where ❯ is a selection indicator (no ╭ border)", () => {
       const content = [
         "Conversation content above",
-        "More content here",
-        "│ ❯ some input │",
-        "╰──────────────────────────────────────╯",
+        "Do you want to proceed?",
+        " ❯ 1. Yes",
+        "   2. No",
+        "",
+        " Esc to cancel",
       ].join("\n");
 
-      const result = stripPromptArea(content);
-      expect(result).toBe(["Conversation content above", "More content here"].join("\n"));
+      // No ╭ border near ❯ — this is a selection UI, not the input prompt
+      expect(stripPromptArea(content)).toBe(content);
     });
 
     it("only scans the last 20 lines for prompt area", () => {

@@ -30,9 +30,11 @@ const ANSI_RE = new RegExp(
  *   ╰───────────────────────────╯
  *   status bar...
  *
- * This function finds the input box by looking for the ❯ (U+276F) prompt
- * marker in the last N lines, then strips everything from the top border
- * (╭) downward. Returns content unchanged if no prompt area is found.
+ * This function finds the input box by looking for BOTH the ❯ (U+276F) prompt
+ * marker AND a ╭ top border in the last N lines. Both must be present to
+ * identify the input prompt — this avoids stripping selection UIs where ❯
+ * appears as a selection indicator without a ╭ border.
+ * Returns content unchanged if no bordered prompt area is found.
  */
 export function stripPromptArea(content: string): string {
   const lines = content.split("\n");
@@ -42,19 +44,20 @@ export function stripPromptArea(content: string): string {
   for (let i = lines.length - 1; i >= scanStart; i--) {
     if (!lines[i].includes("❯")) continue;
 
-    // Found prompt marker — look backwards for the top border (╭)
-    let stripFrom = i;
+    // Found prompt marker — look backwards for the top border (╭).
+    // Only strip if a ╭ border is found: this distinguishes the input
+    // prompt box from selection UIs (which use ❯ without a box border).
     for (let j = i - 1; j >= scanStart; j--) {
       if (lines[j].includes("╭")) {
-        stripFrom = j;
-        break;
+        return lines.slice(0, j).join("\n").trimEnd();
       }
     }
 
-    return lines.slice(0, stripFrom).join("\n").trimEnd();
+    // No ╭ border found — this ❯ is a selection indicator, not the input prompt.
+    // Continue scanning for another ❯ higher up (unlikely but safe).
   }
 
-  // No prompt area found — return as-is
+  // No bordered prompt area found — return as-is
   return content;
 }
 
