@@ -48,6 +48,34 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
     const trimmed = value.trim();
     if (!trimmed) return;
 
+    // If choices are shown with a "Type something" option, select it first
+    const typeOption =
+      action.type === "choices" ? action.options.find((o) => !o.autoEnter) : undefined;
+
+    if (typeOption) {
+      // 1) Send raw key to select "Type something", 2) wait, 3) send text
+      sendKeys.mutate(
+        { paneId, text: typeOption.value, raw: true },
+        {
+          onSuccess: () => {
+            setTimeout(() => {
+              sendKeys.mutate(
+                { paneId, text: trimmed },
+                {
+                  onSuccess: () => {
+                    setText("");
+                    inputRef.current?.focus();
+                    toast.success(`Sent: ${trimmed}`);
+                  },
+                },
+              );
+            }, 500);
+          },
+        },
+      );
+      return;
+    }
+
     sendKeys.mutate(
       { paneId, text: trimmed },
       {
@@ -180,7 +208,13 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
           onKeyDown={handleKeyDown}
           onFocus={handleInputFocus}
           enterKeyHint="send"
-          placeholder={action.type === "freeform" ? action.placeholder : "Send text to pane..."}
+          placeholder={
+            action.type === "freeform"
+              ? action.placeholder
+              : action.type === "choices" && action.options.some((o) => !o.autoEnter)
+                ? "Type here (auto-selects 'Type something')"
+                : "Send text to pane..."
+          }
           disabled={sendKeys.isPending}
           className={cn(
             "flex-1 bg-bg-secondary border border-border-default rounded-lg px-3 py-2",
