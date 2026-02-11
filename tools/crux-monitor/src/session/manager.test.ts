@@ -511,7 +511,7 @@ describe("SessionManager", () => {
       manager = new SessionManager(deps, {
         pollIntervalMs: 5000,
         idleThresholdMs: 50,
-        summaryDelayMs: 200,
+        summaryDelayMs: 300,
       });
       manager.start();
 
@@ -524,7 +524,8 @@ describe("SessionManager", () => {
       reader?.simulateData("output");
       expect(manager.getSessions()[0]?.status).toBe("busy");
 
-      // Wait past the original summary delay
+      // Wait past the original summary delay but before second cycle's summary
+      // (second cycle: idle at ~150ms + summaryDelay 300ms = fires at ~450ms)
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       // Gemini should NOT have been called — the timer was cancelled
