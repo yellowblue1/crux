@@ -1,6 +1,8 @@
+import type { PaneAction } from "@shared/types";
 import { Send } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useActionDetection } from "@/hooks/use-action-detection";
 import { useSendKeys } from "@/hooks/use-send-keys";
 import { cn } from "@/lib/cn";
 
@@ -12,6 +14,7 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const sendKeys = useSendKeys();
+  const { data: action } = useActionDetection(paneId);
 
   const handleInputFocus = () => {
     setTimeout(() => {
@@ -75,26 +78,9 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
 
   return (
     <div className="send-keys-bar">
-      {/* Quick action buttons */}
+      {/* Raw key buttons (always visible) */}
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-text-muted">Quick:</span>
-        <button
-          type="button"
-          className="quick-action-btn"
-          onClick={() => handleQuickAction("y")}
-          disabled={sendKeys.isPending}
-        >
-          y
-        </button>
-        <button
-          type="button"
-          className="quick-action-btn"
-          onClick={() => handleQuickAction("n")}
-          disabled={sendKeys.isPending}
-        >
-          n
-        </button>
-        <span className="text-border-default">|</span>
+        <span className="text-xs text-text-muted">Keys:</span>
         <button
           type="button"
           className="quick-action-btn"
@@ -115,6 +101,13 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
         </button>
       </div>
 
+      {/* Dynamic AI-detected actions */}
+      <DynamicActions
+        action={action ?? { type: "none" }}
+        onQuickAction={handleQuickAction}
+        isPending={sendKeys.isPending}
+      />
+
       {/* Input row */}
       <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
         <input
@@ -125,7 +118,7 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
           onKeyDown={handleKeyDown}
           onFocus={handleInputFocus}
           enterKeyHint="send"
-          placeholder="Send text to pane..."
+          placeholder={action?.type === "freeform" ? action.placeholder : "Send text to pane..."}
           disabled={sendKeys.isPending}
           className={cn(
             "flex-1 bg-bg-secondary border border-border-default rounded-lg px-3 py-2",
@@ -149,4 +142,63 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
       </form>
     </div>
   );
+}
+
+/** Renders dynamic buttons based on AI-detected action type */
+function DynamicActions({
+  action,
+  onQuickAction,
+  isPending,
+}: {
+  action: PaneAction;
+  onQuickAction: (value: string) => void;
+  isPending: boolean;
+}) {
+  if (action.type === "none") return null;
+
+  if (action.type === "yesno") {
+    return (
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs text-text-muted">Answer:</span>
+        <button
+          type="button"
+          className="quick-action-btn"
+          onClick={() => onQuickAction("y")}
+          disabled={isPending}
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          className="quick-action-btn"
+          onClick={() => onQuickAction("n")}
+          disabled={isPending}
+        >
+          No
+        </button>
+      </div>
+    );
+  }
+
+  if (action.type === "choices") {
+    return (
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-xs text-text-muted">Options:</span>
+        {action.options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            className="quick-action-btn"
+            onClick={() => onQuickAction(opt.value)}
+            disabled={isPending}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // "freeform" type: placeholder is set on the input, no extra buttons needed
+  return null;
 }

@@ -7,3 +7,8 @@ export const authKeys = {
   all: ["auth"] as const,
   status: () => [...authKeys.all, "status"] as const,
 };
+
+export const actionKeys = {
+  all: ["actions"] as const,
+  detect: (paneId: string) => [...actionKeys.all, "detect", paneId] as const,
+};

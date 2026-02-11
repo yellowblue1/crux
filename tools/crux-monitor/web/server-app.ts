@@ -9,7 +9,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { PaneContentResponse, SendKeysResponse, SessionResponse } from "../shared/types";
+import type {
+  PaneAction,
+  PaneActionsResponse,
+  PaneContentResponse,
+  SendKeysResponse,
+  SessionResponse,
+} from "../shared/types";
 
 /**
  * Dependencies for the app factory.
@@ -20,6 +26,7 @@ export interface AppDeps {
   sendKeys?: (paneId: string, text: string) => boolean;
   sendRawKey?: (paneId: string, key: string) => boolean;
   capturePaneContent?: (paneId: string) => string | null;
+  detectPaneActions?: (content: string) => Promise<PaneAction>;
 
   // Auth status
   getAccessToken?: () => string | null;
@@ -144,6 +151,38 @@ export function createApp(deps: AppDeps, options: AppOptions = {}) {
         content,
         timestamp: Date.now(),
       } satisfies PaneContentResponse);
+    })
+
+    // GET /api/sessions/:pane_id/actions
+    .get("/api/sessions/:pane_id/actions", async (c) => {
+      if (!deps.capturePaneContent || !deps.detectPaneActions) {
+        return c.json(
+          {
+            pane_id: c.req.param("pane_id"),
+            action: { type: "none" } as PaneAction,
+            timestamp: Date.now(),
+          } satisfies PaneActionsResponse,
+          501,
+        );
+      }
+
+      const paneId = c.req.param("pane_id");
+      const content = deps.capturePaneContent(paneId);
+
+      if (content === null) {
+        return c.json({
+          pane_id: paneId,
+          action: { type: "none" } as PaneAction,
+          timestamp: Date.now(),
+        } satisfies PaneActionsResponse);
+      }
+
+      const action = await deps.detectPaneActions(content);
+      return c.json({
+        pane_id: paneId,
+        action,
+        timestamp: Date.now(),
+      } satisfies PaneActionsResponse);
     })
 
     // GET /api/auth/status
