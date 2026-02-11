@@ -131,7 +131,7 @@ export function SendKeysInput({ paneId }: SendKeysInputProps) {
         </button>
         <button
           type="button"
-          className="quick-action-btn text-xl"
+          className="quick-action-btn !text-xl !leading-none"
           onClick={() => detect()}
           disabled={isDetecting}
           title="Detect actions with AI"
