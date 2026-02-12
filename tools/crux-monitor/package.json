@@ -8,5 +8,8 @@
     "test:unit": "bun test --test-name-pattern '^(?!.*Integration).*$'",
     "test:integration": "INTEGRATION=true bun test",
     "test:watch": "bun test --watch"
+  },
+  "devDependencies": {
+    "msw": "^2.12.10"
   }
 }
