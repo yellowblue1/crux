@@ -9,6 +9,9 @@ function shellEscape(str: string): string {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
+/** Pattern matching valid tmux key names (e.g. Enter, Escape, C-m, F1, Up). */
+const VALID_TMUX_KEY = /^[A-Za-z0-9_-]+$/;
+
 type ExecFn = (command: string) => string;
 
 const defaultExec: ExecFn = (command: string) => {
@@ -223,8 +226,11 @@ export function sendKeys(paneId: string, text: string, exec: ExecFn = defaultExe
  * Unlike sendKeys(), this does NOT use -l (literal) mode and does NOT append Enter.
  */
 export function sendRawKey(paneId: string, key: string, exec: ExecFn = defaultExec): boolean {
+  if (!VALID_TMUX_KEY.test(key)) {
+    return false;
+  }
   try {
-    exec(`tmux send-keys -t ${shellEscape(paneId)} ${shellEscape(key)}`);
+    exec(`tmux send-keys -t ${shellEscape(paneId)} ${key}`);
     return true;
   } catch {
     return false;

@@ -13,6 +13,7 @@ import {
   isClaudeBinary,
   isTmuxAvailable,
   matchProcessesToPanes,
+  sendRawKey,
   startPipePane,
   stopPipePane,
   switchToPane,
@@ -293,6 +294,61 @@ describe("switchToPane", () => {
       throw new Error("tmux error");
     };
     expect(switchToPane("%0", exec)).toBe(false);
+  });
+});
+
+describe("sendRawKey", () => {
+  it("sends a valid key without shell escaping the key name", () => {
+    let captured = "";
+    const exec = (cmd: string) => {
+      captured = cmd;
+      return "";
+    };
+    const result = sendRawKey("%0", "Enter", exec);
+    expect(result).toBe(true);
+    expect(captured).toBe("tmux send-keys -t '%0' Enter");
+  });
+
+  it("sends single character keys", () => {
+    let captured = "";
+    const exec = (cmd: string) => {
+      captured = cmd;
+      return "";
+    };
+    sendRawKey("%0", "i", exec);
+    expect(captured).toBe("tmux send-keys -t '%0' i");
+  });
+
+  it("sends modifier key combos like C-m", () => {
+    let captured = "";
+    const exec = (cmd: string) => {
+      captured = cmd;
+      return "";
+    };
+    sendRawKey("%0", "C-m", exec);
+    expect(captured).toBe("tmux send-keys -t '%0' C-m");
+  });
+
+  it("rejects keys with shell metacharacters", () => {
+    const exec = () => "";
+    expect(sendRawKey("%0", "Enter; rm -rf /", exec)).toBe(false);
+  });
+
+  it("rejects keys with quotes", () => {
+    const exec = () => "";
+    expect(sendRawKey("%0", "a'b", exec)).toBe(false);
+  });
+
+  it("rejects empty key", () => {
+    const exec = () => "";
+    expect(sendRawKey("%0", "", exec)).toBe(false);
+  });
+
+  it("returns false on exec failure", () => {
+    const exec = () => {
+      throw new Error("tmux error");
+    };
+    expect(sendRawKey("%0", "Escape", exec)).toBe(false);
   });
 });
 
