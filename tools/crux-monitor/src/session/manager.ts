@@ -3,8 +3,9 @@ import { spawn } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SessionResponse } from "../../shared/types";
 import * as tmux from "../tmux/utils.js";
-import type { ClaudeProcess, ProcessInfo, SessionResponse, SessionState, TmuxPane } from "../types";
+import type { ClaudeProcess, ProcessInfo, SessionState, TmuxPane } from "../types";
 
 /**
  * Dependencies for the SessionManager.
@@ -159,19 +160,14 @@ export class SessionManager {
   }
 
   /**
-   * Get all sessions, optionally filtered by status
+   * Get all sessions sorted by last activity (most recent first)
    */
-  getSessions(filter?: string): SessionResponse[] {
+  getSessions(): SessionResponse[] {
     const sessions = Array.from(this.sessions.values());
 
-    const filtered = sessions.filter((s) => {
-      if (!filter || filter === "all") return true;
-      return s.status === filter;
-    });
+    sessions.sort((a, b) => b.last_activity.localeCompare(a.last_activity));
 
-    filtered.sort((a, b) => b.last_activity.localeCompare(a.last_activity));
-
-    return filtered.map((s) => ({
+    return sessions.map((s) => ({
       pane_id: s.pane_id,
       project_name: s.project_name,
       git_branch: s.git_branch,

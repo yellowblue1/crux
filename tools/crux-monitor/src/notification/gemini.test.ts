@@ -5,34 +5,10 @@ import {
   mockGeminiError,
   mockGeminiSuccess,
 } from "../__tests__";
-import {
-  buildConversationPrompt,
-  type FetchFn,
-  generatePaneSummary,
-  getConversationTail,
-} from "./gemini";
+import { buildConversationPrompt, type FetchFn, generatePaneSummary } from "./gemini";
 import { clearSummaryCache, getInflightSize } from "./summary-cache";
 
 describe("gemini", () => {
-  describe("getConversationTail", () => {
-    it("returns full content when under limit", () => {
-      const content = "[user]: Hello\n\n[assistant]: Hi there!";
-      const result = getConversationTail(content);
-      expect(result).toBe(content);
-    });
-
-    it("truncates long content from the start", () => {
-      const content = "A".repeat(5000);
-      const result = getConversationTail(content);
-      expect(result.length).toBe(4000);
-      expect(result).toBe("A".repeat(4000));
-    });
-
-    it("handles empty content", () => {
-      expect(getConversationTail("")).toBe("");
-    });
-  });
-
   describe("buildConversationPrompt", () => {
     it("includes language instruction", () => {
       const prompt = buildConversationPrompt("test content");

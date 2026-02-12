@@ -8,53 +8,9 @@ import {
 } from "../__tests__";
 import { clearActionCache, getInflightSize } from "./action-cache";
 import type { FetchFn } from "./gemini";
-import {
-  type ActionDeps,
-  buildActionPrompt,
-  detectPaneActions,
-  getContentTail,
-} from "./gemini-actions";
+import { type ActionDeps, detectPaneActions } from "./gemini-actions";
 
 describe("gemini-actions", () => {
-  describe("getContentTail", () => {
-    it("returns full content when under limit", () => {
-      const content = "some terminal output";
-      expect(getContentTail(content)).toBe(content);
-    });
-
-    it("truncates long content from the start", () => {
-      const content = "A".repeat(2000);
-      const result = getContentTail(content);
-      expect(result.length).toBe(1000);
-      expect(result).toBe("A".repeat(1000));
-    });
-
-    it("handles empty content", () => {
-      expect(getContentTail("")).toBe("");
-    });
-  });
-
-  describe("buildActionPrompt", () => {
-    it("includes action detection instructions", () => {
-      const prompt = buildActionPrompt("test content");
-      expect(prompt).toContain("Determine what type of user interaction is expected");
-    });
-
-    it("includes the content at the end", () => {
-      const content = "Do you want to proceed? (y/n)";
-      const prompt = buildActionPrompt(content);
-      expect(prompt.endsWith(content)).toBe(true);
-    });
-
-    it("includes all action type schemas", () => {
-      const prompt = buildActionPrompt("test");
-      expect(prompt).toContain('"choices"');
-      expect(prompt).toContain('"yesno"');
-      expect(prompt).toContain('"freeform"');
-      expect(prompt).toContain('"none"');
-    });
-  });
-
   describe("detectPaneActions", () => {
     const mockDeps = (fetchImpl: FetchFn): Partial<ActionDeps> => ({
       fetch: fetchImpl,

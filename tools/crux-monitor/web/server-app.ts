@@ -22,7 +22,7 @@ import type {
  * All session operations are injected to enable testing.
  */
 export interface AppDeps {
-  getSessions: (filter?: string) => SessionResponse[];
+  getSessions: () => SessionResponse[];
   sendKeys?: (paneId: string, text: string) => boolean;
   sendRawKey?: (paneId: string, key: string) => boolean;
   capturePaneContent?: (paneId: string) => string | null;

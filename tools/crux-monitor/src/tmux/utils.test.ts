@@ -15,7 +15,6 @@ import {
   matchProcessesToPanes,
   startPipePane,
   stopPipePane,
-  switchToPane,
 } from "./utils";
 
 describe("isTmuxAvailable", () => {
@@ -279,20 +278,6 @@ describe("buildTmuxTarget", () => {
       pane_index: 1,
     };
     expect(buildTmuxTarget(pane)).toBe("main:2.1");
-  });
-});
-
-describe("switchToPane", () => {
-  it("returns true on success", () => {
-    const exec = () => "";
-    expect(switchToPane("%0", exec)).toBe(true);
-  });
-
-  it("returns false on failure", () => {
-    const exec = () => {
-      throw new Error("tmux error");
-    };
-    expect(switchToPane("%0", exec)).toBe(false);
   });
 });
 

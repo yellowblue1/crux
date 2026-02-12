@@ -1,6 +1,3 @@
-// Re-export shared types used by server-side code
-export type { SessionResponse } from "../shared/types";
-
 // Internal types for tmux polling
 
 export interface SessionState {
