@@ -4,7 +4,7 @@ This document provides a comprehensive inventory and analysis of all Claude Code
 
 ## Summary
 
-All 8 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary or redundant hooks were identified.
+All 4 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary or redundant hooks were identified.
 
 ## Hooks Inventory
 
@@ -14,15 +14,6 @@ All 8 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary
 |-----------|------|---------|
 | SessionStart | `src/ensure-gtrconfig.ts` | Configures git-gtr hooks (preRemove/postCreate) and injects worker mode instructions when running under an orchestrator |
 | PreToolUse (Bash) | `scripts/hooks/auto-approve-watcher.ts` | Auto-approves the documented notification watcher Bash command (Step 2 of orchestrator-mode.md) |
-
-### crux-monitor Plugin (4 hooks)
-
-| Hook Type | File | Purpose |
-|-----------|------|---------|
-| SessionStart | `src/cli.ts notification sessionstart` | Logs session start event to SQLite with tmux window ID and process PID |
-| Notification | `src/cli.ts notification notification` | Logs notification events (idle prompt, permission dialogs) |
-| Stop | `src/cli.ts notification stop` | Logs session stop event |
-| SessionEnd | `src/cli.ts notification sessionend` | Logs session end event with termination reason |
 
 ### Git-gtr Integration Hooks (configured by crux-hive SessionStart)
 
@@ -59,17 +50,6 @@ Both hooks are actively used and documented:
    - `.claude/settings.local.json` - User's local Claude settings
    - `CLAUDE.local.md` - User's personal project instructions
 
-### Redundancy Check: crux-hive vs crux-monitor SessionStart
-
-**Finding: NO REDUNDANCY**
-
-Both plugins have SessionStart hooks but serve completely different purposes:
-
-- **crux-hive SessionStart:** Git-gtr configuration + orchestrator context injection (worker mode setup)
-- **crux-monitor SessionStart:** Event logging to SQLite database for the monitoring dashboard
-
-These hooks are complementary, not redundant.
-
 ## Hook Flow Diagram
 
 ```
@@ -78,32 +58,13 @@ Session Lifecycle:
 │  Session Start  │
 └────────┬────────┘
          │
-         ├── crux-hive: Configure git-gtr, inject worker mode
-         └── crux-monitor: Log session start event
+         └── crux-hive: Configure git-gtr, inject worker mode
          │
 ┌────────▼────────┐
 │  Tool Use       │
 └────────┬────────┘
          │
          └── crux-hive PreToolUse: Auto-approve watcher command
-         │
-┌────────▼────────┐
-│  Notifications  │
-└────────┬────────┘
-         │
-         └── crux-monitor: Log notification events
-         │
-┌────────▼────────┐
-│  Session Stop   │
-└────────┬────────┘
-         │
-         └── crux-monitor: Log stop event
-         │
-┌────────▼────────┐
-│  Session End    │
-└─────────────────┘
-         │
-         └── crux-monitor: Log session end with reason
 
 Worktree Lifecycle (via git-gtr):
 ┌─────────────────┐
@@ -131,4 +92,3 @@ All hooks in the CRUX monorepo are necessary and actively used. The investigatio
 
 - [orchestrator-mode.md](../plugins/crux-hive/docs/orchestrator-mode.md) - Orchestrator workflow documentation
 - [crux-hive plugin.json](../plugins/crux-hive/.claude-plugin/plugin.json) - Hook configuration
-- [crux-monitor plugin.json](../plugins/crux-monitor/.claude-plugin/plugin.json) - Hook configuration

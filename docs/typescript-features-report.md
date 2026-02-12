@@ -126,16 +126,6 @@ return startWorktreeSession(args as unknown as StartWorktreeSessionArgs);
 
 **Reason:** These files are written by the application itself. Adding Zod schemas for runtime validation would be over-engineering for this use case.
 
-### 3. Database Query Result Assertions
-
-**Location:** `plugins/crux-monitor/src/db/cleanup.ts`
-
-```typescript
-const changes = db.query("SELECT changes() as count").get() as { count: number };
-```
-
-**Reason:** This is idiomatic for Bun SQLite. The query is a known SQLite built-in function with a predictable return type.
-
 ## Recommendations
 
 ### Implemented in This PR

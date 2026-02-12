@@ -44,17 +44,6 @@ Example: "Add a login page and also fix the header layout bug" → The orchestra
 | Component | Type | Description | Requirements |
 |-----------|------|-------------|--------------|
 | [crux-hive](./plugins/crux-hive/) | Plugin | Orchestrate parallel Claude Code sessions—delegate tasks to workers that create PRs automatically | tmux, [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) |
-| [crux-monitor](./tools/crux-monitor/) | Standalone tool | Real-time tmux-based session monitoring with browser notifications | tmux |
-
-## Crux Monitor (Optional)
-
-crux-monitor is a standalone tool (not a Claude Code plugin) that monitors Claude Code sessions running in tmux.
-
-```bash
-git clone https://github.com/yellowblue1/crux
-cd crux && bun install
-bun run --cwd tools/crux-monitor/web start  # starts on port 3847
-```
 
 ## Tips
 

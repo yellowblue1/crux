@@ -1,9 +1,0 @@
-❯ bun test
-PASS src/tmux/utils.test.ts
-PASS src/tmux/sanitize.test.ts
-PASS src/session/manager.test.ts
-
- 183 pass
- 0 fail
-
-❯

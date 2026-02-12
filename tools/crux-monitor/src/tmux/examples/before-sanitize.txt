@@ -1,9 +1,0 @@
-[1m❯[22m [32mbun test[0m[2m --cwd tools/crux-monitor[22m
-[32mPASS[0m src/tmux/utils.test.ts
-[32mPASS[0m src/tmux/sanitize.test.ts
-[32mPASS[0m src/session/manager.test.ts
-
- [1m183 pass[22m
- 0 fail
-
-[1m❯[22m [2mgit push origin main[22m
