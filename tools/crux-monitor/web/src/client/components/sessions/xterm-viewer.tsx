@@ -2,6 +2,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { filterHorizontalBorders } from "@/lib/terminal-filters";
 import "@xterm/xterm/css/xterm.css";
 
 interface XtermViewerProps {
@@ -47,6 +49,7 @@ export function XtermViewer({ content, className }: XtermViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const isMobile = useMediaQuery("(max-width: 639px)");
 
   // Initialize terminal on mount
   useEffect(() => {
@@ -108,7 +111,8 @@ export function XtermViewer({ content, className }: XtermViewerProps) {
       try {
         terminal.reset();
         if (content != null) {
-          terminal.write(content);
+          const processed = isMobile ? filterHorizontalBorders(content) : content;
+          terminal.write(processed);
         }
       } catch {
         // Terminal renderer not yet ready; content will be written on next update
@@ -116,7 +120,7 @@ export function XtermViewer({ content, className }: XtermViewerProps) {
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [content]);
+  }, [content, isMobile]);
 
   return <div ref={containerRef} className={className} />;
 }
