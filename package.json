@@ -6,8 +6,6 @@
     "@isaacs/brace-expansion": "5.0.1"
   },
   "workspaces": [
-    "tools/crux-monitor",
-    "tools/crux-monitor/web",
     "plugins/crux-hive"
   ],
   "scripts": {

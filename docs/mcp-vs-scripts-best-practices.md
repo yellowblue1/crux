@@ -212,44 +212,7 @@ Scenario: Orchestrator waiting for worker notifications
    Token savings: 99.8%
 ```
 
-## 4. Case Study: crux-monitor Plugin
-
-The crux-monitor plugin demonstrates a hooks-only approach.
-
-### 4.1 Hooks-Only Architecture
-
-```
-crux-monitor Plugin Architecture
-═══════════════════════════════════════════════════════
-
-No MCP Tools                      CLI Facade Pattern
-                                  ┌─────────────────────┐
-                                  │     src/cli.ts      │
-                                  │  notification <cmd> │
-                                  └─────────────────────┘
-                                           │
-           ┌───────────────────────────────┼───────────────────┐
-           │                               │                   │
-           ▼                               ▼                   ▼
-    ┌──────────────┐              ┌──────────────┐    ┌──────────────┐
-    │ SessionStart │              │ Notification │    │  Stop/End    │
-    │    Hook      │              │    Hook      │    │   Hooks      │
-    └──────────────┘              └──────────────┘    └──────────────┘
-           │                               │                   │
-           └───────────────────────────────┼───────────────────┘
-                                           ▼
-                                  ┌─────────────────────┐
-                                  │   SQLite Database   │
-                                  └─────────────────────┘
-```
-
-**Why no MCP tools needed:**
-- All operations are event-driven (lifecycle hooks)
-- Claude doesn't need to call monitor operations
-- Passive observation, not active control
-- CLI facade provides consistent interface
-
-## 5. Anti-Patterns to Avoid
+## 4. Anti-Patterns to Avoid
 
 ### ❌ MCP for Polling Operations
 
@@ -322,7 +285,7 @@ If tools exceed 10% of context window:
 └── Consider consolidating or using scripts
 ```
 
-## 6. Design Guidelines
+## 5. Design Guidelines
 
 ### 6.1 Decision Tree
 
@@ -391,7 +354,7 @@ Hooks:
 └── Test context injection
 ```
 
-## 7. Recommendations for crux-hive
+## 6. Recommendations for crux-hive
 
 ### 7.1 Current Design Assessment
 
@@ -420,7 +383,7 @@ These are not required but could be considered for future iterations:
 
 3. **Notification batching:** For high-volume scenarios, batch multiple notifications into single reads.
 
-## 8. References
+## 7. References
 
 ### Official Anthropic Documentation
 - [Claude Code MCP Documentation](https://code.claude.com/docs/en/mcp)
@@ -433,4 +396,3 @@ These are not required but could be considered for future iterations:
 
 ### Plugin Implementations
 - [crux-hive plugin.json](../plugins/crux-hive/.claude-plugin/plugin.json) - MCP + Hooks configuration
-- [crux-monitor plugin.json](../plugins/crux-monitor/.claude-plugin/plugin.json) - Hooks-only configuration

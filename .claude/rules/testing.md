@@ -6,31 +6,6 @@ paths: plugins/**/*.test.ts, plugins/**/__tests__/**
 
 ## Test Runner
 - Bun test runner (built-in, fast)
-- Commands:
-  ```bash
-  bun test --cwd tools/crux-monitor        # Run all tests
-  bun test --cwd tools/crux-monitor --watch  # Watch mode
-  ```
-
-## Test Structure
-```
-tools/crux-monitor/src/
-├── __tests__/
-│   ├── index.ts           # Barrel export for test utilities
-│   └── helpers/
-│       └── fetch-mock.ts  # Fetch mocking for Gemini API
-├── tmux/
-│   └── utils.test.ts      # Co-located unit tests
-├── session/
-│   └── manager.test.ts    # Co-located unit tests
-└── notification/
-    └── *.test.ts          # Co-located unit tests
-```
-
-## Test Utilities
-Import from `../__tests__`:
-- `mockGeminiSuccess/Error/Empty()` - Fetch mocking for Gemini API tests
-- `mockFetchNetworkError()` - Simulate network failures
 
 ## Test Pattern
 ```typescript
@@ -46,5 +21,4 @@ describe("feature", () => {
 
 ## Key Practices
 - Use dependency injection for testability (exec functions, watchers, etc.)
-- Mock external APIs (Gemini) to avoid network calls
-- Use `MockFSWatcher` pattern for fs.watch testing
+- Mock external APIs to avoid network calls

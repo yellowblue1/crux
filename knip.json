@@ -6,17 +6,6 @@
       "project": [],
       "ignoreDependencies": ["@modelcontextprotocol/sdk"]
     },
-    "tools/crux-monitor": {
-      "entry": ["shared/types.ts", "**/*.test.ts", "src/test-setup.ts"],
-      "project": ["src/**/*.ts", "shared/**/*.ts"]
-    },
-    "tools/crux-monitor/web": {
-      "vite": true,
-      "entry": ["src/client/main.tsx", "**/*.test.ts"],
-      "project": ["**/*.ts", "**/*.tsx"],
-      "ignoreDependencies": ["tailwindcss"],
-      "ignore": ["src/client/routeTree.gen.ts"]
-    },
     "plugins/crux-hive": {
       "entry": ["src/ensure-gtrconfig.ts", "scripts/deregister-worker.ts", "**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]
