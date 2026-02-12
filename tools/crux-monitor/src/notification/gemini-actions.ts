@@ -109,7 +109,9 @@ export async function detectPaneActions(
   // Check cache
   const cached = getCachedAction(contentTail);
   if (cached !== null) {
-    console.log(`[Gemini Actions] Cache hit (input: ${contentTail.length} chars)`);
+    console.log(
+      `${new Date().toISOString()} [Gemini Actions] Cache hit (input: ${contentTail.length} chars)`,
+    );
     return cached;
   }
 
@@ -117,7 +119,7 @@ export async function detectPaneActions(
   const existing = getInflightRequest(contentTail);
   if (existing !== null) {
     console.log(
-      `[Gemini Actions] Dedup hit - awaiting in-flight request (input: ${contentTail.length} chars)`,
+      `${new Date().toISOString()} [Gemini Actions] Dedup hit - awaiting in-flight request (input: ${contentTail.length} chars)`,
     );
     return existing;
   }
@@ -141,9 +143,9 @@ export async function detectPaneActions(
     try {
       const startTime = Date.now();
       console.log(
-        `[Gemini Actions] Requesting action detection (input: ${contentTail.length} chars, prompt: ${prompt.length} chars)`,
+        `${new Date().toISOString()} [Gemini Actions] Requesting action detection (input: ${contentTail.length} chars, prompt: ${prompt.length} chars)`,
       );
-      console.log(`[Gemini Actions] Content tail:\n${contentTail}`);
+      console.log(`${new Date().toISOString()} [Gemini Actions] Content tail:\n${contentTail}`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -170,7 +172,7 @@ export async function detectPaneActions(
 
       if (!response.ok) {
         console.log(
-          `[Gemini Actions] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`,
+          `${new Date().toISOString()} [Gemini Actions] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`,
         );
         return DEFAULT_ACTION;
       }
@@ -179,22 +181,28 @@ export async function detectPaneActions(
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!text) {
-        console.log(`[Gemini Actions] Empty response (${Date.now() - startTime}ms)`);
+        console.log(
+          `${new Date().toISOString()} [Gemini Actions] Empty response (${Date.now() - startTime}ms)`,
+        );
         return DEFAULT_ACTION;
       }
 
       const parsed: unknown = JSON.parse(text);
       if (!isValidPaneAction(parsed)) {
-        console.log(`[Gemini Actions] Invalid action type (${Date.now() - startTime}ms)`);
+        console.log(
+          `${new Date().toISOString()} [Gemini Actions] Invalid action type (${Date.now() - startTime}ms)`,
+        );
         return DEFAULT_ACTION;
       }
 
-      console.log(`[Gemini Actions] Action detected (${Date.now() - startTime}ms): ${parsed.type}`);
+      console.log(
+        `${new Date().toISOString()} [Gemini Actions] Action detected (${Date.now() - startTime}ms): ${parsed.type}`,
+      );
       setCachedAction(contentTail, parsed);
       return parsed;
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
-      console.log(`[Gemini Actions] Request error: ${message}`);
+      console.log(`${new Date().toISOString()} [Gemini Actions] Request error: ${message}`);
       return DEFAULT_ACTION;
     }
   })();

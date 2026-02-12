@@ -114,7 +114,9 @@ export async function generatePaneSummary(
 
   const cached = getCachedSummary(conversationTail);
   if (cached !== null) {
-    console.log(`[Gemini] Cache hit (input: ${conversationTail.length} chars): ${cached}`);
+    console.log(
+      `${new Date().toISOString()} [Gemini] Cache hit (input: ${conversationTail.length} chars): ${cached}`,
+    );
     return cached;
   }
 
@@ -145,7 +147,9 @@ export async function generatePaneSummary(
   const requestPromise = (async (): Promise<string | null> => {
     try {
       const startTime = Date.now();
-      console.log(`[Gemini] Requesting summary (input: ${conversationTail.length} chars)`);
+      console.log(
+        `${new Date().toISOString()} [Gemini] Requesting summary (input: ${conversationTail.length} chars)`,
+      );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -169,7 +173,7 @@ export async function generatePaneSummary(
 
       if (!response.ok) {
         console.log(
-          `[Gemini] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`,
+          `${new Date().toISOString()} [Gemini] Request failed: HTTP ${response.status} (${Date.now() - startTime}ms)`,
         );
         return null;
       }
@@ -178,17 +182,21 @@ export async function generatePaneSummary(
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!text) {
-        console.log(`[Gemini] Empty response (${Date.now() - startTime}ms)`);
+        console.log(
+          `${new Date().toISOString()} [Gemini] Empty response (${Date.now() - startTime}ms)`,
+        );
         return null;
       }
 
       const summary = text.slice(0, MAX_SUMMARY_LENGTH).trim();
-      console.log(`[Gemini] Summary received (${Date.now() - startTime}ms): ${summary}`);
+      console.log(
+        `${new Date().toISOString()} [Gemini] Summary received (${Date.now() - startTime}ms): ${summary}`,
+      );
       setCachedSummary(conversationTail, summary);
       return summary;
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
-      console.log(`[Gemini] Request error: ${message}`);
+      console.log(`${new Date().toISOString()} [Gemini] Request error: ${message}`);
       return null;
     }
   })();
