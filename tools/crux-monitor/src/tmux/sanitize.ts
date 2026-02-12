@@ -6,7 +6,7 @@ const ESC = String.fromCharCode(0x1b);
  * Uses String.fromCharCode to build ESC-based patterns,
  * satisfying the noControlCharactersInRegex lint rule.
  */
-export function stripDimText(input: string): string {
+function stripDimText(input: string): string {
   // ESC[2m starts dim, terminated by ESC[22m, ESC[0m, or ESC[m
   const pattern = new RegExp(`${ESC}\\[2m[\\s\\S]*?${ESC}\\[(22|0)?m`, "g");
   return input.replace(pattern, "");
@@ -15,7 +15,7 @@ export function stripDimText(input: string): string {
 /**
  * Strip all remaining ANSI escape sequences (CSI, OSC, two-byte ESC sequences).
  */
-export function stripAnsiEscapes(input: string): string {
+function stripAnsiEscapes(input: string): string {
   // CSI sequences: ESC[ ... final byte (0x40-0x7E)
   const csi = new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, "g");
   // OSC sequences: ESC] ... ST (ESC\\ or BEL)

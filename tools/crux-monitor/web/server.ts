@@ -109,9 +109,10 @@ async function isOurServerRunning(port: number): Promise<boolean> {
 // Create Hono app with dependencies
 const app = createApp(
   {
-    getSessions: (filter) => sessionManager.getSessions(filter),
+    getSessions: () => sessionManager.getSessions(),
     sendKeys: (paneId, text) => sendKeys(paneId, text),
     sendRawKey: (paneId, key) => sendRawKey(paneId, key),
+    // Uses escaped variant to preserve ANSI codes for xterm.js rendering
     capturePaneContent: capturePaneContentEscaped,
     detectPaneActions: async (rawContent: string) => {
       const sanitized = sanitizePaneContent(rawContent);

@@ -2,7 +2,7 @@
  * Fetch mock utilities for testing
  */
 
-type FetchFn = (url: string | URL | Request, options?: RequestInit) => Promise<Response>;
+import type { FetchFn } from "../../notification/gemini";
 
 interface MockResponse {
   ok: boolean;

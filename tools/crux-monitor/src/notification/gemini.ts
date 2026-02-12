@@ -1,4 +1,5 @@
 import { getGcpLocation, getGcpProject } from "./config";
+import type { GeminiResponse } from "./gemini-types";
 import {
   deleteInflightRequest,
   getCachedSummary,
@@ -10,16 +11,6 @@ import {
 const MODEL_ID = "gemini-2.5-flash";
 const MAX_SUMMARY_LENGTH = 100;
 const CONVERSATION_TAIL_CHARS = 4000;
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-  }>;
-}
 
 export type FetchFn = (url: string | URL | Request, options?: RequestInit) => Promise<Response>;
 
@@ -53,7 +44,7 @@ export function getAccessToken(): string | null {
 /**
  * Get the tail of conversation text, limited by character count
  */
-export function getConversationTail(conversation: string): string {
+function getConversationTail(conversation: string): string {
   if (conversation.length <= CONVERSATION_TAIL_CHARS) return conversation;
   return conversation.slice(-CONVERSATION_TAIL_CHARS);
 }

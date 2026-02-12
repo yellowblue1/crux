@@ -8,21 +8,12 @@ import {
 } from "./action-cache";
 import { getGcpLocation, getGcpProject } from "./config";
 import { type FetchFn, getAccessToken } from "./gemini";
+import type { GeminiResponse } from "./gemini-types";
 
 const MODEL_ID = "gemini-2.5-flash";
 const ACTION_TAIL_CHARS = 1000;
 
 const DEFAULT_ACTION: PaneAction = { type: "none" };
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-  }>;
-}
 
 /**
  * Dependencies that can be injected for testing
@@ -37,7 +28,7 @@ export interface ActionDeps {
 /**
  * Get the tail of pane content, limited by character count
  */
-export function getContentTail(content: string): string {
+function getContentTail(content: string): string {
   if (content.length <= ACTION_TAIL_CHARS) return content;
   return content.slice(-ACTION_TAIL_CHARS);
 }
@@ -45,7 +36,7 @@ export function getContentTail(content: string): string {
 /**
  * Build the prompt for Gemini to detect what interaction the terminal expects.
  */
-export function buildActionPrompt(contentTail: string): string {
+function buildActionPrompt(contentTail: string): string {
   return `Analyze the following terminal output from a Claude Code session.
 Determine what type of user interaction is expected based on the last visible prompt or question.
 

@@ -94,6 +94,7 @@ export function getProcessTable(exec: ExecFn = defaultExec): ProcessInfo[] {
  * Matches only the actual `claude` binary name (case-sensitive),
  * not processes that happen to have "claude" in their arguments or paths.
  */
+/** @internal Exported for testing only */
 export function isClaudeBinary(command: string): boolean {
   const firstWord = command.split(/\s+/)[0] || "";
   const binaryName = firstWord.split("/").pop() || "";
@@ -188,18 +189,6 @@ export function getGitBranch(cwd: string, exec: ExecFn = defaultExec): string | 
  */
 export function buildTmuxTarget(pane: TmuxPane): string {
   return `${pane.session_name}:${pane.window_index}.${pane.pane_index}`;
-}
-
-/**
- * Switch tmux client to a specific pane
- */
-export function switchToPane(paneId: string, exec: ExecFn = defaultExec): boolean {
-  try {
-    exec(`tmux switch-client -t ${shellEscape(paneId)}`);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**
