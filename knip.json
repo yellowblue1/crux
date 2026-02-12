@@ -7,7 +7,7 @@
       "ignoreDependencies": ["@modelcontextprotocol/sdk"]
     },
     "tools/crux-monitor": {
-      "entry": ["shared/types.ts", "**/*.test.ts"],
+      "entry": ["shared/types.ts", "**/*.test.ts", "src/test-setup.ts"],
       "project": ["src/**/*.ts", "shared/**/*.ts"]
     },
     "tools/crux-monitor/web": {
