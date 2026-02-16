@@ -1,3 +1,6 @@
+import { unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execOrThrow, shellEscape } from "./exec.js";
 
 /**
@@ -19,12 +22,23 @@ export function createWindow(name: string, dir: string): string {
 
 /**
  * Send keys to a tmux window
- * Uses load-buffer + paste-buffer to handle long strings that would be truncated by send-keys
+ * Uses load-buffer + paste-buffer to handle long strings that would be truncated by send-keys.
+ * Writes to a temp file instead of piping via echo to avoid shell argument length limits.
  */
 export function sendKeys(windowId: string, keys: string): void {
-  execOrThrow(`echo ${shellEscape(keys)} | tmux load-buffer -`);
-  execOrThrow(`tmux paste-buffer -t ${shellEscape(windowId)}`);
-  execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} Enter`);
+  const tmpFile = join(tmpdir(), `crux-tmux-${process.pid}-${Date.now()}.txt`);
+  try {
+    writeFileSync(tmpFile, keys);
+    execOrThrow(`tmux load-buffer ${shellEscape(tmpFile)}`);
+    execOrThrow(`tmux paste-buffer -t ${shellEscape(windowId)}`);
+    execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} Enter`);
+  } finally {
+    try {
+      unlinkSync(tmpFile);
+    } catch {
+      /* ignore cleanup failures */
+    }
+  }
 }
 
 /**
