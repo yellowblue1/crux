@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,7 +27,7 @@ export function createWindow(name: string, dir: string): string {
  * Writes to a temp file instead of piping via echo to avoid shell argument length limits.
  */
 export function sendKeys(windowId: string, keys: string): void {
-  const tmpFile = join(tmpdir(), `crux-tmux-${process.pid}-${Date.now()}.txt`);
+  const tmpFile = join(tmpdir(), `crux-tmux-${randomUUID()}.txt`);
   try {
     writeFileSync(tmpFile, keys);
     execOrThrow(`tmux load-buffer ${shellEscape(tmpFile)}`);
