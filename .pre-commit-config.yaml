@@ -66,3 +66,10 @@ repos:
         language: system
         types_or: [ts, tsx]
         pass_filenames: false
+
+      - id: depcruise
+        name: Dependency architecture check
+        entry: bun run depcruise
+        language: system
+        types_or: [ts, tsx]
+        pass_filenames: false
