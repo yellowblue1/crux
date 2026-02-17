@@ -17,6 +17,7 @@ You are now in **Orchestrator Mode**. Your role is to orchestrate ALL tasks—im
 1. **Default branch**: You must be on your repository's default branch. Worktrees cannot be created for the branch you are currently on. Detect it with: `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`
 2. **tmux**: The session must be running inside tmux.
 3. **git-gtr**: Worktree management depends on `git gtr`.
+4. **Agent Teams**: The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable must be set to `1`. This can be configured in `~/.claude/settings.json` under `env`. Detect with: `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
 
 If any prerequisite is not met, inform the user before proceeding.
 
