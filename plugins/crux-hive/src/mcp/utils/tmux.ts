@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { unlinkSync, writeFileSync } from "node:fs";
+import { unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execOrThrow, shellEscape } from "./exec.js";
@@ -26,10 +25,10 @@ export function createWindow(name: string, dir: string): string {
  * Uses load-buffer + paste-buffer to handle long strings that would be truncated by send-keys.
  * Writes to a temp file instead of piping via echo to avoid shell argument length limits.
  */
-export function sendKeys(windowId: string, keys: string): void {
-  const tmpFile = join(tmpdir(), `crux-tmux-${randomUUID()}.txt`);
+export async function sendKeys(windowId: string, keys: string): Promise<void> {
+  const tmpFile = join(tmpdir(), `crux-tmux-${crypto.randomUUID()}.txt`);
   try {
-    writeFileSync(tmpFile, keys, { mode: 0o600 });
+    await Bun.write(tmpFile, keys, { mode: 0o600 });
     execOrThrow(`tmux load-buffer ${shellEscape(tmpFile)}`);
     execOrThrow(`tmux paste-buffer -t ${shellEscape(windowId)}`);
     execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} Enter`);

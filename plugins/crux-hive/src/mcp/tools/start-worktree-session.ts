@@ -142,7 +142,7 @@ export async function startWorktreeSession(
   // Resolve Agent Teams config before creating the worktree
   let agentTeamsFlags = "";
   if (teamName && agentName) {
-    const leadSessionId = getLeadSessionId(teamName);
+    const leadSessionId = await getLeadSessionId(teamName);
     if (!leadSessionId) {
       return {
         content: [
@@ -207,15 +207,15 @@ export async function startWorktreeSession(
   }
 
   // Get MCP servers from the current project's .mcp.json
-  const mcpServers = getMcpServersFromProject(process.cwd());
+  const mcpServers = await getMcpServersFromProject(process.cwd());
 
   // Update ~/.claude.json to trust the worktree and enable MCP servers
-  updateClaudeConfig(worktreePath, mcpServers);
+  await updateClaudeConfig(worktreePath, mcpServers);
 
   // Register teammate and create inbox if Agent Teams is enabled
   if (teamName && agentName) {
     try {
-      registerTeamMember(teamName, {
+      await registerTeamMember(teamName, {
         agentId: `${agentName}@${teamName}`,
         name: agentName,
         agentType: "Bash",
@@ -224,7 +224,7 @@ export async function startWorktreeSession(
         isActive: true,
         cwd: worktreePath,
       });
-      createInbox(teamName, agentName);
+      await createInbox(teamName, agentName);
     } catch (e) {
       return {
         content: [
@@ -266,12 +266,12 @@ export async function startWorktreeSession(
 
   if (prompt) {
     const encoded = Buffer.from(prompt).toString("base64");
-    sendKeys(
+    await sendKeys(
       windowId,
       `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag} "$(echo '${encoded}' | base64 -d)"`,
     );
   } else {
-    sendKeys(windowId, `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag}`);
+    await sendKeys(windowId, `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag}`);
   }
 
   return {
