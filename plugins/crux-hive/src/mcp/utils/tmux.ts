@@ -29,7 +29,7 @@ export function createWindow(name: string, dir: string): string {
 export function sendKeys(windowId: string, keys: string): void {
   const tmpFile = join(tmpdir(), `crux-tmux-${randomUUID()}.txt`);
   try {
-    writeFileSync(tmpFile, keys);
+    writeFileSync(tmpFile, keys, { mode: 0o600 });
     execOrThrow(`tmux load-buffer ${shellEscape(tmpFile)}`);
     execOrThrow(`tmux paste-buffer -t ${shellEscape(windowId)}`);
     execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} Enter`);
