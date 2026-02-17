@@ -21,6 +21,9 @@ jobs:
       - name: Run lint
         run: bun run lint
 
+      - name: Run dependency architecture check
+        run: bun run depcruise
+
       - name: Run knip
         run: bun run knip
 

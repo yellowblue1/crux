@@ -1,16 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { TeamConfig } from "./agent-teams.js";
-import {
-  createInbox,
-  deregisterTeamMember,
-  findWorkerByWorktreePath,
-  getLeadSessionId,
-  readTeamConfig,
-  registerTeamMember,
-  removeInbox,
-} from "./agent-teams.js";
+import type { TeamConfig } from "../domain/types.js";
+import { createFileTeamRepository } from "./file-team-repository.js";
 
 // Use a temp directory to avoid modifying the real ~/.claude/teams
 const testTeamsDir = join(import.meta.dir, "__test_teams__");
@@ -57,13 +49,14 @@ function createValidConfig(teamName: string): TeamConfig {
   };
 }
 
-describe("readTeamConfig", () => {
+describe("readConfig", () => {
   it("should read a valid team config", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "test-team";
     const expected = createValidConfig(teamName);
     writeTestConfig(teamName, expected);
 
-    const result = await readTeamConfig(teamName);
+    const result = await repo.readConfig(teamName);
 
     expect(result).not.toBeNull();
     expect(result?.name).toBe(teamName);
@@ -73,49 +66,55 @@ describe("readTeamConfig", () => {
   });
 
   it("should return null for non-existent team", async () => {
-    const result = await readTeamConfig("nonexistent-team");
+    const repo = createFileTeamRepository();
+    const result = await repo.readConfig("nonexistent-team");
     expect(result).toBeNull();
   });
 
   it("should return null for invalid JSON", async () => {
+    const repo = createFileTeamRepository();
     const teamDir = getTeamDir("bad-json");
     mkdirSync(teamDir, { recursive: true });
     writeFileSync(join(teamDir, "config.json"), "not valid json{{{");
 
-    const result = await readTeamConfig("bad-json");
+    const result = await repo.readConfig("bad-json");
     expect(result).toBeNull();
   });
 
   it("should throw for config missing required fields", async () => {
+    const repo = createFileTeamRepository();
     const teamDir = getTeamDir("invalid-config");
     mkdirSync(teamDir, { recursive: true });
     writeFileSync(join(teamDir, "config.json"), JSON.stringify({ name: "test" }));
 
-    expect(readTeamConfig("invalid-config")).rejects.toThrow("Invalid team config format");
+    expect(repo.readConfig("invalid-config")).rejects.toThrow("Invalid team config format");
   });
 });
 
 describe("getLeadSessionId", () => {
   it("should return the lead session ID", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "session-test";
     writeTestConfig(teamName, createValidConfig(teamName));
 
-    const sessionId = await getLeadSessionId(teamName);
+    const sessionId = await repo.getLeadSessionId(teamName);
     expect(sessionId).toBe("session-abc-123-def-456");
   });
 
   it("should return null for non-existent team", async () => {
-    const sessionId = await getLeadSessionId("nonexistent");
+    const repo = createFileTeamRepository();
+    const sessionId = await repo.getLeadSessionId("nonexistent");
     expect(sessionId).toBeNull();
   });
 });
 
-describe("registerTeamMember", () => {
+describe("registerMember", () => {
   it("should add a new member to the team config", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "register-test";
     writeTestConfig(teamName, createValidConfig(teamName));
 
-    await registerTeamMember(teamName, {
+    await repo.registerMember(teamName, {
       agentId: `worker-a@${teamName}`,
       name: "worker-a",
       agentType: "Bash",
@@ -124,13 +123,14 @@ describe("registerTeamMember", () => {
       isActive: true,
     });
 
-    const config = await readTeamConfig(teamName);
+    const config = await repo.readConfig(teamName);
     expect(config?.members).toHaveLength(2);
     expect(config?.members[1].name).toBe("worker-a");
     expect(config?.members[1].color).toBe("blue");
   });
 
   it("should update an existing member", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "update-test";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -141,7 +141,7 @@ describe("registerTeamMember", () => {
     });
     writeTestConfig(teamName, config);
 
-    await registerTeamMember(teamName, {
+    await repo.registerMember(teamName, {
       agentId: `worker-a@${teamName}`,
       name: "worker-a",
       agentType: "Bash",
@@ -149,15 +149,16 @@ describe("registerTeamMember", () => {
       color: "green",
     });
 
-    const updated = await readTeamConfig(teamName);
+    const updated = await repo.readConfig(teamName);
     expect(updated?.members).toHaveLength(2);
     expect(updated?.members[1].isActive).toBe(true);
     expect(updated?.members[1].color).toBe("green");
   });
 
   it("should throw for non-existent team", async () => {
+    const repo = createFileTeamRepository();
     expect(
-      registerTeamMember("nonexistent", {
+      repo.registerMember("nonexistent", {
         agentId: "worker@nonexistent",
         name: "worker",
         agentType: "Bash",
@@ -166,10 +167,11 @@ describe("registerTeamMember", () => {
   });
 
   it("should clean up lock file after success", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "lock-cleanup";
     writeTestConfig(teamName, createValidConfig(teamName));
 
-    await registerTeamMember(teamName, {
+    await repo.registerMember(teamName, {
       agentId: `worker@${teamName}`,
       name: "worker",
       agentType: "Bash",
@@ -180,13 +182,14 @@ describe("registerTeamMember", () => {
   });
 
   it("should clean up lock file after failure", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "lock-failure";
-    // Don't create the config file — registerTeamMember should fail
+    // Don't create the config file — registerMember should fail
     const teamDir = getTeamDir(teamName);
     mkdirSync(teamDir, { recursive: true });
 
     try {
-      await registerTeamMember(teamName, {
+      await repo.registerMember(teamName, {
         agentId: `worker@${teamName}`,
         name: "worker",
         agentType: "Bash",
@@ -202,11 +205,12 @@ describe("registerTeamMember", () => {
 
 describe("createInbox", () => {
   it("should create an inbox file for a teammate", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "inbox-test";
     const teamDir = getTeamDir(teamName);
     mkdirSync(teamDir, { recursive: true });
 
-    await createInbox(teamName, "worker-a");
+    await repo.createInbox(teamName, "worker-a");
 
     const inboxPath = join(teamDir, "inboxes", "worker-a.json");
     expect(existsSync(inboxPath)).toBe(true);
@@ -214,31 +218,34 @@ describe("createInbox", () => {
   });
 
   it("should not overwrite existing inbox", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "inbox-existing";
     const teamDir = getTeamDir(teamName);
     const inboxDir = join(teamDir, "inboxes");
     mkdirSync(inboxDir, { recursive: true });
     writeFileSync(join(inboxDir, "worker-a.json"), '[{"msg":"existing"}]');
 
-    await createInbox(teamName, "worker-a");
+    await repo.createInbox(teamName, "worker-a");
 
     const content = readFileSync(join(inboxDir, "worker-a.json"), "utf-8");
     expect(content).toBe('[{"msg":"existing"}]');
   });
 
   it("should create inboxes directory if it does not exist", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "inbox-mkdir";
     const teamDir = getTeamDir(teamName);
     mkdirSync(teamDir, { recursive: true });
 
-    await createInbox(teamName, "worker-b");
+    await repo.createInbox(teamName, "worker-b");
 
     expect(existsSync(join(teamDir, "inboxes"))).toBe(true);
   });
 });
 
-describe("deregisterTeamMember", () => {
+describe("deregisterMember", () => {
   it("should remove a member from the team config", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "deregister-test";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -249,28 +256,31 @@ describe("deregisterTeamMember", () => {
     });
     writeTestConfig(teamName, config);
 
-    const result = await deregisterTeamMember(teamName, "worker-a");
+    const result = await repo.deregisterMember(teamName, "worker-a");
 
     expect(result).toBe(true);
-    const updated = await readTeamConfig(teamName);
+    const updated = await repo.readConfig(teamName);
     expect(updated?.members).toHaveLength(1);
     expect(updated?.members[0].name).toBe("team-lead");
   });
 
   it("should return false for non-existent team", async () => {
-    const result = await deregisterTeamMember("nonexistent", "worker-a");
+    const repo = createFileTeamRepository();
+    const result = await repo.deregisterMember("nonexistent", "worker-a");
     expect(result).toBe(false);
   });
 
   it("should return false for non-existent member", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "deregister-missing";
     writeTestConfig(teamName, createValidConfig(teamName));
 
-    const result = await deregisterTeamMember(teamName, "no-such-worker");
+    const result = await repo.deregisterMember(teamName, "no-such-worker");
     expect(result).toBe(false);
   });
 
   it("should be idempotent — second call returns false", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "deregister-idempotent";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -281,11 +291,12 @@ describe("deregisterTeamMember", () => {
     });
     writeTestConfig(teamName, config);
 
-    expect(await deregisterTeamMember(teamName, "worker-a")).toBe(true);
-    expect(await deregisterTeamMember(teamName, "worker-a")).toBe(false);
+    expect(await repo.deregisterMember(teamName, "worker-a")).toBe(true);
+    expect(await repo.deregisterMember(teamName, "worker-a")).toBe(false);
   });
 
   it("should clean up lock file after success", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "deregister-lock";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -295,7 +306,7 @@ describe("deregisterTeamMember", () => {
     });
     writeTestConfig(teamName, config);
 
-    await deregisterTeamMember(teamName, "worker-a");
+    await repo.deregisterMember(teamName, "worker-a");
 
     const lockPath = join(getTeamDir(teamName), "config.json.lock");
     expect(existsSync(lockPath)).toBe(false);
@@ -304,37 +315,41 @@ describe("deregisterTeamMember", () => {
 
 describe("removeInbox", () => {
   it("should remove an existing inbox file", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "remove-inbox-test";
     const teamDir = getTeamDir(teamName);
     const inboxDir = join(teamDir, "inboxes");
     mkdirSync(inboxDir, { recursive: true });
     writeFileSync(join(inboxDir, "worker-a.json"), "[]");
 
-    const result = await removeInbox(teamName, "worker-a");
+    const result = await repo.removeInbox(teamName, "worker-a");
 
     expect(result).toBe(true);
     expect(existsSync(join(inboxDir, "worker-a.json"))).toBe(false);
   });
 
   it("should return false for non-existent inbox", async () => {
-    const result = await removeInbox("nonexistent-team", "worker-a");
+    const repo = createFileTeamRepository();
+    const result = await repo.removeInbox("nonexistent-team", "worker-a");
     expect(result).toBe(false);
   });
 
   it("should be idempotent — second call returns false", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "remove-inbox-idempotent";
     const teamDir = getTeamDir(teamName);
     const inboxDir = join(teamDir, "inboxes");
     mkdirSync(inboxDir, { recursive: true });
     writeFileSync(join(inboxDir, "worker-a.json"), "[]");
 
-    expect(await removeInbox(teamName, "worker-a")).toBe(true);
-    expect(await removeInbox(teamName, "worker-a")).toBe(false);
+    expect(await repo.removeInbox(teamName, "worker-a")).toBe(true);
+    expect(await repo.removeInbox(teamName, "worker-a")).toBe(false);
   });
 });
 
 describe("findWorkerByWorktreePath", () => {
   it("should find a worker by worktree path", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "find-worker-test";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -346,31 +361,34 @@ describe("findWorkerByWorktreePath", () => {
     });
     writeTestConfig(teamName, config);
 
-    const result = await findWorkerByWorktreePath("/worktrees/feat-branch");
+    const result = await repo.findWorkerByWorktreePath("/worktrees/feat-branch");
     expect(result).not.toBeNull();
     expect(result?.teamName).toBe(teamName);
     expect(result?.agentName).toBe("worker-a");
   });
 
   it("should return null when no worker matches", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "find-no-match";
     writeTestConfig(teamName, createValidConfig(teamName));
 
-    const result = await findWorkerByWorktreePath("/nonexistent/path");
+    const result = await repo.findWorkerByWorktreePath("/nonexistent/path");
     expect(result).toBeNull();
   });
 
   it("should return null when teams directory does not exist", async () => {
+    const repo = createFileTeamRepository();
     rmSync(join(testTeamsDir, "fakehome", ".claude", "teams"), {
       recursive: true,
       force: true,
     });
 
-    const result = await findWorkerByWorktreePath("/some/path");
+    const result = await repo.findWorkerByWorktreePath("/some/path");
     expect(result).toBeNull();
   });
 
   it("should normalize paths for comparison", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "normalize-test";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -381,12 +399,13 @@ describe("findWorkerByWorktreePath", () => {
     });
     writeTestConfig(teamName, config);
 
-    const result = await findWorkerByWorktreePath("/worktrees/feat-branch");
+    const result = await repo.findWorkerByWorktreePath("/worktrees/feat-branch");
     expect(result).not.toBeNull();
     expect(result?.agentName).toBe("worker-b");
   });
 
   it("should search across multiple teams", async () => {
+    const repo = createFileTeamRepository();
     const team1 = "multi-team-1";
     const team2 = "multi-team-2";
     writeTestConfig(team1, createValidConfig(team1));
@@ -400,13 +419,14 @@ describe("findWorkerByWorktreePath", () => {
     });
     writeTestConfig(team2, config2);
 
-    const result = await findWorkerByWorktreePath("/worktrees/fix-bug");
+    const result = await repo.findWorkerByWorktreePath("/worktrees/fix-bug");
     expect(result).not.toBeNull();
     expect(result?.teamName).toBe(team2);
     expect(result?.agentName).toBe("worker-x");
   });
 
   it("should skip members without cwd", async () => {
+    const repo = createFileTeamRepository();
     const teamName = "no-cwd-test";
     const config = createValidConfig(teamName);
     config.members.push({
@@ -417,7 +437,7 @@ describe("findWorkerByWorktreePath", () => {
     });
     writeTestConfig(teamName, config);
 
-    const result = await findWorkerByWorktreePath("/unrelated/path");
+    const result = await repo.findWorkerByWorktreePath("/unrelated/path");
     expect(result).toBeNull();
   });
 });

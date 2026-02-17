@@ -9,11 +9,8 @@
  * Exits with 0 in all cases to never block worktree removal.
  */
 
-import {
-  deregisterTeamMember,
-  findWorkerByWorktreePath,
-  removeInbox,
-} from "../src/mcp/utils/agent-teams.js";
+import { deregisterMember } from "../src/team/application/deregister-member.js";
+import { createFileTeamRepository } from "../src/team/infrastructure/file-team-repository.js";
 
 const worktreePath = process.argv[2];
 if (!worktreePath) {
@@ -21,15 +18,7 @@ if (!worktreePath) {
 }
 
 try {
-  const worker = await findWorkerByWorktreePath(worktreePath);
-  if (!worker) {
-    // Not a team worker or already cleaned up
-    process.exit(0);
-  }
-
-  const { teamName, agentName } = worker;
-  await deregisterTeamMember(teamName, agentName);
-  await removeInbox(teamName, agentName);
+  await deregisterMember(worktreePath, { teamRepo: createFileTeamRepository() });
 } catch {
   // Never block worktree removal
 }
