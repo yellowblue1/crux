@@ -1,11 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -45,15 +38,14 @@ function getConfigPath(teamName: string): string {
  * Reads the Agent Teams config.json for a given team.
  * Returns null if the team does not exist or the config is unreadable.
  */
-export function readTeamConfig(teamName: string): TeamConfig | null {
-  const configPath = getConfigPath(teamName);
-  if (!existsSync(configPath)) {
+export async function readTeamConfig(teamName: string): Promise<TeamConfig | null> {
+  const configFile = Bun.file(getConfigPath(teamName));
+  if (!(await configFile.exists())) {
     return null;
   }
 
   try {
-    const content = readFileSync(configPath, "utf-8");
-    const config: TeamConfig = JSON.parse(content);
+    const config: TeamConfig = await configFile.json();
 
     if (!config.name || !config.leadSessionId || !Array.isArray(config.members)) {
       throw new Error(
@@ -74,8 +66,8 @@ export function readTeamConfig(teamName: string): TeamConfig | null {
  * Gets the lead session ID from the team config.
  * This is required for --parent-session-id when launching teammates.
  */
-export function getLeadSessionId(teamName: string): string | null {
-  const config = readTeamConfig(teamName);
+export async function getLeadSessionId(teamName: string): Promise<string | null> {
+  const config = await readTeamConfig(teamName);
   return config?.leadSessionId ?? null;
 }
 
@@ -83,9 +75,9 @@ export function getLeadSessionId(teamName: string): string | null {
  * Registers a new team member in the team config.json.
  * Uses a lock file to prevent concurrent writes.
  */
-export function registerTeamMember(teamName: string, member: TeamMember): void {
+export async function registerTeamMember(teamName: string, member: TeamMember): Promise<void> {
   // Check team existence before acquiring lock
-  const config = readTeamConfig(teamName);
+  const config = await readTeamConfig(teamName);
   if (!config) {
     throw new Error(`Team '${teamName}' not found. Create the team with TeamCreate first.`);
   }
@@ -93,7 +85,7 @@ export function registerTeamMember(teamName: string, member: TeamMember): void {
   const configPath = getConfigPath(teamName);
   const lockPath = `${configPath}.lock`;
 
-  // Acquire lock
+  // Acquire lock (must be synchronous for atomicity)
   try {
     writeFileSync(lockPath, String(process.pid), { flag: "wx" });
   } catch {
@@ -109,7 +101,7 @@ export function registerTeamMember(teamName: string, member: TeamMember): void {
       config.members.push(member);
     }
 
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    await Bun.write(configPath, JSON.stringify(config, null, 2));
   } finally {
     // Release lock
     try {
@@ -125,8 +117,8 @@ export function registerTeamMember(teamName: string, member: TeamMember): void {
  * Uses a lock file to prevent concurrent writes.
  * Returns true if the member was found and removed, false otherwise (idempotent).
  */
-export function deregisterTeamMember(teamName: string, agentName: string): boolean {
-  const config = readTeamConfig(teamName);
+export async function deregisterTeamMember(teamName: string, agentName: string): Promise<boolean> {
+  const config = await readTeamConfig(teamName);
   if (!config) {
     return false;
   }
@@ -134,7 +126,7 @@ export function deregisterTeamMember(teamName: string, agentName: string): boole
   const configPath = getConfigPath(teamName);
   const lockPath = `${configPath}.lock`;
 
-  // Acquire lock
+  // Acquire lock (must be synchronous for atomicity)
   try {
     writeFileSync(lockPath, String(process.pid), { flag: "wx" });
   } catch {
@@ -143,8 +135,7 @@ export function deregisterTeamMember(teamName: string, agentName: string): boole
 
   try {
     // Re-read config inside lock to avoid TOCTOU
-    const freshContent = readFileSync(configPath, "utf-8");
-    const freshConfig: TeamConfig = JSON.parse(freshContent);
+    const freshConfig: TeamConfig = await Bun.file(configPath).json();
 
     const index = freshConfig.members.findIndex((m) => m.name === agentName);
     if (index < 0) {
@@ -152,7 +143,7 @@ export function deregisterTeamMember(teamName: string, agentName: string): boole
     }
 
     freshConfig.members.splice(index, 1);
-    writeFileSync(configPath, JSON.stringify(freshConfig, null, 2));
+    await Bun.write(configPath, JSON.stringify(freshConfig, null, 2));
     return true;
   } finally {
     // Release lock
@@ -168,9 +159,9 @@ export function deregisterTeamMember(teamName: string, agentName: string): boole
  * Removes the inbox file for a teammate.
  * Returns true if the file was found and removed, false otherwise (idempotent).
  */
-export function removeInbox(teamName: string, agentName: string): boolean {
+export async function removeInbox(teamName: string, agentName: string): Promise<boolean> {
   const inboxPath = join(getTeamDir(teamName), "inboxes", `${agentName}.json`);
-  if (!existsSync(inboxPath)) {
+  if (!(await Bun.file(inboxPath).exists())) {
     return false;
   }
 
@@ -186,15 +177,15 @@ export function removeInbox(teamName: string, agentName: string): boolean {
  * Creates the inbox file for a teammate.
  * Agent Teams uses these files for message delivery.
  */
-export function createInbox(teamName: string, agentName: string): void {
+export async function createInbox(teamName: string, agentName: string): Promise<void> {
   const inboxDir = join(getTeamDir(teamName), "inboxes");
   if (!existsSync(inboxDir)) {
     mkdirSync(inboxDir, { recursive: true });
   }
 
-  const inboxPath = join(inboxDir, `${agentName}.json`);
-  if (!existsSync(inboxPath)) {
-    writeFileSync(inboxPath, "[]");
+  const inboxFile = Bun.file(join(inboxDir, `${agentName}.json`));
+  if (!(await inboxFile.exists())) {
+    await Bun.write(inboxFile, "[]");
   }
 }
 
@@ -202,9 +193,9 @@ export function createInbox(teamName: string, agentName: string): void {
  * Finds a worker's teamName and agentName by looking up the worktree path
  * across all team configs. Returns null if no matching worker is found.
  */
-export function findWorkerByWorktreePath(
+export async function findWorkerByWorktreePath(
   worktreePath: string,
-): { teamName: string; agentName: string } | null {
+): Promise<{ teamName: string; agentName: string } | null> {
   const teamsDir = getTeamsDir();
   if (!existsSync(teamsDir)) {
     return null;
@@ -220,7 +211,7 @@ export function findWorkerByWorktreePath(
   }
 
   for (const teamName of entries) {
-    const config = readTeamConfig(teamName);
+    const config = await readTeamConfig(teamName);
     if (!config) {
       continue;
     }

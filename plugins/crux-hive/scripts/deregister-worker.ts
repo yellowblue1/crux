@@ -21,15 +21,15 @@ if (!worktreePath) {
 }
 
 try {
-  const worker = findWorkerByWorktreePath(worktreePath);
+  const worker = await findWorkerByWorktreePath(worktreePath);
   if (!worker) {
     // Not a team worker or already cleaned up
     process.exit(0);
   }
 
   const { teamName, agentName } = worker;
-  deregisterTeamMember(teamName, agentName);
-  removeInbox(teamName, agentName);
+  await deregisterTeamMember(teamName, agentName);
+  await removeInbox(teamName, agentName);
 } catch {
   // Never block worktree removal
 }

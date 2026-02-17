@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -21,16 +21,15 @@ interface McpJson {
 /**
  * Get MCP server names from .mcp.json in the given directory
  */
-export function getMcpServersFromProject(dir: string): string[] {
-  const mcpJsonPath = join(dir, ".mcp.json");
+export async function getMcpServersFromProject(dir: string): Promise<string[]> {
+  const mcpJsonFile = Bun.file(join(dir, ".mcp.json"));
 
-  if (!existsSync(mcpJsonPath)) {
+  if (!(await mcpJsonFile.exists())) {
     return [];
   }
 
   try {
-    const content = readFileSync(mcpJsonPath, "utf-8");
-    const mcpJson: McpJson = JSON.parse(content);
+    const mcpJson: McpJson = await mcpJsonFile.json();
     return Object.keys(mcpJson.mcpServers ?? {});
   } catch {
     return [];
@@ -41,16 +40,19 @@ export function getMcpServersFromProject(dir: string): string[] {
  * Update ~/.claude.json to trust a worktree path and enable MCP servers
  * Uses atomic write (temp file + rename) for safety
  */
-export function updateClaudeConfig(worktreePath: string, mcpServers: string[]): void {
+export async function updateClaudeConfig(
+  worktreePath: string,
+  mcpServers: string[],
+): Promise<void> {
   const claudeJsonPath = join(homedir(), ".claude.json");
+  const claudeJsonFile = Bun.file(claudeJsonPath);
 
-  if (!existsSync(claudeJsonPath)) {
+  if (!(await claudeJsonFile.exists())) {
     return;
   }
 
   try {
-    const content = readFileSync(claudeJsonPath, "utf-8");
-    const config: ClaudeConfig = JSON.parse(content);
+    const config: ClaudeConfig = await claudeJsonFile.json();
 
     // Initialize projects if not exists
     if (!config.projects) {
@@ -68,7 +70,7 @@ export function updateClaudeConfig(worktreePath: string, mcpServers: string[]): 
 
     // Atomic write: write to temp file, then rename
     const tempPath = `${claudeJsonPath}.tmp`;
-    writeFileSync(tempPath, JSON.stringify(config, null, 2));
+    await Bun.write(tempPath, JSON.stringify(config, null, 2));
     renameSync(tempPath, claudeJsonPath);
   } catch (e) {
     // Ignore errors - failing to update config is not critical

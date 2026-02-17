@@ -6,6 +6,7 @@ paths: plugins/**/*.ts
 
 ## Runtime & Tooling
 - Bun runtime (fast startup, native APIs)
+- Prefer Bun native APIs for file I/O: `Bun.file().json()`, `Bun.file().text()`, `Bun.file().exists()`, `Bun.write()`, `crypto.randomUUID()`. Keep `node:fs` only where no Bun equivalent exists (e.g. `mkdirSync`, `unlinkSync`, `readdirSync`, `renameSync`, `writeFileSync` with `{ flag: "wx" }`)
 - Biome for lint/format (see biome.json)
 
 ## Error Handling
