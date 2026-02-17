@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.3.2] - 2026-02-17
+
+### Changed
+
+- refactor: migrate Node.js APIs to Bun native APIs in crux-hive ([#148](https://github.com/yellowblue1/crux/pull/148))
+- refactor: migrate execSync to Bun.spawnSync across codebase ([#124](https://github.com/yellowblue1/crux/pull/124))
+
+### Fixed
+
+- fix: restrict temp file permissions to owner-only in sendKeys ([#147](https://github.com/yellowblue1/crux/pull/147))
+- fix: use temp file in sendKeys to avoid shell argument length limit ([#146](https://github.com/yellowblue1/crux/pull/146))
+
+### Docs
+
+- docs: add Agent Teams env var requirement to crux-hive README ([#145](https://github.com/yellowblue1/crux/pull/145))
+
 ## [5.3.1] - 2026-02-08
 
 ### Fixed
