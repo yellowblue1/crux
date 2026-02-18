@@ -3,10 +3,10 @@ import type { GitAdapter, WorktreeCreateResult } from "../domain/ports.js";
 
 export function createGitWorktreeAdapter(): GitAdapter {
   return {
-    createWorktree(branch: string, fromRef?: string): WorktreeCreateResult {
-      const command = fromRef
-        ? `git gtr new "${branch}" --from "${fromRef}"`
-        : `git gtr new "${branch}"`;
+    createWorktree(branch: string, fromRef?: string, noFetch?: boolean): WorktreeCreateResult {
+      const fromFlag = fromRef ? ` --from "${fromRef}"` : "";
+      const noFetchFlag = noFetch ? " --no-fetch" : "";
+      const command = `git gtr new "${branch}"${fromFlag}${noFetchFlag}`;
       const result = exec(command);
       if (result.success) {
         return { success: true };

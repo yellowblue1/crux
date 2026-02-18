@@ -57,6 +57,10 @@ const TOOL_DEFINITIONS = [
           type: "string",
           description: "Model to use for the teammate (e.g., 'sonnet', 'haiku')",
         },
+        noFetch: {
+          type: "boolean",
+          description: "Skip git fetch before creating worktree (default: false)",
+        },
       },
       required: ["branch"],
     },

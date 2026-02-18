@@ -20,8 +20,18 @@ export async function startSession(
   args: StartWorktreeSessionArgs,
   deps: StartSessionDeps,
 ): Promise<SessionResult> {
-  const { branch, fromRef, planMode, prompt, pluginDir, teamName, agentName, agentColor, model } =
-    args;
+  const {
+    branch,
+    fromRef,
+    noFetch,
+    planMode,
+    prompt,
+    pluginDir,
+    teamName,
+    agentName,
+    agentColor,
+    model,
+  } = args;
 
   // Validate branch parameter
   if (!branch || typeof branch !== "string") {
@@ -85,7 +95,7 @@ export async function startSession(
   }
 
   // Create worktree
-  const createResult = deps.git.createWorktree(branch, fromRef);
+  const createResult = deps.git.createWorktree(branch, fromRef, noFetch);
   if (!createResult.success) {
     return {
       success: false,
