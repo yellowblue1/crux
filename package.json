@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "knip": "knip",
     "knip:fix": "knip --fix",
-    "depcruise": "depcruise --config plugins/crux-hive/.dependency-cruiser.cjs plugins/crux-hive/src",
+    "depcruise": "bunx depcruise --config plugins/crux-hive/.dependency-cruiser.cjs plugins/crux-hive/src",
     "type-coverage": "type-coverage --at-least 95",
     "type-coverage:detail": "type-coverage --detail"
   },
