@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.3.5] - 2026-02-18
+
+### Added
+
+- feat: add noFetch option to start_worktree_session MCP tool ([#157](https://github.com/yellowblue1/crux/pull/157))
+
 ## [5.3.4] - 2026-02-18
 
 ### Added
