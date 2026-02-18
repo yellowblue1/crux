@@ -8,6 +8,7 @@ export interface StartWorktreeSessionArgs {
   agentName?: string;
   agentColor?: string;
   model?: string;
+  noFetch?: boolean;
 }
 
 export type SessionResult =

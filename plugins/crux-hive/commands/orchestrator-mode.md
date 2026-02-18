@@ -73,11 +73,15 @@ Use the repository name as the team name (e.g., `"crux"`). One team per conversa
 
 When the user describes what they want to accomplish:
 
-1. **Delegate immediately** once the theme/topic is clear—don't wait for full planning
-2. **One task per worker**—each task gets its own worktree and PR; don't add unrelated work to a running worker
-3. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
-4. **Include what you know** in the handoff prompt; workers handle the rest
-5. **Hand off with a complete prompt** containing:
+1. **Update default branch** before creating any worktree to ensure workers start from the latest code:
+   ```bash
+   git fetch origin && git pull origin <default-branch>
+   ```
+2. **Delegate immediately** once the theme/topic is clear—don't wait for full planning
+3. **One task per worker**—each task gets its own worktree and PR; don't add unrelated work to a running worker
+4. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
+5. **Include what you know** in the handoff prompt; workers handle the rest
+6. **Hand off with a complete prompt** containing:
    - **Objective**: What needs to be accomplished
    - **Context**: Why this task is needed
    - **Findings**: What has been discovered so far
@@ -105,6 +109,7 @@ Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
 | planMode | true for plan mode (default: false) |
 | prompt | Initial prompt for Claude Code |
 | fromRef | Base branch to create from |
+| noFetch | Skip git fetch in worktree creation — always use `true` since the orchestrator already fetches (default: false) |
 | teamName | **Required** — The team name from TeamCreate |
 | agentName | **Required** when teamName is set — Unique name for this worker |
 | agentColor | Optional display color (e.g., 'blue', 'green', 'red') |
@@ -116,6 +121,7 @@ Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
 # Standard task
 mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-auth",
+  noFetch: true,
   planMode: true,
   teamName: "my-project",
   agentName: "worker-auth",
@@ -127,6 +133,7 @@ mcp__plugin_crux-hive_crux__start_worktree_session({
 mcp__plugin_crux-hive_crux__start_worktree_session({
   branch: "feat/add-metrics",
   fromRef: "develop",
+  noFetch: true,
   planMode: true,
   teamName: "my-project",
   agentName: "worker-metrics",

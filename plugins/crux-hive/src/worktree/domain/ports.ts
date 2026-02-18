@@ -1,7 +1,7 @@
 export type WorktreeCreateResult = { success: true } | { success: false; error: string };
 
 export interface GitAdapter {
-  createWorktree(branch: string, fromRef?: string): WorktreeCreateResult;
+  createWorktree(branch: string, fromRef?: string, noFetch?: boolean): WorktreeCreateResult;
   getWorktreePath(branch: string): string;
 }
 
