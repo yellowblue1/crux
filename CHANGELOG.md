@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.3.4] - 2026-02-18
+
+### Added
+
+- feat: add Agent Teams env var prerequisite check to orchestrator mode ([#150](https://github.com/yellowblue1/crux/pull/150))
+
+### Changed
+
+- refactor: migrate crux-hive to DDD architecture with dependency-cruiser ([#151](https://github.com/yellowblue1/crux/pull/151))
+
+### Fixed
+
+- fix: increase default exec timeout from 30s to 60s ([#153](https://github.com/yellowblue1/crux/pull/153))
+
 ## [5.3.2] - 2026-02-17
 
 ### Changed
