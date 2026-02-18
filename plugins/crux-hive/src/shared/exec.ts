@@ -7,7 +7,7 @@ export function shellEscape(str: string): string {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
-export interface ExecResult {
+interface ExecResult {
   success: boolean;
   stdout: string;
   error?: string;

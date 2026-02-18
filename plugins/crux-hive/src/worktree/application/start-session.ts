@@ -5,7 +5,7 @@ import type { ConfigAdapter, GitAdapter, TmuxAdapter } from "../domain/ports.js"
 import type { SessionResult, StartWorktreeSessionArgs } from "../domain/types.js";
 import { isValidGitRef } from "../domain/validators.js";
 
-export interface StartSessionDeps {
+interface StartSessionDeps {
   git: GitAdapter;
   tmux: TmuxAdapter;
   config: ConfigAdapter;
