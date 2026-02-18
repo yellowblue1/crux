@@ -78,10 +78,10 @@ When the user describes what they want to accomplish:
    git fetch origin && git pull origin <default-branch>
    ```
 2. **Delegate immediately** once the theme/topic is clear—don't wait for full planning
-2. **One task per worker**—each task gets its own worktree and PR; don't add unrelated work to a running worker
-3. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
-4. **Include what you know** in the handoff prompt; workers handle the rest
-5. **Hand off with a complete prompt** containing:
+3. **One task per worker**—each task gets its own worktree and PR; don't add unrelated work to a running worker
+4. **Never assume specifics you're unsure of**—keep ambiguity intact or ask briefly
+5. **Include what you know** in the handoff prompt; workers handle the rest
+6. **Hand off with a complete prompt** containing:
    - **Objective**: What needs to be accomplished
    - **Context**: Why this task is needed
    - **Findings**: What has been discovered so far
