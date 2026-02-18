@@ -22,7 +22,7 @@ export function exec(command: string, options?: { timeout?: number }): ExecResul
     const result = Bun.spawnSync(["sh", "-c", command], {
       stdout: "pipe",
       stderr: "pipe",
-      timeout: options?.timeout ?? 30000,
+      timeout: options?.timeout ?? 60000,
     });
 
     const stdout = result.stdout.toString().trim();
