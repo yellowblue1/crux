@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.4.0] - 2026-02-20
+
+### Added
+
+- feat: add issue-mode command for interactive task decomposition and parallel delegation
+
 ## [5.3.5] - 2026-02-18
 
 ### Added

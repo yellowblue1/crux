@@ -29,14 +29,25 @@ claude plugin install /path/to/crux-hive
 ## Usage
 
 ```
-/orchestrator-mode
+/orchestrator-mode    # Delegate pre-defined tasks to parallel workers
+/issue-mode           # From vague idea → task decomposition → parallel workers
 ```
 
-That's it. The orchestrator handles everything:
+### orchestrator-mode
+
+For when you already know what tasks to delegate:
 1. Creates a team with `TeamCreate`
 2. Delegates tasks to worker sessions in separate worktrees
 3. Workers communicate via built-in `SendMessage` (auto-delivered)
 4. Reviews and merges PRs
+
+### issue-mode
+
+For when you start from a vague idea:
+1. Interactively clarifies requirements with the user
+2. Decomposes into structured task cards (INVEST principles)
+3. Gets user approval on the task breakdown
+4. Delegates all tasks to parallel workers (same as orchestrator-mode)
 
 ## How it works
 
