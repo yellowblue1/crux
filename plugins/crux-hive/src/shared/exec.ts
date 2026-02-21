@@ -64,18 +64,21 @@ export async function execAsync(
     });
 
     const timeoutMs = options?.timeout ?? 60000;
+    let timer: ReturnType<typeof setTimeout>;
     const exitCode = await Promise.race([
       proc.exited,
       new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timer = setTimeout(() => {
           proc.kill();
           reject(new Error(`Command timed out after ${timeoutMs}ms`));
         }, timeoutMs);
       }),
-    ]);
+    ]).finally(() => clearTimeout(timer));
 
-    const stdout = await new Response(proc.stdout).text();
-    const stderr = await new Response(proc.stderr).text();
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
 
     if (exitCode === 0) {
       return { success: true, stdout: stdout.trim() };

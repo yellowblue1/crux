@@ -114,24 +114,21 @@ async function shutdown(signal: string): Promise<void> {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-process.on("uncaughtException", async (error) => {
+process.on("uncaughtException", (error) => {
   log(`uncaught exception: ${error.message}`);
-  await server.close();
-  process.exit(1);
+  server.close().finally(() => process.exit(1));
 });
 
-process.on("unhandledRejection", async (reason) => {
+process.on("unhandledRejection", (reason) => {
   log(`unhandled rejection: ${reason}`);
-  await server.close();
-  process.exit(1);
+  server.close().finally(() => process.exit(1));
 });
 
 // The SDK's StdioServerTransport does not detect stdin closing.
 // Without this, the server hangs as an orphan when the client disconnects.
 process.stdin.on("end", () => {
   log("stdin closed, shutting down");
-  server.close();
-  process.exit(0);
+  server.close().finally(() => process.exit(0));
 });
 
 try {
