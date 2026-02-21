@@ -12,6 +12,10 @@ import {
   startWorktreeSession,
 } from "./tools/start-worktree-session.js";
 
+function log(message: string): void {
+  console.error(`[crux-mcp] ${message}`);
+}
+
 const TOOL_DEFINITIONS = [
   {
     name: "start_worktree_session",
@@ -69,20 +73,72 @@ const TOOL_DEFINITIONS = [
 
 const server = new Server({ name: "crux", version: "5.0.0" }, { capabilities: { tools: {} } });
 
+server.onerror = (error: Error) => {
+  log(`server error: ${error.message}`);
+};
+
+server.onclose = () => {
+  log("server connection closed");
+};
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: TOOL_DEFINITIONS,
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
   const { name, arguments: args } = request.params;
+  log(`tool call: ${name} (start)`);
 
-  switch (name) {
-    case "start_worktree_session":
-      return startWorktreeSession(args as unknown as StartWorktreeSessionArgs);
-    default:
-      throw new Error(`Unknown tool: ${name}`);
+  try {
+    switch (name) {
+      case "start_worktree_session": {
+        const result = await startWorktreeSession(args as unknown as StartWorktreeSessionArgs);
+        log(`tool call: ${name} (done)`);
+        return result;
+      }
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  } catch (error) {
+    log(`tool call: ${name} (error: ${(error as Error).message})`);
+    throw error;
   }
 });
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+async function shutdown(signal: string): Promise<void> {
+  log(`received ${signal}, shutting down`);
+  await server.close();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+process.on("uncaughtException", async (error) => {
+  log(`uncaught exception: ${error.message}`);
+  await server.close();
+  process.exit(1);
+});
+
+process.on("unhandledRejection", async (reason) => {
+  log(`unhandled rejection: ${reason}`);
+  await server.close();
+  process.exit(1);
+});
+
+// The SDK's StdioServerTransport does not detect stdin closing.
+// Without this, the server hangs as an orphan when the client disconnects.
+process.stdin.on("end", () => {
+  log("stdin closed, shutting down");
+  server.close();
+  process.exit(0);
+});
+
+try {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  log("server started");
+} catch (error) {
+  log(`fatal: failed to start server: ${(error as Error).message}`);
+  process.exit(1);
+}

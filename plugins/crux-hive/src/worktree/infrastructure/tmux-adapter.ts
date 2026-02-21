@@ -1,7 +1,7 @@
 import { unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execOrThrow, shellEscape } from "../../shared/exec.js";
+import { execOrThrowAsync, shellEscape } from "../../shared/exec.js";
 import type { TmuxAdapter } from "../domain/ports.js";
 
 export function createTmuxAdapter(): TmuxAdapter {
@@ -9,8 +9,8 @@ export function createTmuxAdapter(): TmuxAdapter {
     isAvailable(): boolean {
       return !!process.env.TMUX;
     },
-    createWindow(name: string, dir: string): string {
-      return execOrThrow(
+    async createWindow(name: string, dir: string): Promise<string> {
+      return execOrThrowAsync(
         `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`,
       );
     },
@@ -18,9 +18,9 @@ export function createTmuxAdapter(): TmuxAdapter {
       const tmpFile = join(tmpdir(), `crux-tmux-${crypto.randomUUID()}.txt`);
       try {
         await Bun.write(tmpFile, keys, { mode: 0o600 });
-        execOrThrow(`tmux load-buffer ${shellEscape(tmpFile)}`);
-        execOrThrow(`tmux paste-buffer -t ${shellEscape(windowId)}`);
-        execOrThrow(`tmux send-keys -t ${shellEscape(windowId)} Enter`);
+        await execOrThrowAsync(`tmux load-buffer ${shellEscape(tmpFile)}`);
+        await execOrThrowAsync(`tmux paste-buffer -t ${shellEscape(windowId)}`);
+        await execOrThrowAsync(`tmux send-keys -t ${shellEscape(windowId)} Enter`);
       } finally {
         try {
           unlinkSync(tmpFile);

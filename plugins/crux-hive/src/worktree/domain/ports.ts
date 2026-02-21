@@ -1,13 +1,17 @@
 export type WorktreeCreateResult = { success: true } | { success: false; error: string };
 
 export interface GitAdapter {
-  createWorktree(branch: string, fromRef?: string, noFetch?: boolean): WorktreeCreateResult;
-  getWorktreePath(branch: string): string;
+  createWorktree(
+    branch: string,
+    fromRef?: string,
+    noFetch?: boolean,
+  ): Promise<WorktreeCreateResult>;
+  getWorktreePath(branch: string): Promise<string>;
 }
 
 export interface TmuxAdapter {
   isAvailable(): boolean;
-  createWindow(name: string, dir: string): string;
+  createWindow(name: string, dir: string): Promise<string>;
   sendKeys(windowId: string, keys: string): Promise<void>;
   waitForShellInit(): Promise<void>;
 }

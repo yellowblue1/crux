@@ -95,7 +95,7 @@ export async function startSession(
   }
 
   // Create worktree
-  const createResult = deps.git.createWorktree(branch, fromRef, noFetch);
+  const createResult = await deps.git.createWorktree(branch, fromRef, noFetch);
   if (!createResult.success) {
     return {
       success: false,
@@ -106,7 +106,7 @@ export async function startSession(
   // Get worktree path
   let worktreePath: string;
   try {
-    worktreePath = deps.git.getWorktreePath(branch);
+    worktreePath = await deps.git.getWorktreePath(branch);
   } catch (e) {
     return { success: false, error: `Failed to get worktree path: ${(e as Error).message}` };
   }
@@ -145,7 +145,7 @@ export async function startSession(
   // Create new tmux window
   let windowId: string;
   try {
-    windowId = deps.tmux.createWindow(windowName, worktreePath);
+    windowId = await deps.tmux.createWindow(windowName, worktreePath);
   } catch (e) {
     return { success: false, error: `Failed to create tmux window: ${(e as Error).message}` };
   }
