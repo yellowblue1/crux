@@ -1,5 +1,5 @@
 ---
-description: Interactive task decomposition and parallel delegation — from vague idea to structured workers
+description: Interactive feature decomposition and parallel delegation — from vague idea to structured SDD workers
 allowed-tools:
   - AskUserQuestion
   - Bash
@@ -11,9 +11,9 @@ allowed-tools:
 
 # Issue Mode
 
-You are now in **Issue Mode**. Your role is to transform a vague idea into structured, well-defined tasks and delegate them to parallel Claude Code sessions — all in one continuous flow.
+You are now in **Issue Mode**. Your role is to transform a vague idea into structured, well-defined features and delegate them to parallel Claude Code sessions — all in one continuous flow.
 
-Unlike `/orchestrator-mode` (which expects pre-defined tasks), Issue Mode guides the user through requirements clarification and task decomposition before delegation.
+Unlike `/orchestrator-mode` (which expects pre-defined tasks), Issue Mode guides the user through requirements clarification and feature decomposition before delegation. Each worker follows **Spec-Driven Development (SDD)**: codebase investigation → technical design → task decomposition → TDD implementation.
 
 ## Prerequisites
 
@@ -34,12 +34,12 @@ If any prerequisite is not met, inform the user before proceeding.
 │    AskUserQuestion → Clarify scope, goals, non-goals              │
 │         │                                                         │
 │  Phase 2: DECOMPOSE                                               │
-│    Apply INVEST → Structured task cards                           │
+│    Apply INVEST → Structured feature cards                        │
 │    Present to user → Get approval                                 │
 │         │                                                         │
 │  Phase 3: ORCHESTRATE                                             │
-│    TeamCreate → start_worktree_session per task                   │
-│    Workers run in plan mode → approve plans → PRs created         │
+│    TeamCreate → start_worktree_session per feature                │
+│    Workers follow SDD → approve plans → PRs created               │
 │         │                                                         │
 │  Phase 4: REVIEW & CLEANUP                                        │
 │    Review PRs → Merge with user approval → Clean worktrees        │
@@ -50,7 +50,7 @@ If any prerequisite is not met, inform the user before proceeding.
 
 Goal: Transform the user's initial idea into a clear, shared understanding of what needs to be built.
 
-Use `AskUserQuestion` to interactively gather requirements. This phase ends when you have enough clarity to decompose tasks.
+Use `AskUserQuestion` to interactively gather requirements. This phase ends when you have enough clarity to decompose features.
 
 ### What to Clarify
 
@@ -63,6 +63,8 @@ Use `AskUserQuestion` to interactively gather requirements. This phase ends when
 | Acceptance criteria | "How would you verify this is working correctly?" |
 | Technical constraints | "Are there specific libraries, patterns, or APIs you want to use (or avoid)?" |
 | Dependencies | "Does any part of this need to be done before another part can start?" |
+| Feature boundaries | "Can this be split into independent features that deliver value separately?" |
+| Cross-feature concerns | "Are there shared components or interfaces between these features?" |
 
 ### Hearing Guidelines
 
@@ -71,75 +73,77 @@ Use `AskUserQuestion` to interactively gather requirements. This phase ends when
 - **Detect implicit assumptions** — if the user says "add auth," clarify: OAuth? Session-based? Which provider?
 - **1-3 rounds is typical** — stop when diminishing returns; perfection is not the goal
 - **Respect user impatience** — if the user says "just do it," move to Phase 2 with your best understanding
-- **Preserve ambiguity that belongs to workers** — if a detail is implementation-specific (e.g., exact file structure), don't ask the user; let the worker decide
+- **Preserve ambiguity that belongs to workers** — if a detail is implementation-specific (e.g., exact file structure, internal design), don't ask the user; let the worker investigate and decide
 
 ## Phase 2: Decompose
 
-Goal: Break the clarified requirements into independent, well-structured task cards that can be delegated to parallel workers.
+Goal: Break the clarified requirements into independent, well-structured feature cards that can be delegated to parallel workers. Each feature becomes **one worker session and one PR**.
 
 ### INVEST Principles
 
-Apply these principles as guidance — not rigid rules. The goal is practical task quality, not checklist compliance.
+Apply these principles as guidance — not rigid rules. The goal is practical feature quality, not checklist compliance.
 
 | Principle | Meaning | Practical Application |
 |-----------|---------|----------------------|
-| **I**ndependent | Tasks can be worked on in parallel | Minimize cross-task dependencies; if two tasks must touch the same file, note it as a constraint |
-| **N**egotiable | Details can flex during implementation | Define WHAT, not HOW — workers choose implementation approach |
-| **V**aluable | Each task delivers something useful | Every task should produce a reviewable PR with visible value |
-| **E**stimable | Scope is clear enough to estimate | If you can't explain the task in 2-3 sentences, it's too vague — split or clarify further |
-| **S**mall | Completable in a single worker session | One PR per task; if a task would need multiple PRs, split it |
+| **I**ndependent | Features can be worked on in parallel | Minimize cross-feature dependencies; if two features must touch the same file, note it as a constraint |
+| **N**egotiable | HOW is decided by the worker | Define WHAT (requirements & AC), not HOW — workers investigate the codebase and choose implementation approach |
+| **V**aluable | Each feature delivers something useful | Every feature should produce a reviewable PR with visible value |
+| **E**stimable | Scope is clear enough to estimate | If you can't explain the feature in 2-3 sentences, it's too vague — split or clarify further |
+| **S**mall | Completable in a single worker session | One PR per feature; if a feature would need multiple PRs, split it |
 | **T**estable | Success criteria are verifiable | Acceptance criteria must be concrete enough to verify in a PR review |
 
-### Task Card Format
+### Feature Card Format
 
-For each task, produce a structured card:
+For each feature, produce a structured card:
 
 ```
-### Task N: <imperative title, under 60 chars>
+### Feature N: <imperative title, under 60 chars>
 
-**Objective**: <1-2 sentences — WHAT this task accomplishes, not HOW>
+**Requirements**:
+- <user story or requirement statement>
+- <user story or requirement statement>
 
 **Acceptance Criteria**:
 - Given <context>, when <action>, then <expected result>
 - Given <context>, when <action>, then <expected result>
 
-**Technical Constraints** (if any):
-- <specific library, API, or pattern requirements>
-- <files that must/must not be modified>
+**Scope**:
+- In scope: <what this feature includes>
+- Out of scope: <what this feature explicitly does NOT include>
 
-**Non-goals**:
-- <what this task explicitly does NOT include>
+**Constraints** (if any):
+- <specific library, API, or pattern requirements>
 
 **Dependencies**:
-- <other task numbers this depends on, or "None">
+- <other feature numbers this depends on, or "None">
 ```
 
 ### Decomposition Guidelines
 
-- **3-7 tasks is the sweet spot** — fewer than 3 suggests the idea may not need issue-mode; more than 7 means you should consider grouping related work
+- **Right-size your features** — each feature should be completable in a single worker session and produce one PR; split or merge as needed
 - **Title format**: imperative verb, under 60 characters (e.g., "Add JWT authentication middleware")
-- **Objective says WHAT, not HOW**: "Support user login via OAuth" not "Create a passport.js strategy with Google provider"
+- **Requirements say WHAT, not HOW**: "Support user login via OAuth" not "Create a passport.js strategy with Google provider"
 - **Acceptance criteria use Given-When-Then**: concrete, verifiable conditions
-- **Mark dependencies explicitly**: if Task 3 needs Task 1's output, say so — the orchestration phase will sequence them
-- **Non-goals prevent scope creep**: explicitly state what each task does NOT include
-- **Include technical constraints sparingly**: only when a specific file, pattern, or library must be used
+- **Mark dependencies explicitly**: if Feature 3 needs Feature 1's output, say so — the orchestration phase will sequence them
+- **Scope prevents scope creep**: explicitly state what is in and out of scope for each feature
+- **Include constraints sparingly**: only when a specific file, pattern, or library must be used
 
 ### User Approval Gate
 
-After generating task cards, present them to the user and ask for approval:
+After generating feature cards, present them to the user and ask for approval:
 
-1. Display all task cards in a numbered list
+1. Display all feature cards in a numbered list
 2. Summarize the dependency graph (if any)
 3. Note the suggested execution order (parallel groups and sequential dependencies)
-4. Ask: "Shall I proceed with these tasks, or would you like to adjust anything?"
+4. Ask: "Shall I proceed with these features, or would you like to adjust anything?"
 
-The user may modify, merge, split, or reorder tasks. Iterate until they approve.
+The user may modify, merge, split, or reorder features. Iterate until they approve.
 
 **Do NOT proceed to Phase 3 without explicit user approval.**
 
 ## Phase 3: Orchestrate
 
-Goal: Launch parallel workers for the approved tasks.
+Goal: Launch parallel workers for the approved features. Each worker follows the SDD workflow autonomously.
 
 ### Step 1: Create Team
 
@@ -157,38 +161,85 @@ git fetch origin && git pull origin <default-branch>
 
 ### Step 3: Launch Workers
 
-For each approved task card, launch a worker using `start_worktree_session`.
+For each approved feature card, launch a worker using `start_worktree_session`.
 
-**Construct the worker prompt from the task card:**
+**Construct the worker prompt from the feature card:**
 
 ```
-Objective: <task objective>
+You are implementing the "{feature-title}" feature using Spec-Driven Development (SDD).
 
-Acceptance Criteria:
-<acceptance criteria from task card>
+## Requirements
+{requirements from feature card}
 
-Technical Constraints:
-<constraints from task card>
+## Acceptance Criteria
+{acceptance criteria from feature card}
 
-Non-goals:
-<non-goals from task card>
+## Scope
+{scope from feature card}
 
-Context:
-<any additional context from the hearing phase relevant to this task>
+## Constraints
+{constraints from feature card}
+
+## Your Workflow
+
+Follow this SDD workflow strictly. You will create specification documents under `docs/specs/{feature-name}/` as you progress through each step. Use kebab-case for `{feature-name}` (e.g., `user-authentication`).
+
+### Step 1: Codebase Investigation
+- Investigate existing code for similar patterns and conventions
+- Identify files that need modification
+- Understand the test patterns used in this project
+
+### Step 2: Requirements Specification → `docs/specs/{feature-name}/requirements.md`
+Create `requirements.md` with the following structure:
+- Overview (1-2 sentences)
+- User Stories (with checkboxes)
+- Acceptance Criteria (Given-When-Then format, linked to user stories)
+- Scope (In Scope / Out of Scope)
+- Constraints
+- Priority (Must / Should / Could)
+
+### Step 3: Technical Design → `docs/specs/{feature-name}/design.md`
+Based on your codebase investigation, create `design.md` with:
+- Architecture Overview
+- Component Design (responsibility, file path, dependencies for each component)
+- Data Model (if applicable)
+- API Design (if applicable)
+- Integration with Existing Code (reference implementations, files requiring changes)
+- Technical Considerations (performance, security, error handling)
+- Test Strategy (unit tests, integration tests)
+
+### Step 4: Task Decomposition → `docs/specs/{feature-name}/tasks.md`
+This is your "plan" for approval. Create `tasks.md` with:
+- Overview (total tasks, parallelizable count)
+- Dependency Graph (ASCII diagram)
+- Task Details: each task includes status, target file, dependencies, acceptance criteria, and details
+- **Test-first**: place test tasks before implementation tasks
+- **Small**: 1 task = 1 clear deliverable
+- Mark parallelizable tasks with `[P]`
+
+### Step 5: TDD Implementation (after plan approval)
+- For each task in tasks.md, write tests first, then implement
+- Run tests after each implementation step
+- Update task status in tasks.md as you complete each task (`[ ]` → `[x]`)
+- Ensure all tests pass before moving to the next task
+
+### Step 6: Create PR
+- Create a pull request with a clear description
+- Reference the acceptance criteria in the PR description
 ```
 
 | Parameter | Value |
 |-----------|-------|
-| branch | Derive from task title (e.g., `feat/add-jwt-auth`) |
+| branch | Derive from feature title (e.g., `feat/add-jwt-auth`) |
 | planMode | `true` |
 | noFetch | `true` (orchestrator already fetched) |
 | teamName | The team name from Step 1 |
 | agentName | Descriptive name (e.g., `worker-auth`, `worker-api`) |
-| prompt | Constructed from task card (see above) |
+| prompt | Constructed from feature card (see above) |
 
 **Dependency handling:**
-- Tasks with no dependencies → launch immediately (in parallel)
-- Tasks with dependencies → launch after their dependencies' PRs are merged
+- Features with no dependencies → launch immediately (in parallel)
+- Features with dependencies → launch after their dependencies' PRs are merged
 - Inform the user about the sequencing plan before launching
 
 ### When a Worker Fails to Launch
@@ -225,7 +276,7 @@ When notified that a PR is ready:
    gh pr diff <number>
    ```
 
-3. **Verify against acceptance criteria** from the original task card
+3. **Verify against acceptance criteria** from the original feature card
    - Check each Given-When-Then criterion
    - Note any criteria that were not met
 
@@ -240,7 +291,7 @@ When notified that a PR is ready:
    ```
    Note: Do NOT use `--delete-branch` here. The worktree still references the branch.
 
-6. **Update default branch** and launch dependent tasks (if any)
+6. **Update default branch** and launch dependent features (if any)
    ```bash
    git fetch origin && git pull origin <default-branch>
    ```
@@ -302,9 +353,11 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 ## Important Notes
 
 - **One continuous flow**: Phases 1-4 happen in a single conversation — do not ask the user to restart or switch modes between phases
-- **User approval gates**: Get explicit approval after Phase 2 (task cards) and before each merge (Phase 4)
-- **Workers run in plan mode**: When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins (via `plan_approval_request`/`plan_approval_response`)
-- **INVEST is guidance, not a checklist**: Apply principles pragmatically; a task that violates one principle but is clear and actionable is better than one that satisfies all principles but is overly constrained
+- **User approval gates**: Get explicit approval after Phase 2 (feature cards) and before each merge (Phase 4)
+- **Feature-level decomposition**: The orchestrator decomposes at the feature level; detailed task decomposition is delegated to each worker
+- **Workers follow SDD with documents**: Each worker creates `docs/specs/{feature-name}/` with `requirements.md`, `design.md`, and `tasks.md`, then implements via TDD
+- **Plan = task decomposition**: A worker's plan is its `tasks.md` content; use `plan_approval_request`/`plan_approval_response` to review and approve before implementation begins
+- **Workers run in plan mode**: When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins
+- **INVEST is guidance, not a checklist**: Apply principles pragmatically; a feature that violates one principle but is clear and actionable is better than one that satisfies all principles but is overly constrained
 - **Don't over-question in Phase 1**: 1-3 rounds of clarification is typical; if the user's intent is clear, move directly to decomposition
-- **Delegate research too**: If a task requires codebase exploration or documentation lookup, delegate it as a worker task — don't do it yourself
-- **Ambiguous but correct > Specific but wrong**: When in doubt, keep task descriptions flexible so workers can investigate and decide
+- **Ambiguous but correct > Specific but wrong**: When in doubt, keep feature descriptions flexible so workers can investigate and decide
