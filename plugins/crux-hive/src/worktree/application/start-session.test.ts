@@ -181,6 +181,61 @@ describe("startSession", () => {
       expect(receivedName).toBe("my-feature");
     });
 
+    it("should use full branch name when no slash present", async () => {
+      let receivedName = "";
+      await startSession(
+        { branch: "main" },
+        defaultDeps({
+          tmux: {
+            createWindow: async (name: string) => {
+              receivedName = name;
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedName).toBe("main");
+    });
+
+    it("should use last segment for multi-slash branch", async () => {
+      let receivedName = "";
+      await startSession(
+        { branch: "feat/scope/detail" },
+        defaultDeps({
+          tmux: {
+            createWindow: async (name: string) => {
+              receivedName = name;
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedName).toBe("detail");
+    });
+
+    it("should include agent teams flags in command", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test", teamName: "my-team", agentName: "worker" },
+        defaultDeps({
+          teamRepo: {
+            getLeadSessionId: async () => "session-abc",
+            registerMember: async () => {},
+            createInbox: async () => {},
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedCommand).toContain("--team-name");
+      expect(receivedCommand).toContain("my-team");
+      expect(receivedCommand).toContain("--parent-session-id");
+    });
+
     it("should include plan mode flag in command", async () => {
       let receivedCommand = "";
       await startSession(
@@ -254,6 +309,25 @@ describe("startSession", () => {
             getLeadSessionId: async () => "session-123",
             registerMember: async () => {
               throw new Error("write failed");
+            },
+          },
+        }),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Failed to register teammate");
+      }
+    });
+
+    it("should return error when createInbox throws", async () => {
+      const result = await startSession(
+        { branch: "feat/test", teamName: "my-team", agentName: "worker" },
+        defaultDeps({
+          teamRepo: {
+            getLeadSessionId: async () => "session-123",
+            registerMember: async () => {},
+            createInbox: async () => {
+              throw new Error("inbox creation failed");
             },
           },
         }),
