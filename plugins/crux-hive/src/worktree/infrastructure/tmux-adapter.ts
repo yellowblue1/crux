@@ -12,12 +12,32 @@ const CLAUDE_READY_TIMEOUT_MS = 15_000;
 const SHELL_PROMPT_PATTERN = /[$%#>❯]\s*$/;
 
 export function isShellPromptVisible(paneContent: string): boolean {
-  const lastLine = paneContent.trimEnd().split("\n").pop() ?? "";
+  const trimmed = paneContent.trimEnd();
+  const lastNewline = trimmed.lastIndexOf("\n");
+  const lastLine = lastNewline === -1 ? trimmed : trimmed.slice(lastNewline + 1);
   return SHELL_PROMPT_PATTERN.test(lastLine);
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pollUntil(
+  check: () => Promise<boolean>,
+  intervalMs: number,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<void> {
+  const maxAttempts = Math.ceil(timeoutMs / intervalMs);
+  for (let i = 0; i < maxAttempts; i++) {
+    if (await check()) {
+      return;
+    }
+    if (i < maxAttempts - 1) {
+      await delay(intervalMs);
+    }
+  }
+  throw new Error(errorMessage);
 }
 
 export function createTmuxAdapter(): TmuxAdapter {
@@ -52,26 +72,20 @@ export function createTmuxAdapter(): TmuxAdapter {
     },
     capturePaneContent,
     async waitForShellReady(windowId: string): Promise<void> {
-      const maxAttempts = Math.ceil(SHELL_READY_TIMEOUT_MS / SHELL_READY_INTERVAL_MS);
-      for (let i = 0; i < maxAttempts; i++) {
-        const content = await capturePaneContent(windowId);
-        if (isShellPromptVisible(content)) {
-          return;
-        }
-        await delay(SHELL_READY_INTERVAL_MS);
-      }
-      throw new Error(`Shell initialization timed out after ${SHELL_READY_TIMEOUT_MS}ms`);
+      await pollUntil(
+        async () => isShellPromptVisible(await capturePaneContent(windowId)),
+        SHELL_READY_INTERVAL_MS,
+        SHELL_READY_TIMEOUT_MS,
+        `Shell initialization timed out after ${SHELL_READY_TIMEOUT_MS}ms`,
+      );
     },
     async waitForClaudeReady(windowId: string): Promise<void> {
-      const maxAttempts = Math.ceil(CLAUDE_READY_TIMEOUT_MS / CLAUDE_READY_INTERVAL_MS);
-      for (let i = 0; i < maxAttempts; i++) {
-        const content = await capturePaneContent(windowId);
-        if (content.includes("Claude")) {
-          return;
-        }
-        await delay(CLAUDE_READY_INTERVAL_MS);
-      }
-      throw new Error(`Claude Code failed to start within ${CLAUDE_READY_TIMEOUT_MS}ms`);
+      await pollUntil(
+        async () => (await capturePaneContent(windowId)).includes("Claude"),
+        CLAUDE_READY_INTERVAL_MS,
+        CLAUDE_READY_TIMEOUT_MS,
+        `Claude Code failed to start within ${CLAUDE_READY_TIMEOUT_MS}ms`,
+      );
     },
   };
 }
