@@ -7,7 +7,7 @@
       "ignoreDependencies": ["@modelcontextprotocol/sdk"]
     },
     "plugins/crux-hive": {
-      "entry": ["src/ensure-gtrconfig.ts", "scripts/deregister-worker.ts", "**/*.test.ts"],
+      "entry": ["src/ensure-gtrconfig.ts", "src/restore-orchestrator-context.ts", "scripts/deregister-worker.ts", "**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]
     }
   }
