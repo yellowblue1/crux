@@ -7,17 +7,14 @@ export function createTmuxAdapter(): TmuxAdapter {
       return !!process.env.TMUX;
     },
     async createWindow(name: string, dir: string, command?: string): Promise<string> {
-      if (command) {
-        // Launch command via login shell to ensure full initialization
-        // (.zshrc/.bashrc/starship/oh-my-zsh) before command runs.
-        // After command exits, drop into a new login shell so the window stays open.
-        return execOrThrowAsync(
-          `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}" -- "$SHELL" -lic ${shellEscape(`${command}; exec $SHELL -l`)}`,
-        );
-      }
-      return execOrThrowAsync(
-        `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`,
-      );
+      const base = `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`;
+      // When command is provided, launch via login shell to ensure full
+      // initialization (.zshrc/.bashrc/starship/oh-my-zsh) before command runs.
+      // After command exits, drop into a new login shell so the window stays open.
+      const full = command
+        ? `${base} -- "$SHELL" -lic ${shellEscape(`${command}; exec $SHELL -l`)}`
+        : base;
+      return execOrThrowAsync(full);
     },
   };
 }
