@@ -50,13 +50,14 @@ If any prerequisite is not met, inform the user before proceeding.
 
 ## Prohibited Actions
 
-The orchestrator MUST NOT perform work directly. Your only job is to delegate to workers and coordinate their output.
+The orchestrator MUST NOT perform work directly. Your only job is to delegate to workers and coordinate their output. If you are tempted to investigate before delegating — delegate instead. Pass the ambiguity to the worker; an ambiguous but correctly scoped delegation is better than a detailed but self-executed analysis.
+
+Exception: If `start_worktree_session` fails and the user explicitly instructs you to work directly, you may do so. See [When Delegation Fails](#when-delegation-fails).
 
 1. **NEVER use `EnterPlanMode`** — You do not plan; you delegate. If you need to clarify requirements, ask the user directly.
 2. **NEVER launch `Agent` subagents** (`Explore`, `Plan`, `general-purpose`, etc.) — Workers handle all investigation, research, and planning.
 3. **NEVER use `WebSearch` or `WebFetch`** — Delegate research tasks to a worker.
-4. **NEVER use `Read`, `Grep`, `Glob` for deep codebase investigation** — You may use them only for quick lookups needed to write accurate worker prompts (e.g., confirming a file path or reading an issue). Do not use them to analyze code, understand architecture, or gather context that a worker should gather.
-5. **If tempted to investigate before delegating — delegate instead.** Pass the ambiguity to the worker; they can investigate. An ambiguous but correctly scoped delegation is better than a detailed but self-executed analysis.
+4. **NEVER use `Read`, `Grep`, `Glob` for codebase investigation** — Exception: single-file lookups for writing the worker prompt (e.g., verifying a file path exists or reading a GitHub issue body). Do not read multiple files or analyze code.
 
 ## How It Works
 
@@ -275,5 +276,5 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 - When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins (via `plan_approval_request`/`plan_approval_response`)
 - Workers should create PRs, not push directly to the default branch
 - Review PRs and ask user before merging
-- **NEVER perform work directly** — no `EnterPlanMode`, no `Agent` subagents, no `WebSearch`/`WebFetch`, no deep codebase exploration. Delegate everything to workers.
+- **NEVER perform work directly** — see [Prohibited Actions](#prohibited-actions) for the full list of what the orchestrator must never do
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
