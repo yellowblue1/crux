@@ -13,7 +13,7 @@ All 4 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary
 | Hook Type | File | Purpose |
 |-----------|------|---------|
 | SessionStart | `src/ensure-gtrconfig.ts` | Configures git-gtr hooks (preRemove/postCreate) and injects worker mode instructions when running under an orchestrator |
-| PreToolUse (Bash) | `scripts/hooks/auto-approve-watcher.ts` | Auto-approves the documented notification watcher Bash command (Step 2 of orchestrator-mode.md) |
+| PreToolUse (Bash) | `scripts/hooks/auto-approve-watcher.ts` | Auto-approves the documented notification watcher Bash command (Step 2 of the orchestrator-mode skill) |
 
 ### Git-gtr Integration Hooks (configured by crux-hive SessionStart)
 
@@ -32,7 +32,7 @@ All 4 hooks in the CRUX monorepo serve distinct, active purposes. No unnecessary
 
 **Finding: NECESSARY**
 
-The notification watcher is still documented in `orchestrator-mode.md` Step 2 (lines 88-104). The removed MCP tools were an alternative approach; the file-based watcher with this auto-approve hook remains the current mechanism for orchestrators to receive worker notifications.
+The notification watcher is still documented in the orchestrator-mode skill. The removed MCP tools were an alternative approach; the file-based watcher with this auto-approve hook remains the current mechanism for orchestrators to receive worker notifications.
 
 The hook auto-approves the `bun run poll-notifications.ts` command that watches for notification files, preventing manual approval prompts during orchestrator operation.
 
@@ -44,7 +44,7 @@ The hook auto-approves the `bun run poll-notifications.ts` command that watches 
 
 Both hooks are actively used and documented:
 
-1. **cleanup (preRemove):** Documented in orchestrator-mode.md line 258-260 stating "NEVER use `git worktree remove` directly". This hook ensures the associated tmux window is killed when a worktree is removed via `git gtr rm`.
+1. **cleanup (preRemove):** Documented in the orchestrator-mode skill stating "NEVER use `git worktree remove` directly". This hook ensures the associated tmux window is killed when a worktree is removed via `git gtr rm`.
 
 2. **setup-symlinks (postCreate):** Essential for sharing user configuration across worktrees. Creates symlinks for:
    - `.claude/settings.local.json` - User's local Claude settings
@@ -86,9 +86,9 @@ All hooks in the CRUX monorepo are necessary and actively used. The investigatio
 
 1. **No hooks should be removed** - Each hook serves a distinct purpose
 2. **No redundancy exists** - Hooks with similar types (e.g., SessionStart) serve different plugins with different responsibilities
-3. **Documentation is current** - The orchestrator-mode.md correctly documents the watcher mechanism that relies on the PreToolUse hook
+3. **Documentation is current** - The orchestrator-mode skill correctly documents the watcher mechanism that relies on the PreToolUse hook
 
 ## References
 
-- [orchestrator-mode.md](../plugins/crux-hive/docs/orchestrator-mode.md) - Orchestrator workflow documentation
+- [orchestrator-mode skill](../plugins/crux-hive/skills/orchestrator-mode/SKILL.md) - Orchestrator workflow documentation
 - [crux-hive plugin.json](../plugins/crux-hive/.claude-plugin/plugin.json) - Hook configuration

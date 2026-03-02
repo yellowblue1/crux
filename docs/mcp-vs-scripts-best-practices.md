@@ -392,7 +392,7 @@ These are not required but could be considered for future iterations:
 
 ### Related CRUX Documentation
 - [hooks-analysis.md](./hooks-analysis.md) - Comprehensive hooks inventory
-- [orchestrator-mode.md](../plugins/crux-hive/docs/orchestrator-mode.md) - Orchestrator workflow
+- [orchestrator-mode skill](../plugins/crux-hive/skills/orchestrator-mode/SKILL.md) - Orchestrator workflow
 
 ### Plugin Implementations
 - [crux-hive plugin.json](../plugins/crux-hive/.claude-plugin/plugin.json) - MCP + Hooks configuration
