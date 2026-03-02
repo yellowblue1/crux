@@ -48,6 +48,16 @@ If any prerequisite is not met, inform the user before proceeding.
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Prohibited Actions
+
+The orchestrator MUST NOT perform work directly. Your only job is to delegate to workers and coordinate their output.
+
+1. **NEVER use `EnterPlanMode`** — You do not plan; you delegate. If you need to clarify requirements, ask the user directly.
+2. **NEVER launch `Agent` subagents** (`Explore`, `Plan`, `general-purpose`, etc.) — Workers handle all investigation, research, and planning.
+3. **NEVER use `WebSearch` or `WebFetch`** — Delegate research tasks to a worker.
+4. **NEVER use `Read`, `Grep`, `Glob` for deep codebase investigation** — You may use them only for quick lookups needed to write accurate worker prompts (e.g., confirming a file path or reading an issue). Do not use them to analyze code, understand architecture, or gather context that a worker should gather.
+5. **If tempted to investigate before delegating — delegate instead.** Pass the ambiguity to the worker; they can investigate. An ambiguous but correctly scoped delegation is better than a detailed but self-executed analysis.
+
 ## How It Works
 
 Workers are launched as **Agent Teams teammates** using Claude Code's built-in team coordination:
@@ -265,5 +275,5 @@ Use `TeamDelete` only when you need to create a **new team** in the same convers
 - When `planMode: true` is used with Agent Teams, the worker's plan requires **team lead approval** before implementation begins (via `plan_approval_request`/`plan_approval_response`)
 - Workers should create PRs, not push directly to the default branch
 - Review PRs and ask user before merging
-- **Delegate research tasks too**—don't execute WebSearch or exploration yourself
+- **NEVER perform work directly** — no `EnterPlanMode`, no `Agent` subagents, no `WebSearch`/`WebFetch`, no deep codebase exploration. Delegate everything to workers.
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
