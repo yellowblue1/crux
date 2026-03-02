@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { isShellPromptVisible } from "./tmux-adapter.js";
+import { isClaudeReady, isShellPromptVisible } from "./tmux-adapter.js";
 
 describe("isShellPromptVisible", () => {
   it("should detect bash prompt ($)", () => {
@@ -56,5 +56,28 @@ describe("isShellPromptVisible", () => {
   it("should ignore trailing blank lines", () => {
     const content = "user@host:~$ \n\n\n";
     expect(isShellPromptVisible(content)).toBe(true);
+  });
+});
+
+describe("isClaudeReady", () => {
+  it("should detect Claude Code startup text", () => {
+    expect(isClaudeReady("Welcome to Claude Code v1.0")).toBe(true);
+  });
+
+  it("should detect Claude Code in multi-line output", () => {
+    const content = "Loading...\n\nClaude Code (agent)\n> ";
+    expect(isClaudeReady(content)).toBe(true);
+  });
+
+  it("should not match empty content", () => {
+    expect(isClaudeReady("")).toBe(false);
+  });
+
+  it("should not match shell prompt without Claude", () => {
+    expect(isClaudeReady("user@host:~$ ")).toBe(false);
+  });
+
+  it("should not match partial match like 'Claude' without 'Code'", () => {
+    expect(isClaudeReady("claude command not found")).toBe(false);
   });
 });

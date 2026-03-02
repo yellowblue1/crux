@@ -92,6 +92,25 @@ describe("startSession", () => {
         error: "agentName is required when teamName is provided",
       });
     });
+
+    it("should fail when fromRef contains invalid characters", async () => {
+      const result = await startSession(
+        { branch: "feat/test", fromRef: "main;drop table" },
+        defaultDeps(),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Invalid fromRef");
+      }
+    });
+
+    it("should fail when pluginDir is an empty string", async () => {
+      const result = await startSession({ branch: "feat/test", pluginDir: "" }, defaultDeps());
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("pluginDir must be a non-empty string");
+      }
+    });
   });
 
   describe("happy path", () => {
@@ -221,12 +240,15 @@ describe("startSession", () => {
       }
     });
 
-    it("should call waitForClaudeReady after sendKeys", async () => {
+    it("should call waitForShellReady then sendKeys then waitForClaudeReady", async () => {
       const callOrder: string[] = [];
       await startSession(
         { branch: "feat/test" },
         defaultDeps({
           tmux: {
+            waitForShellReady: async () => {
+              callOrder.push("waitForShellReady");
+            },
             sendKeys: async () => {
               callOrder.push("sendKeys");
             },
@@ -236,7 +258,57 @@ describe("startSession", () => {
           },
         }),
       );
-      expect(callOrder).toEqual(["sendKeys", "waitForClaudeReady"]);
+      expect(callOrder).toEqual(["waitForShellReady", "sendKeys", "waitForClaudeReady"]);
+    });
+  });
+
+  describe("tmux window failure", () => {
+    it("should return error when createWindow throws", async () => {
+      const result = await startSession(
+        { branch: "feat/test" },
+        defaultDeps({
+          tmux: {
+            createWindow: async () => {
+              throw new Error("no tmux server");
+            },
+          },
+        }),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Failed to create tmux window");
+      }
+    });
+  });
+
+  describe("team registration failure", () => {
+    it("should return error when team does not exist", async () => {
+      const result = await startSession(
+        { branch: "feat/test", teamName: "ghost-team", agentName: "worker" },
+        defaultDeps({ teamRepo: { getLeadSessionId: async () => null } }),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("ghost-team");
+      }
+    });
+
+    it("should return error when registerMember throws", async () => {
+      const result = await startSession(
+        { branch: "feat/test", teamName: "my-team", agentName: "worker" },
+        defaultDeps({
+          teamRepo: {
+            getLeadSessionId: async () => "session-123",
+            registerMember: async () => {
+              throw new Error("write failed");
+            },
+          },
+        }),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Failed to register teammate");
+      }
     });
   });
 
@@ -253,6 +325,22 @@ describe("startSession", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toContain("Failed to create worktree");
+      }
+    });
+
+    it("should return error when getWorktreePath returns empty string", async () => {
+      const result = await startSession(
+        { branch: "feat/test" },
+        defaultDeps({
+          git: {
+            createWorktree: async () => ({ success: true as const }),
+            getWorktreePath: async () => "",
+          },
+        }),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Failed to get worktree path");
       }
     });
 

@@ -10,12 +10,17 @@ const CLAUDE_READY_INTERVAL_MS = 500;
 const CLAUDE_READY_TIMEOUT_MS = 15_000;
 
 const SHELL_PROMPT_PATTERN = /[$%#>❯]\s*$/;
+const CLAUDE_READY_PATTERN = /Claude Code/;
 
 export function isShellPromptVisible(paneContent: string): boolean {
   const trimmed = paneContent.trimEnd();
   const lastNewline = trimmed.lastIndexOf("\n");
   const lastLine = lastNewline === -1 ? trimmed : trimmed.slice(lastNewline + 1);
   return SHELL_PROMPT_PATTERN.test(lastLine);
+}
+
+export function isClaudeReady(paneContent: string): boolean {
+  return CLAUDE_READY_PATTERN.test(paneContent);
 }
 
 function delay(ms: number): Promise<void> {
@@ -81,7 +86,7 @@ export function createTmuxAdapter(): TmuxAdapter {
     },
     async waitForClaudeReady(windowId: string): Promise<void> {
       await pollUntil(
-        async () => (await capturePaneContent(windowId)).includes("Claude"),
+        async () => isClaudeReady(await capturePaneContent(windowId)),
         CLAUDE_READY_INTERVAL_MS,
         CLAUDE_READY_TIMEOUT_MS,
         `Claude Code failed to start within ${CLAUDE_READY_TIMEOUT_MS}ms`,
