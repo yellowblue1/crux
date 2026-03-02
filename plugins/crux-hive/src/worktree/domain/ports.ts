@@ -11,9 +11,7 @@ export interface GitAdapter {
 
 export interface TmuxAdapter {
   isAvailable(): boolean;
-  createWindow(name: string, dir: string): Promise<string>;
-  sendKeys(windowId: string, keys: string): Promise<void>;
-  waitForShellInit(): Promise<void>;
+  createWindow(name: string, dir: string, command?: string): Promise<string>;
 }
 
 export interface ConfigAdapter {

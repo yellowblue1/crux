@@ -142,32 +142,30 @@ export async function startSession(
   // Window name (remove branch prefix like feat/, fix/, etc.)
   const windowName = branch.includes("/") ? branch.split("/").pop() || branch : branch;
 
-  // Create new tmux window
-  let windowId: string;
-  try {
-    windowId = await deps.tmux.createWindow(windowName, worktreePath);
-  } catch (e) {
-    return { success: false, error: `Failed to create tmux window: ${(e as Error).message}` };
-  }
-
-  // Wait for shell initialization
-  await deps.tmux.waitForShellInit();
-
   // Build claude command
-  const pluginDirFlag = pluginDir ? `--plugin-dir ${shellEscape(pluginDir)}` : "";
-  const planModeFlag = planMode ? "--permission-mode plan" : "";
-
+  const commandParts = ["claude"];
+  if (agentTeamsFlags) {
+    commandParts.push(agentTeamsFlags);
+  }
+  if (pluginDir) {
+    commandParts.push(`--plugin-dir ${shellEscape(pluginDir)}`);
+  }
+  if (planMode) {
+    commandParts.push("--permission-mode plan");
+  }
   if (prompt) {
     const encoded = Buffer.from(prompt).toString("base64");
-    await deps.tmux.sendKeys(
-      windowId,
-      `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag} "$(echo '${encoded}' | base64 -d)"`,
-    );
-  } else {
-    await deps.tmux.sendKeys(
-      windowId,
-      `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag}`,
-    );
+    commandParts.push(`"$(echo '${encoded}' | base64 -d)"`);
+  }
+  const claudeCommand = commandParts.join(" ");
+
+  // Create tmux window with command passed to login shell.
+  // Shell-level sequencing guarantees .zshrc/.bashrc are fully loaded
+  // before the command runs, eliminating the shell init race condition.
+  try {
+    await deps.tmux.createWindow(windowName, worktreePath, claudeCommand);
+  } catch (e) {
+    return { success: false, error: `Failed to create tmux window: ${(e as Error).message}` };
   }
 
   return { success: true, worktreePath };
