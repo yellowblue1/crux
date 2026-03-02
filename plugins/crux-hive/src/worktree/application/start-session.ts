@@ -150,8 +150,15 @@ export async function startSession(
     return { success: false, error: `Failed to create tmux window: ${(e as Error).message}` };
   }
 
-  // Wait for shell initialization
-  await deps.tmux.waitForShellInit();
+  // Wait for shell prompt to appear
+  try {
+    await deps.tmux.waitForShellReady(windowId);
+  } catch (e) {
+    return {
+      success: false,
+      error: `Shell initialization failed: ${(e as Error).message}`,
+    };
+  }
 
   // Build claude command
   const pluginDirFlag = pluginDir ? `--plugin-dir ${shellEscape(pluginDir)}` : "";
@@ -168,6 +175,16 @@ export async function startSession(
       windowId,
       `claude ${agentTeamsFlags} ${pluginDirFlag} ${planModeFlag}`,
     );
+  }
+
+  // Verify Claude Code actually started
+  try {
+    await deps.tmux.waitForClaudeReady(windowId);
+  } catch (e) {
+    return {
+      success: false,
+      error: `Claude Code startup verification failed: ${(e as Error).message}`,
+    };
   }
 
   return { success: true, worktreePath };

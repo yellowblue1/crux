@@ -13,7 +13,9 @@ export interface TmuxAdapter {
   isAvailable(): boolean;
   createWindow(name: string, dir: string): Promise<string>;
   sendKeys(windowId: string, keys: string): Promise<void>;
-  waitForShellInit(): Promise<void>;
+  capturePaneContent(windowId: string): Promise<string>;
+  waitForShellReady(windowId: string): Promise<void>;
+  waitForClaudeReady(windowId: string): Promise<void>;
 }
 
 export interface ConfigAdapter {
