@@ -4,12 +4,7 @@ description: >
   Orchestrate tasks by delegating to parallel Claude Code sessions via git worktrees.
   Activate with "start orchestrator mode", "delegate tasks to workers", "parallel claude code sessions",
   "git worktrees with teams", "orchestrate work", or "/orchestrator-mode".
-tools:
-  - Bash
-  - SendMessage
-  - TeamCreate
-  - TeamDelete
-  - mcp__plugin_crux-hive_crux__start_worktree_session
+allowed-tools: Bash, SendMessage, TeamCreate, TeamDelete, mcp__plugin_crux-hive_crux__start_worktree_session
 version: 0.1.0
 ---
 
