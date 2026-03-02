@@ -12,7 +12,7 @@ Automate the full version bump workflow for crux-hive: determine the appropriate
 ### Step 1: Determine Version Increment
 
 1. Read the current version from `plugins/crux-hive/package.json`.
-2. Find the last bump commit with: `git log --oneline --all -- plugins/crux-hive/package.json | head -5`
+2. Find the last bump commit with: `git log --oneline --grep="chore: bump crux-hive" -1`
 3. List commits since the last bump: `git log <last-bump-commit>..HEAD --oneline --no-merges -- plugins/crux-hive/`
 4. Determine the semver increment based on conventional commit prefixes:
    - **patch**: only `fix:` and `chore:` commits
@@ -27,6 +27,8 @@ Update the `"version"` field in **both** files to the new version:
 - `plugins/crux-hive/package.json`
 - `plugins/crux-hive/.claude-plugin/plugin.json`
 
+Then run `bun install` at the repository root to update `bun.lock`.
+
 ### Step 3: Update CHANGELOG
 
 1. Read `CHANGELOG.md` to understand the existing format.
@@ -35,14 +37,16 @@ Update the `"version"` field in **both** files to the new version:
    - `### Added` for `feat:` commits
    - `### Changed` for `refactor:` commits
    - `### Fixed` for `fix:` commits
-   - `### Docs` for `docs:` commits
+   - `### Docs` for `docs:` commits (project-specific extension)
    - Omit `chore:` commits (version bumps, dependency updates)
-4. Insert the new version entry directly above the previous version entry.
+   - If all commits are `chore:`, note this to the user and skip the CHANGELOG update
+4. Insert the new version entry with date in `YYYY-MM-DD` format directly above the previous version entry.
 5. Format each entry as: `- <commit message> ([#<PR>](https://github.com/yellowblue1/crux/pull/<PR>))`
 
 ### Step 4: Commit, Push, and Create PR
 
-1. Create a new branch: `chore/bump-crux-hive-<version>`
-2. Stage the three modified files: `package.json`, `plugin.json`, `CHANGELOG.md`
-3. Commit with message: `chore: bump crux-hive version to <version>`
-4. Push and create a PR with title: `chore: bump crux-hive version to <version>`
+1. Ensure starting from `main`: `git checkout main && git pull`
+2. Create a new branch: `git checkout -b chore/bump-crux-hive-<version>`
+3. Stage modified files: `package.json`, `plugin.json`, `bun.lock`, `CHANGELOG.md`
+4. Commit with message: `chore: bump crux-hive version to <version>`
+5. Push and create a PR with title: `chore: bump crux-hive version to <version>`
