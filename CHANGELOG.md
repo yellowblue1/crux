@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.4.1] - 2026-03-02
+
+### Fixed
+
+- fix: improve MCP server resilience against connection drops ([#162](https://github.com/yellowblue1/crux/pull/162))
+- fix: use bunx for depcruise script to fix Knip and PATH resolution ([#159](https://github.com/yellowblue1/crux/pull/159))
+
 ## [5.3.5] - 2026-02-18
 
 ### Added
