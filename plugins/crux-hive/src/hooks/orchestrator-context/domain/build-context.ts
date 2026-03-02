@@ -5,16 +5,14 @@ export function buildOrchestratorContext(state: OrchestratorState): string {
     .map((w) => `| ${w.name} | ${w.isActive ? "active" : "idle"} |`)
     .join("\n");
 
-  const workersSection =
+  const workersBody =
     state.workers.length > 0
-      ? `## Active Workers
-
-| Name | Status |
+      ? `| Name | Status |
 |------|--------|
 ${workerRows}`
-      : `## Active Workers
+      : "No workers currently registered.";
 
-No workers currently registered.`;
+  const workersSection = `## Active Workers\n\n${workersBody}`;
 
   return `# Orchestrator Mode (Restored After Compaction)
 

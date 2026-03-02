@@ -1,13 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { getTeamsDir } from "../../shared/paths.js";
 import type { TeamRepository } from "../domain/ports.js";
 import type { TeamConfig, TeamMember } from "../domain/types.js";
-
-function getTeamsDir(): string {
-  const home = process.env.HOME || homedir();
-  return join(home, ".claude", "teams");
-}
 
 function getTeamDir(teamName: string): string {
   return join(getTeamsDir(), teamName);
