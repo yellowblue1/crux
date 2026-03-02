@@ -1,7 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { TeamConfig } from "../../../team/domain/types.js";
 import type { TeamConfigReader } from "../domain/ports.js";
 import type { OrchestratorState, WorkerState } from "../domain/types.js";
 
@@ -10,12 +9,26 @@ function getTeamsDir(): string {
   return join(home, ".claude", "teams");
 }
 
+function isValidConfig(
+  raw: unknown,
+): raw is { name: string; leadAgentId: string; leadSessionId: string; members: unknown[] } {
+  return (
+    raw !== null &&
+    typeof raw === "object" &&
+    "name" in raw &&
+    typeof (raw as Record<string, unknown>).name === "string" &&
+    "leadAgentId" in raw &&
+    typeof (raw as Record<string, unknown>).leadAgentId === "string" &&
+    "leadSessionId" in raw &&
+    typeof (raw as Record<string, unknown>).leadSessionId === "string" &&
+    "members" in raw &&
+    Array.isArray((raw as Record<string, unknown>).members)
+  );
+}
+
 export function createFileTeamReader(): TeamConfigReader {
   async function findOrchestratorTeam(sessionId: string): Promise<OrchestratorState | null> {
     const teamsDir = getTeamsDir();
-    if (!existsSync(teamsDir)) {
-      return null;
-    }
 
     let entries: string[];
     try {
@@ -30,30 +43,29 @@ export function createFileTeamReader(): TeamConfigReader {
         continue;
       }
 
-      let config: TeamConfig;
+      let raw: unknown;
       try {
-        config = await configFile.json();
+        raw = await configFile.json();
       } catch {
         continue;
       }
 
-      if (config.leadSessionId !== sessionId) {
+      if (!isValidConfig(raw)) {
         continue;
       }
 
-      if (!config.name || !Array.isArray(config.members)) {
+      if (raw.leadSessionId !== sessionId) {
         continue;
       }
 
-      const workers: WorkerState[] = config.members
-        .filter((m) => m.agentId !== config.leadAgentId)
+      const workers: WorkerState[] = (raw.members as Record<string, unknown>[])
+        .filter((m) => typeof m.agentId === "string" && m.agentId !== raw.leadAgentId)
         .map((m) => ({
-          name: m.name,
-          isActive: m.isActive ?? false,
-          cwd: m.cwd,
+          name: String(m.name),
+          isActive: (m.isActive as boolean) ?? false,
         }));
 
-      return { teamName: config.name, workers };
+      return { teamName: raw.name, workers };
     }
 
     return null;

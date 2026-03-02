@@ -73,12 +73,10 @@ describe("findOrchestratorTeam", () => {
     expect(result?.workers[0]).toEqual({
       name: "worker-a",
       isActive: true,
-      cwd: "/worktrees/feat-a",
     });
     expect(result?.workers[1]).toEqual({
       name: "worker-b",
       isActive: false,
-      cwd: undefined,
     });
   });
 

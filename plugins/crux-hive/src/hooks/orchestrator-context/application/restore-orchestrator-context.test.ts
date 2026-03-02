@@ -48,8 +48,8 @@ describe("restoreOrchestratorContext", () => {
   it("should propagate errors from reader", async () => {
     const reader = createFailingReader();
 
-    expect(restoreOrchestratorContext("session-err", { teamConfigReader: reader })).rejects.toThrow(
-      "filesystem error",
-    );
+    await expect(
+      restoreOrchestratorContext("session-err", { teamConfigReader: reader }),
+    ).rejects.toThrow("filesystem error");
   });
 });

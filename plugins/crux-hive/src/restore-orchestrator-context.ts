@@ -12,8 +12,13 @@ async function main(): Promise<void> {
   try {
     const input = await Bun.stdin.text();
     const parsed: unknown = JSON.parse(input);
-    if (parsed && typeof parsed === "object" && "session_id" in parsed) {
-      sessionId = (parsed as { session_id: string }).session_id;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "session_id" in parsed &&
+      typeof (parsed as Record<string, unknown>).session_id === "string"
+    ) {
+      sessionId = (parsed as Record<string, unknown>).session_id as string;
     }
   } catch {
     // stdin may be empty or invalid — not an orchestrator session

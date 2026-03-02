@@ -7,7 +7,7 @@ describe("buildOrchestratorContext", () => {
     const state: OrchestratorState = {
       teamName: "my-project",
       workers: [
-        { name: "worker-auth", isActive: true, cwd: "/worktrees/auth" },
+        { name: "worker-auth", isActive: true },
         { name: "worker-ui", isActive: false },
       ],
     };
