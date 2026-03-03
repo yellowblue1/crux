@@ -1,10 +1,17 @@
-import { execOrThrowAsync, shellEscape } from "../../shared/exec.js";
+import {
+  exec as defaultExec,
+  type ExecFn,
+  execOrThrowAsync,
+  shellEscape,
+} from "../../shared/exec.js";
 import type { TmuxAdapter } from "../domain/ports.js";
 
-export function createTmuxAdapter(): TmuxAdapter {
+const TMUX_DETECT_TIMEOUT_MS = 5000;
+
+export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
   return {
     isAvailable(): boolean {
-      return !!process.env.TMUX;
+      return execFn('tmux display-message -p "#S"', { timeout: TMUX_DETECT_TIMEOUT_MS }).success;
     },
     async createWindow(name: string, dir: string, command?: string): Promise<string> {
       const base = `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`;
