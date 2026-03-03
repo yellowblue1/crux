@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.5.2] - 2026-03-03
+
+### Fixed
+
+- fix: replace env var tmux detection with direct tmux server query ([#183](https://github.com/yellowblue1/crux/pull/183))
+- fix: replace unreliable env var detection and add plugin settings.json ([#184](https://github.com/yellowblue1/crux/pull/184))
+
 ## [5.5.1] - 2026-03-03
 
 ### Changed
