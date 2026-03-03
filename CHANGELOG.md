@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.5.1] - 2026-03-03
+
+### Changed
+
+- refactor: migrate orchestrator-mode from commands/ to skills/ ([#179](https://github.com/yellowblue1/crux/pull/179))
+
+### Fixed
+
+- fix: move bump skill to .claude/skills/ for project-level discovery ([#181](https://github.com/yellowblue1/crux/pull/181))
+- fix: move bump skill to correct discovery directory ([#180](https://github.com/yellowblue1/crux/pull/180))
+
 ## [5.5.0] - 2026-03-02
 
 ### Added
