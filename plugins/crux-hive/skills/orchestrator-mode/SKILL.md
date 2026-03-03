@@ -35,7 +35,7 @@ Read these files for detailed procedural steps:
 4. **jq**: Required for reliable detection of Agent Teams configuration in settings files.
 5. **Agent Teams**: The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable must be set to `1`. Configure in any Claude settings file (`~/.claude/settings.json`, `~/.claude/settings.local.json`, `.claude/settings.json`, or `.claude/settings.local.json`) under `env`. Detect with:
    ```bash
-   jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS // empty' ~/.claude/settings.json ~/.claude/settings.local.json .claude/settings.json .claude/settings.local.json 2>/dev/null | grep -q 1 && echo "enabled" || { [ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ] && echo "enabled" || echo "not found"; }
+   [ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ] && echo "enabled" || { jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS // empty' ~/.claude/settings.json ~/.claude/settings.local.json .claude/settings.json .claude/settings.local.json 2>/dev/null | grep -q 1 && echo "enabled" || echo "not found"; }
    ```
 
 Inform the user before proceeding if any prerequisite is not met.
