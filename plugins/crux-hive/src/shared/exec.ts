@@ -7,11 +7,13 @@ export function shellEscape(str: string): string {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
-interface ExecResult {
+export interface ExecResult {
   success: boolean;
   stdout: string;
   error?: string;
 }
+
+export type ExecFn = (command: string, options?: { timeout?: number }) => ExecResult;
 
 /**
  * Execute a command and return the result.

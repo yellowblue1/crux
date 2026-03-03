@@ -30,7 +30,7 @@ Read these files for detailed procedural steps:
 ## Prerequisites
 
 1. **Default branch**: Must be on the repository's default branch. Worktrees cannot be created for the branch currently checked out. Detect with: `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`
-2. **tmux**: The session must be running inside tmux.
+2. **tmux**: The session must be running inside tmux. Detect with: `tmux display-message -p '#S'` (returns session name if inside tmux, fails otherwise). Do not use `echo $TMUX` — Bash subshells may not inherit the environment variable.
 3. **git-gtr**: Worktree management depends on `git gtr`.
 4. **Agent Teams**: The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable must be set to `1`. Configure in `~/.claude/settings.json` under `env`. Detect with: `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
 
