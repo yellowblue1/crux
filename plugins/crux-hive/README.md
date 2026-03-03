@@ -11,7 +11,7 @@ Delegate tasks to parallel Claude Code sessions running in separate git worktree
 - **tmux**: Must be running inside a tmux session
 - **[git-gtr](https://github.com/coderabbitai/git-worktree-runner)**: Git worktree runner tool
 - **Claude Code**: Installed and configured
-- **Agent Teams enabled**: The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable must be set to `1` in any Claude settings file. Recommended: add to `~/.claude/settings.json` (user-global, applies to all projects) or `.claude/settings.local.json` (project-local, gitignored):
+- **Agent Teams enabled**: Add the following to `~/.claude/settings.json` (user-global) or `.claude/settings.local.json` (project-local, gitignored):
   ```json
   {
     "env": {
@@ -19,7 +19,6 @@ Delegate tasks to parallel Claude Code sessions running in separate git worktree
     }
   }
   ```
-  > **Note**: This plugin includes a `settings.json` with this env var pre-configured, but Claude Code plugin settings currently only support the `agent` key. The `env` key is silently ignored. You must set it manually until Claude Code adds support.
 
 ## Installation
 
