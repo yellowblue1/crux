@@ -11,7 +11,7 @@ Delegate tasks to parallel Claude Code sessions running in separate git worktree
 - **tmux**: Must be running inside a tmux session
 - **[git-gtr](https://github.com/coderabbitai/git-worktree-runner)**: Git worktree runner tool
 - **Claude Code**: Installed and configured
-- **Agent Teams enabled**: Add the following to `.claude/settings.local.json`:
+- **Agent Teams enabled**: Add the following to `~/.claude/settings.json` (user-global) or `.claude/settings.local.json` (project-local, gitignored):
   ```json
   {
     "env": {

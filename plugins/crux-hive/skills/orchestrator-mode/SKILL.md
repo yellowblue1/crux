@@ -32,7 +32,11 @@ Read these files for detailed procedural steps:
 1. **Default branch**: Must be on the repository's default branch. Worktrees cannot be created for the branch currently checked out. Detect with: `git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'`
 2. **tmux**: The session must be running inside tmux. Detect with: `tmux display-message -p '#S'` (returns session name if inside tmux, fails otherwise). Do not use `echo $TMUX` — Bash subshells may not inherit the environment variable.
 3. **git-gtr**: Worktree management depends on `git gtr`.
-4. **Agent Teams**: The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable must be set to `1`. Configure in `~/.claude/settings.json` under `env`. Detect with: `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
+4. **jq**: Required for reliable detection of Agent Teams configuration in settings files.
+5. **Agent Teams**: The `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable must be set to `1`. Configure in any Claude settings file (`~/.claude/settings.json`, `~/.claude/settings.local.json`, `.claude/settings.json`, or `.claude/settings.local.json`) under `env`. Detect with:
+   ```bash
+   [ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ] && echo "enabled" || { jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS // empty' ~/.claude/settings.json ~/.claude/settings.local.json .claude/settings.json .claude/settings.local.json 2>/dev/null | grep -q 1 && echo "enabled" || echo "not found"; }
+   ```
 
 Inform the user before proceeding if any prerequisite is not met.
 
