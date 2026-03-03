@@ -9,7 +9,7 @@ import type { TmuxAdapter } from "../domain/ports.js";
 export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
   return {
     isAvailable(): boolean {
-      return execFn('tmux display-message -p "#S"').success;
+      return execFn('tmux display-message -p "#S"', { timeout: 5000 }).success;
     },
     async createWindow(name: string, dir: string, command?: string): Promise<string> {
       const base = `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`;
