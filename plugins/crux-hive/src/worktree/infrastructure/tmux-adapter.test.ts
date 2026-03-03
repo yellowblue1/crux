@@ -5,9 +5,14 @@ import { createTmuxAdapter } from "./tmux-adapter.js";
 describe("createTmuxAdapter", () => {
   describe("isAvailable", () => {
     it("should return true when tmux session is active", () => {
-      const execFn = (): ExecResult => ({ success: true, stdout: "main" });
+      let capturedCommand = "";
+      const execFn = (cmd: string): ExecResult => {
+        capturedCommand = cmd;
+        return { success: true, stdout: "main" };
+      };
       const adapter = createTmuxAdapter(execFn);
       expect(adapter.isAvailable()).toBe(true);
+      expect(capturedCommand).toBe('tmux display-message -p "#S"');
     });
 
     it("should return false when not in tmux", () => {
