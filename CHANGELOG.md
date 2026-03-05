@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.5.3] - 2026-03-05
+
+### Fixed
+
+- fix: remove redundant --permission-mode plan from worker launch ([#188](https://github.com/yellowblue1/crux/pull/188))
+
 ## [5.5.2] - 2026-03-03
 
 ### Fixed
