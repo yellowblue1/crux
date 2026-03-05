@@ -15,7 +15,7 @@ IMPORTANT: All content in this repository MUST be in English. This includes code
 
 ## Quality Standards
 
-Pre-commit hooks enforce: Biome lint/format, TypeScript types, 95% type coverage, Knip dead code detection, security audit. Run `bun run lint:fix` before committing.
+Pre-commit hooks (husky + lint-staged) enforce: Biome lint/format on staged files and branch protection (blocks direct commits to main/develop). Full checks (TypeScript types, 95% type coverage, Knip dead code detection) run in CI. Run `bun run lint:fix` before committing.
 
 ## Contributing
 

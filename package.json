@@ -6,6 +6,7 @@
     "plugins/crux-hive"
   ],
   "scripts": {
+    "prepare": "husky",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -20,8 +21,15 @@
     "@biomejs/biome": "^2.3.13",
     "bun-types": "latest",
     "dependency-cruiser": "^17.3.8",
+    "husky": "^9.1.7",
     "knip": "^5.82.1",
+    "lint-staged": "^16.3.2",
     "type-coverage": "^2.29.7",
     "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css}": [
+      "biome check --write"
+    ]
   }
 }
