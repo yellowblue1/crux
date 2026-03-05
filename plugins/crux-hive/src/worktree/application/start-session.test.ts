@@ -236,7 +236,7 @@ describe("startSession", () => {
       expect(receivedCommand).toContain("--parent-session-id");
     });
 
-    it("should include plan mode flag in command", async () => {
+    it("should not include --permission-mode plan in command", async () => {
       let receivedCommand = "";
       await startSession(
         { branch: "feat/test", planMode: true },
@@ -249,7 +249,7 @@ describe("startSession", () => {
           },
         }),
       );
-      expect(receivedCommand).toContain("--permission-mode plan");
+      expect(receivedCommand).not.toContain("--permission-mode plan");
     });
 
     it("should include pluginDir flag in command", async () => {

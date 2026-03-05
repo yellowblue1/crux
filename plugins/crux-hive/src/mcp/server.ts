@@ -34,7 +34,8 @@ const TOOL_DEFINITIONS = [
         },
         planMode: {
           type: "boolean",
-          description: "Start Claude Code in plan mode (default: false)",
+          description:
+            "Require team lead plan approval before implementation via Agent Teams (default: false)",
         },
         prompt: {
           type: "string",

@@ -150,9 +150,6 @@ export async function startSession(
   if (pluginDir) {
     commandParts.push(`--plugin-dir ${shellEscape(pluginDir)}`);
   }
-  if (planMode) {
-    commandParts.push("--permission-mode plan");
-  }
   if (prompt) {
     const encoded = Buffer.from(prompt).toString("base64");
     commandParts.push(`"$(echo '${encoded}' | base64 -d)"`);
