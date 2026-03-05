@@ -3,8 +3,7 @@
   "workspaces": {
     ".": {
       "entry": [],
-      "project": [],
-      "ignoreDependencies": ["@modelcontextprotocol/sdk"]
+      "project": []
     },
     "plugins/crux-hive": {
       "entry": [
