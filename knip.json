@@ -3,7 +3,8 @@
   "workspaces": {
     ".": {
       "entry": [],
-      "project": []
+      "project": [],
+      "ignoreDependencies": ["lint-staged"]
     },
     "plugins/crux-hive": {
       "entry": [
