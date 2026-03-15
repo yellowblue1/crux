@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.5.4] - 2026-03-15
+
+### Fixed
+
+- fix: remove bash-specific syntax from Agent Teams env check ([#194](https://github.com/yellowblue1/crux/pull/194))
+
 ## [5.5.3] - 2026-03-05
 
 ### Fixed
