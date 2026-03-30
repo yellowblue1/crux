@@ -15,7 +15,7 @@ ${workerRows}`
   const workersSection = `## Active Workers\n\n${workersBody}`;
 
   const customSettingsSection = state.customSettings
-    ? `\n\n## Custom Settings\n\n${state.customSettings}`
+    ? `## Custom Settings\n\n${state.customSettings}\n\n`
     : "";
 
   return `# Orchestrator Mode (Restored After Compaction)
@@ -31,9 +31,9 @@ ${workersSection}
 3. Use \`planMode: true\` and set \`noFetch: true\` (orchestrator fetches first)
 4. Workers require **team lead plan approval** before implementation
 5. **Delegate research too** — don't run WebSearch or exploration yourself
-6. **Ambiguous but correct > Specific but wrong** — workers can investigate${customSettingsSection}
+6. **Ambiguous but correct > Specific but wrong** — workers can investigate
 
-## Phases
+${customSettingsSection}## Phases
 
 1. **Delegation**: \`git fetch && pull\` → \`start_worktree_session\` with complete prompt (objective, context, findings, files, decisions, expected output)
 2. **Communication**: \`SendMessage\` to workers for follow-up instructions
