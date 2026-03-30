@@ -92,14 +92,20 @@ export function createClaudeConfigAdapter(homeDir?: string): ConfigAdapter {
         const parts: string[] = [];
 
         if (globalExists) {
-          parts.push(await globalFile.text());
+          const content = (await globalFile.text()).trim();
+          if (content) {
+            parts.push(content);
+          }
         }
 
         if (projectExists) {
-          parts.push(await projectFile.text());
+          const content = (await projectFile.text()).trim();
+          if (content) {
+            parts.push(content);
+          }
         }
 
-        return parts.join("\n\n");
+        return parts.length > 0 ? parts.join("\n\n") : null;
       } catch {
         return null;
       }

@@ -54,4 +54,24 @@ describe("readWorkerInstructions", () => {
 
     expect(result).toBeNull();
   });
+
+  it("should return null when files exist but are empty or whitespace-only", async () => {
+    writeFileSync(join(fakeHome, ".crux", "worker-instructions.md"), "   \n\n  ");
+    writeFileSync(join(projectDir, ".crux", "worker-instructions.md"), "");
+    const adapter = createClaudeConfigAdapter(fakeHome);
+
+    const result = await adapter.readWorkerInstructions(projectDir);
+
+    expect(result).toBeNull();
+  });
+
+  it("should trim whitespace from file content", async () => {
+    writeFileSync(join(fakeHome, ".crux", "worker-instructions.md"), "\n  Global rules\n\n");
+    writeFileSync(join(projectDir, ".crux", "worker-instructions.md"), "  Project rules  \n");
+    const adapter = createClaudeConfigAdapter(fakeHome);
+
+    const result = await adapter.readWorkerInstructions(projectDir);
+
+    expect(result).toBe("Global rules\n\nProject rules");
+  });
 });
