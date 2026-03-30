@@ -6,4 +6,5 @@ export type WorkerState = {
 export type OrchestratorState = {
   readonly teamName: string;
   readonly workers: readonly WorkerState[];
+  readonly customSettings?: string;
 };

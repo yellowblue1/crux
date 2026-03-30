@@ -6,6 +6,7 @@
 
 import { restoreOrchestratorContext } from "./hooks/orchestrator-context/application/restore-orchestrator-context.js";
 import { createFileTeamReader } from "./hooks/orchestrator-context/infrastructure/file-team-reader.js";
+import { readCruxMarkdownFile } from "./shared/read-crux-markdown.js";
 
 async function main(): Promise<void> {
   let sessionId: string | undefined;
@@ -28,8 +29,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const context = await restoreOrchestratorContext(sessionId, {
+  const context = await restoreOrchestratorContext(sessionId, process.cwd(), {
     teamConfigReader: createFileTeamReader(),
+    cruxMarkdownReader: {
+      readOrchestratorSettings: (projectDir) => readCruxMarkdownFile("orchestrator.md", projectDir),
+    },
   });
 
   if (context) {
