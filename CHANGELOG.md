@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.6.0] - 2026-03-30
+
+### Added
+
+- feat: add worker-instructions.md loading and auto-injection ([#198](https://github.com/yellowblue1/crux/pull/198))
+
 ## [5.5.4] - 2026-03-15
 
 ### Fixed
