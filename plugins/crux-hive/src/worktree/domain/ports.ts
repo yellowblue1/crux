@@ -17,4 +17,5 @@ export interface TmuxAdapter {
 export interface ConfigAdapter {
   getMcpServersFromProject(dir: string): Promise<string[]>;
   updateClaudeConfig(worktreePath: string, mcpServers: string[]): Promise<void>;
+  readWorkerInstructions(projectDir: string): Promise<string | null>;
 }

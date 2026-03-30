@@ -121,6 +121,13 @@ export async function startSession(
   // Update ~/.claude.json to trust the worktree and enable MCP servers
   await deps.config.updateClaudeConfig(worktreePath, mcpServers);
 
+  // Read worker instructions and prepend to prompt
+  const workerInstructions = await deps.config.readWorkerInstructions(deps.cwd);
+  let finalPrompt = prompt;
+  if (workerInstructions) {
+    finalPrompt = finalPrompt ? `${workerInstructions}\n\n${finalPrompt}` : workerInstructions;
+  }
+
   // Register teammate and create inbox if Agent Teams is enabled
   if (teamName && agentName) {
     try {
@@ -150,8 +157,8 @@ export async function startSession(
   if (pluginDir) {
     commandParts.push(`--plugin-dir ${shellEscape(pluginDir)}`);
   }
-  if (prompt) {
-    const encoded = Buffer.from(prompt).toString("base64");
+  if (finalPrompt) {
+    const encoded = Buffer.from(finalPrompt).toString("base64");
     commandParts.push(`"$(echo '${encoded}' | base64 -d)"`);
   }
   const claudeCommand = commandParts.join(" ");

@@ -19,7 +19,8 @@ interface McpJson {
   };
 }
 
-export function createClaudeConfigAdapter(): ConfigAdapter {
+export function createClaudeConfigAdapter(homeDir?: string): ConfigAdapter {
+  const home = homeDir ?? homedir();
   return {
     async getMcpServersFromProject(dir: string): Promise<string[]> {
       const mcpJsonFile = Bun.file(join(dir, ".mcp.json"));
@@ -37,7 +38,7 @@ export function createClaudeConfigAdapter(): ConfigAdapter {
     },
 
     async updateClaudeConfig(worktreePath: string, mcpServers: string[]): Promise<void> {
-      const claudeJsonPath = join(homedir(), ".claude.json");
+      const claudeJsonPath = join(home, ".claude.json");
       const claudeJsonFile = Bun.file(claudeJsonPath);
 
       if (!(await claudeJsonFile.exists())) {
@@ -68,6 +69,45 @@ export function createClaudeConfigAdapter(): ConfigAdapter {
       } catch (e) {
         // Ignore errors - failing to update config is not critical
         console.error("Failed to update ~/.claude.json:", e);
+      }
+    },
+
+    async readWorkerInstructions(projectDir: string): Promise<string | null> {
+      try {
+        const globalPath = join(home, ".crux", "worker-instructions.md");
+        const projectPath = join(projectDir, ".crux", "worker-instructions.md");
+
+        const globalFile = Bun.file(globalPath);
+        const projectFile = Bun.file(projectPath);
+
+        const [globalExists, projectExists] = await Promise.all([
+          globalFile.exists(),
+          projectFile.exists(),
+        ]);
+
+        if (!globalExists && !projectExists) {
+          return null;
+        }
+
+        const parts: string[] = [];
+
+        if (globalExists) {
+          const content = (await globalFile.text()).trim();
+          if (content) {
+            parts.push(content);
+          }
+        }
+
+        if (projectExists) {
+          const content = (await projectFile.text()).trim();
+          if (content) {
+            parts.push(content);
+          }
+        }
+
+        return parts.length > 0 ? parts.join("\n\n") : null;
+      } catch {
+        return null;
       }
     },
   };
