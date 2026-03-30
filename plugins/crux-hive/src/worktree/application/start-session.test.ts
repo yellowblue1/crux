@@ -23,6 +23,7 @@ function createMockConfig(overrides?: Partial<ConfigAdapter>): ConfigAdapter {
   return {
     getMcpServersFromProject: async () => [],
     updateClaudeConfig: async () => {},
+    readWorkerInstructions: async () => null,
     ...overrides,
   };
 }
@@ -267,6 +268,103 @@ describe("startSession", () => {
       );
       expect(receivedCommand).toContain("--plugin-dir");
       expect(receivedCommand).toContain("/path/to/plugin");
+    });
+  });
+
+  describe("worker instructions", () => {
+    it("should prepend worker instructions to prompt", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test", prompt: "do the task" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async () => "Be concise.",
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      const expectedBase64 = Buffer.from("Be concise.\n\ndo the task").toString("base64");
+      expect(receivedCommand).toContain(expectedBase64);
+    });
+
+    it("should use worker instructions as prompt when no prompt provided", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async () => "Follow these rules.",
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      const expectedBase64 = Buffer.from("Follow these rules.").toString("base64");
+      expect(receivedCommand).toContain(expectedBase64);
+    });
+
+    it("should pass prompt unchanged when no worker instructions", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test", prompt: "original prompt" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async () => null,
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      const expectedBase64 = Buffer.from("original prompt").toString("base64");
+      expect(receivedCommand).toContain(expectedBase64);
+    });
+
+    it("should not add prompt when neither instructions nor prompt exist", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async () => null,
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedCommand).not.toContain("base64 -d");
+    });
+
+    it("should read worker instructions from project dir, not worktree path", async () => {
+      let capturedDir = "";
+      await startSession(
+        { branch: "feat/test" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async (dir: string) => {
+              capturedDir = dir;
+              return null;
+            },
+          },
+        }),
+      );
+      expect(capturedDir).toBe("/project");
     });
   });
 
