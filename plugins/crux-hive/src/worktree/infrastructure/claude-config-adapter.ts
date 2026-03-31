@@ -1,6 +1,7 @@
 import { renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { readCruxMarkdownFile } from "../../shared/read-crux-markdown.js";
 import type { ConfigAdapter } from "../domain/ports.js";
 
 interface ClaudeConfig {
@@ -73,42 +74,7 @@ export function createClaudeConfigAdapter(homeDir?: string): ConfigAdapter {
     },
 
     async readWorkerInstructions(projectDir: string): Promise<string | null> {
-      try {
-        const globalPath = join(home, ".crux", "worker-instructions.md");
-        const projectPath = join(projectDir, ".crux", "worker-instructions.md");
-
-        const globalFile = Bun.file(globalPath);
-        const projectFile = Bun.file(projectPath);
-
-        const [globalExists, projectExists] = await Promise.all([
-          globalFile.exists(),
-          projectFile.exists(),
-        ]);
-
-        if (!globalExists && !projectExists) {
-          return null;
-        }
-
-        const parts: string[] = [];
-
-        if (globalExists) {
-          const content = (await globalFile.text()).trim();
-          if (content) {
-            parts.push(content);
-          }
-        }
-
-        if (projectExists) {
-          const content = (await projectFile.text()).trim();
-          if (content) {
-            parts.push(content);
-          }
-        }
-
-        return parts.length > 0 ? parts.join("\n\n") : null;
-      } catch {
-        return null;
-      }
+      return readCruxMarkdownFile("worker-instructions.md", projectDir, home);
     },
   };
 }

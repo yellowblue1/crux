@@ -40,6 +40,17 @@ Read these files for detailed procedural steps:
 
 Inform the user before proceeding if any prerequisite is not met.
 
+## Custom Settings
+
+After verifying prerequisites, check for orchestrator customization files:
+
+1. Read `~/.crux/orchestrator.md` (global settings) if it exists
+2. Read `.crux/orchestrator.md` (project-specific settings) if it exists
+3. Merge: global first, then project-specific (project takes precedence on conflict)
+4. Apply merged content as additional behavioral guidelines for this session
+
+If neither file exists, proceed with default behavior.
+
 ## Workflow Overview
 
 ```

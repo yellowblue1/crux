@@ -74,4 +74,57 @@ describe("buildOrchestratorContext", () => {
     expect(result).toContain("PR Review");
     expect(result).toContain("Cleanup");
   });
+
+  it("should include custom settings section when customSettings is provided", () => {
+    const state: OrchestratorState = {
+      teamName: "test",
+      workers: [],
+      customSettings: "Always delegate to at least 2 workers.",
+    };
+
+    const result = buildOrchestratorContext(state);
+
+    expect(result).toContain("## Custom Settings");
+    expect(result).toContain("Always delegate to at least 2 workers.");
+  });
+
+  it("should not include custom settings section when customSettings is undefined", () => {
+    const state: OrchestratorState = {
+      teamName: "test",
+      workers: [],
+    };
+
+    const result = buildOrchestratorContext(state);
+
+    expect(result).not.toContain("## Custom Settings");
+  });
+
+  it("should not include custom settings section when customSettings is empty", () => {
+    const state: OrchestratorState = {
+      teamName: "test",
+      workers: [],
+      customSettings: "",
+    };
+
+    const result = buildOrchestratorContext(state);
+
+    expect(result).not.toContain("## Custom Settings");
+  });
+
+  it("should place custom settings between core rules and phases", () => {
+    const state: OrchestratorState = {
+      teamName: "test",
+      workers: [],
+      customSettings: "Custom rule here.",
+    };
+
+    const result = buildOrchestratorContext(state);
+
+    const coreRulesIndex = result.indexOf("## Core Rules");
+    const customSettingsIndex = result.indexOf("## Custom Settings");
+    const phasesIndex = result.indexOf("## Phases");
+
+    expect(coreRulesIndex).toBeLessThan(customSettingsIndex);
+    expect(customSettingsIndex).toBeLessThan(phasesIndex);
+  });
 });
