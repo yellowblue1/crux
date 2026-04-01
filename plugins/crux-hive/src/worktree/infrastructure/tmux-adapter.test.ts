@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import type { ExecResult } from "../../shared/exec.js";
 import { INHERITED_ENV_VARS } from "../../shared/env-vars.js";
+import type { ExecResult } from "../../shared/exec.js";
 
 let capturedAsyncCommand = "";
 

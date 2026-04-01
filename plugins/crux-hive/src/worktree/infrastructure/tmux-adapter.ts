@@ -1,3 +1,4 @@
+import { buildInheritedEnvVars } from "../../shared/env-vars.js";
 import {
   exec as defaultExec,
   type ExecFn,
@@ -5,7 +6,6 @@ import {
   shellEscape,
 } from "../../shared/exec.js";
 import type { TmuxAdapter } from "../domain/ports.js";
-import { buildInheritedEnvVars } from "../../shared/env-vars.js";
 
 const TMUX_DETECT_TIMEOUT_MS = 5000;
 
