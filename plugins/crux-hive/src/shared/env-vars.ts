@@ -1,4 +1,4 @@
-import { shellEscape } from "../../shared/exec.js";
+import { shellEscape } from "./exec.js";
 
 /**
  * Environment variables to inherit from the parent process when spawning
