@@ -5,6 +5,7 @@ import {
   shellEscape,
 } from "../../shared/exec.js";
 import type { TmuxAdapter } from "../domain/ports.js";
+import { buildInheritedEnvVars } from "./env-vars.js";
 
 const TMUX_DETECT_TIMEOUT_MS = 5000;
 
@@ -18,8 +19,12 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
       // When command is provided, launch via login shell to ensure full
       // initialization (.zshrc/.bashrc/starship/oh-my-zsh) before command runs.
       // After command exits, drop into a new login shell so the window stays open.
-      const full = command
-        ? `${base} -- "$SHELL" -lic ${shellEscape(`${command}; exec $SHELL -l`)}`
+      // Prepend inherited env vars so workers in Bedrock/Vertex/Foundry/proxy
+      // environments can authenticate and connect.
+      const envPrefix = buildInheritedEnvVars();
+      const wrappedCommand = envPrefix ? `${envPrefix} ${command}` : command;
+      const full = wrappedCommand
+        ? `${base} -- "$SHELL" -lic ${shellEscape(`${wrappedCommand}; exec $SHELL -l`)}`
         : base;
       return execOrThrowAsync(full);
     },

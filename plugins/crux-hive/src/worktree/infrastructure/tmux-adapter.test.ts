@@ -1,6 +1,19 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { ExecResult } from "../../shared/exec.js";
-import { createTmuxAdapter } from "./tmux-adapter.js";
+import { INHERITED_ENV_VARS } from "./env-vars.js";
+
+let capturedAsyncCommand = "";
+
+mock.module("../../shared/exec.js", () => ({
+  exec: (cmd: string): ExecResult => ({ success: true, stdout: "" }),
+  execOrThrowAsync: async (cmd: string): Promise<string> => {
+    capturedAsyncCommand = cmd;
+    return "@0";
+  },
+  shellEscape: (str: string): string => `'${str.replace(/'/g, "'\\''")}'`,
+}));
+
+const { createTmuxAdapter } = await import("./tmux-adapter.js");
 
 describe("createTmuxAdapter", () => {
   describe("isAvailable", () => {
@@ -23,6 +36,49 @@ describe("createTmuxAdapter", () => {
       });
       const adapter = createTmuxAdapter(execFn);
       expect(adapter.isAvailable()).toBe(false);
+    });
+  });
+
+  describe("createWindow", () => {
+    const savedEnv: Record<string, string | undefined> = {};
+
+    beforeEach(() => {
+      capturedAsyncCommand = "";
+      for (const key of INHERITED_ENV_VARS) {
+        savedEnv[key] = process.env[key];
+        delete process.env[key];
+      }
+    });
+
+    afterEach(() => {
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    });
+
+    it("should prepend inherited env vars to command", async () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+
+      const adapter = createTmuxAdapter();
+      await adapter.createWindow("test", "/tmp/test", "claude");
+
+      expect(capturedAsyncCommand).toContain("CLAUDE_CODE_USE_BEDROCK=");
+      expect(capturedAsyncCommand).toContain("AWS_REGION=");
+      expect(capturedAsyncCommand).toContain("export ");
+      expect(capturedAsyncCommand).toContain("claude");
+    });
+
+    it("should not add env prefix when no relevant vars are set", async () => {
+      const adapter = createTmuxAdapter();
+      await adapter.createWindow("test", "/tmp/test", "claude");
+
+      expect(capturedAsyncCommand).not.toContain("export ");
+      expect(capturedAsyncCommand).toContain("claude");
     });
   });
 });
