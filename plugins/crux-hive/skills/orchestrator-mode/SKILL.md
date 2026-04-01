@@ -24,7 +24,7 @@ The orchestrator delegates every task to workers. Each worker runs in an isolate
 
 Read these files for detailed procedural steps:
 
-- `references/phases.md` — Full Phase 1–4 procedures with examples and parameter tables
+- `references/phases.md` — Full phase procedures, coordination patterns (synthesis, circuit breaker, scratchpad), and parameter tables
 - `references/quick-reference.md` — Quick reference table, delegation troubleshooting, and start_worktree_session examples
 
 ## Prerequisites
@@ -126,7 +126,7 @@ When the user describes what to accomplish:
 
 Delegate **any task** where the theme is identifiable: implementation, research, investigation, documentation.
 
-**Key principle**: If the theme is identifiable, delegate it. Do not execute it directly.
+**Key principle**: If the theme is identifiable, delegate it. Do not execute it directly. Note: "ambiguous but correct" applies to the **delegation decision** (delegate even when unsure of specifics). Once you decide to delegate, the **prompt itself** must be self-contained and precise (see Worker Prompt Quality Rules in `references/phases.md`).
 
 **Continue vs. Spawn**: High context overlap → continue existing worker. Low context overlap → spawn fresh. Verification → always spawn fresh.
 
@@ -158,10 +158,6 @@ SendMessage({
 })
 ```
 
-## Circuit Breaker
-
-3 consecutive failures of the same operation → halt and report to the user. Do not retry in a loop. See `references/phases.md` for details.
-
 ## Phase 3–4: PR Review, Merge, and Cleanup (Summary)
 
 When notified that a PR is ready:
@@ -182,7 +178,6 @@ See `references/phases.md` for full Phase 3–4 procedures and `references/quick
 - Workers should create PRs, not push directly to the default branch
 - Review PRs and ask user before merging
 - **Delegate research tasks too** — do not execute WebSearch or exploration directly
-- **Ambiguous but correct > Specific but wrong**; workers can investigate
+- **Ambiguous but correct > Specific but wrong**; workers can investigate — but once delegating, craft precise prompts
 - **Synthesize before re-delegating** — read worker findings and craft precise prompts, never forward raw findings
-- **Self-contained prompts** — workers cannot see orchestrator conversation history; include all needed context
-- **Circuit breaker** — 3 consecutive failures of the same operation → halt and ask the user
+- **Circuit breaker** — 3 consecutive failures of the same operation → halt and ask the user (see `references/phases.md`)
