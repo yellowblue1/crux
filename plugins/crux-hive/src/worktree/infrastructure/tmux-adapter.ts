@@ -21,7 +21,7 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
       // After command exits, drop into a new login shell so the window stays open.
       // Prepend inherited env vars so workers in Bedrock/Vertex/Foundry/proxy
       // environments can authenticate and connect.
-      const envPrefix = buildInheritedEnvVars();
+      const envPrefix = command ? buildInheritedEnvVars() : "";
       const wrappedCommand = envPrefix ? `${envPrefix} ${command}` : command;
       const full = wrappedCommand
         ? `${base} -- "$SHELL" -lic ${shellEscape(`${wrappedCommand}; exec $SHELL -l`)}`
