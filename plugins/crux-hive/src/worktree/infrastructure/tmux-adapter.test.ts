@@ -5,7 +5,7 @@ import { INHERITED_ENV_VARS } from "./env-vars.js";
 let capturedAsyncCommand = "";
 
 mock.module("../../shared/exec.js", () => ({
-  exec: (cmd: string): ExecResult => ({ success: true, stdout: "" }),
+  exec: (_cmd: string): ExecResult => ({ success: true, stdout: "" }),
   execOrThrowAsync: async (cmd: string): Promise<string> => {
     capturedAsyncCommand = cmd;
     return "@0";

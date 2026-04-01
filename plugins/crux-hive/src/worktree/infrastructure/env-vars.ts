@@ -47,7 +47,9 @@ export const INHERITED_ENV_VARS = [
  *
  * @returns A string like `export KEY1='val1' KEY2='val2';` or empty string
  */
-export function buildInheritedEnvVars(env: Record<string, string | undefined> = process.env): string {
+export function buildInheritedEnvVars(
+  env: Record<string, string | undefined> = process.env,
+): string {
   const parts: string[] = [];
   for (const name of INHERITED_ENV_VARS) {
     const value = env[name];
