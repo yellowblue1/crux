@@ -66,7 +66,7 @@ export function createFileTeamRepository(): TeamRepository {
       // Check if member already exists
       const existingIndex = freshConfig.members.findIndex((m) => m.agentId === member.agentId);
       if (existingIndex >= 0) {
-        freshConfig.members[existingIndex] = member;
+        freshConfig.members[existingIndex] = { ...freshConfig.members[existingIndex], ...member };
       } else {
         freshConfig.members.push(member);
       }

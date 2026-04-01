@@ -155,6 +155,34 @@ describe("registerMember", () => {
     expect(updated?.members[1].color).toBe("green");
   });
 
+  it("should preserve existing fields when updating a member", async () => {
+    const repo = createFileTeamRepository();
+    const teamName = "preserve-fields-test";
+    const config = createValidConfig(teamName);
+    config.members.push({
+      agentId: `worker-a@${teamName}`,
+      name: "worker-a",
+      agentType: "Bash",
+      isActive: false,
+      joinedAt: 1700000000000,
+      subscriptions: ["team-lead"],
+    });
+    writeTestConfig(teamName, config);
+
+    await repo.registerMember(teamName, {
+      agentId: `worker-a@${teamName}`,
+      name: "worker-a",
+      agentType: "Bash",
+      isActive: true,
+    });
+
+    const updated = await repo.readConfig(teamName);
+    const member = updated?.members.find((m) => m.name === "worker-a");
+    expect(member?.isActive).toBe(true);
+    expect(member?.joinedAt).toBe(1700000000000);
+    expect(member?.subscriptions).toEqual(["team-lead"]);
+  });
+
   it("should throw for non-existent team", async () => {
     const repo = createFileTeamRepository();
     expect(

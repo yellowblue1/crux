@@ -139,6 +139,7 @@ export async function startSession(
         color: agentColor,
         isActive: true,
         cwd: worktreePath,
+        worktreePath,
       });
       await deps.teamRepo.createInbox(teamName, agentName);
     } catch (e) {
