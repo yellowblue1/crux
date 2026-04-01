@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.7.0] - 2026-03-31
+
+### Added
+
+- feat: add orchestrator.md custom settings for orchestrator behavior ([#200](https://github.com/yellowblue1/crux/pull/200))
+
 ## [5.6.0] - 2026-03-30
 
 ### Added
