@@ -17,6 +17,16 @@
 | Delete remote branch | `git push origin --delete <branch>` |
 | Reset team (optional) | `TeamDelete` |
 
+## Coordination Patterns
+
+| Pattern | Rule |
+|---------|------|
+| Continue vs. Spawn | High context overlap → continue; Low overlap → spawn fresh; Verification → always spawn fresh |
+| Worker Prompt Quality | Self-contained, include file paths/line numbers, state "done" criteria, require self-verification |
+| Synthesis | Read worker findings → distill to specifics → craft precise next prompt (never forward raw findings) |
+| Circuit Breaker | 3 consecutive failures of same operation → halt and ask the user |
+| Completion Notification | Structured format: Task, Status, PR, Files changed, Tests, Summary |
+
 ## Start Worktree Session
 
 ### Parameter Table

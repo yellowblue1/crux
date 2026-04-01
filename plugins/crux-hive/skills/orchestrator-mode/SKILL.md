@@ -60,9 +60,10 @@ If neither file exists, proceed with default behavior.
 │  1. TeamCreate → creates team (once per conversation)        │
 │  2. Discuss task with user → start_worktree_session          │
 │     (with teamName → worker joins as teammate)               │
-│  3. Worker uses built-in SendMessage → auto-delivered         │
-│  4. Review PR → Merge/Close → Cleanup                        │
-│  (repeat 2-4 for additional tasks)                           │
+│  3. Worker reports findings via SendMessage                   │
+│  4. Synthesize findings → craft next delegation (if needed)  │
+│  5. Review PR → Merge/Close → Cleanup                        │
+│  (repeat 2-5 for additional tasks)                           │
 └─────────────────────────────────────────────────────────────┘
          │                          ▲
          │ delegate                 │ SendMessage (built-in, auto-delivered)
@@ -73,6 +74,7 @@ If neither file exists, proceed with default behavior.
 │  - Launched as Agent Teams teammate                          │
 │  - Runs in plan mode                                        │
 │  - Executes the task (implementation, research, etc.)        │
+│  - Self-verifies before reporting                            │
 │  - Creates pull request                                      │
 │  - Uses built-in SendMessage to notify orchestrator           │
 └─────────────────────────────────────────────────────────────┘
@@ -120,12 +122,28 @@ When the user describes what to accomplish:
 4. **Never assume specifics when unsure** — keep ambiguity intact or ask briefly
 5. **Include what is known** in the handoff prompt; workers handle the rest
 6. **Hand off with a complete prompt** containing: Objective, Context, Findings, Relevant files, Decisions made, Expected output
+7. **Worker prompts must be self-contained** — include file paths, line numbers, and what "done" looks like. Never reference orchestrator conversation context the worker cannot see.
 
 Delegate **any task** where the theme is identifiable: implementation, research, investigation, documentation.
 
 **Key principle**: If the theme is identifiable, delegate it. Do not execute it directly.
 
-See `references/phases.md` for full Phase 1 details including the parameter table, examples, and "When Delegation Fails".
+**Continue vs. Spawn**: High context overlap → continue existing worker. Low context overlap → spawn fresh. Verification → always spawn fresh.
+
+See `references/phases.md` for full Phase 1 details including continue vs. spawn criteria, worker prompt quality rules, the parameter table, examples, and "When Delegation Fails".
+
+## Synthesis Phase (Summary)
+
+For multi-step workflows, the orchestrator synthesizes worker findings before crafting the next delegation:
+
+1. Worker completes research/investigation and reports findings via `SendMessage`
+2. Orchestrator reads and distills findings into actionable specifics
+3. Orchestrator crafts a precise, self-contained implementation prompt
+4. Orchestrator delegates to the same worker (continue) or a new worker (spawn fresh)
+
+This avoids vague handoffs like "based on your findings, implement the fix" — instead, the orchestrator does the synthesis work and produces a concrete prompt.
+
+See `references/phases.md` for the full synthesis phase details and examples.
 
 ## Phase 2: Communication (Summary)
 
@@ -139,6 +157,10 @@ SendMessage({
   summary: "Add rate limiting request"
 })
 ```
+
+## Circuit Breaker
+
+3 consecutive failures of the same operation → halt and report to the user. Do not retry in a loop. See `references/phases.md` for details.
 
 ## Phase 3–4: PR Review, Merge, and Cleanup (Summary)
 
@@ -161,3 +183,6 @@ See `references/phases.md` for full Phase 3–4 procedures and `references/quick
 - Review PRs and ask user before merging
 - **Delegate research tasks too** — do not execute WebSearch or exploration directly
 - **Ambiguous but correct > Specific but wrong**; workers can investigate
+- **Synthesize before re-delegating** — read worker findings and craft precise prompts, never forward raw findings
+- **Self-contained prompts** — workers cannot see orchestrator conversation history; include all needed context
+- **Circuit breaker** — 3 consecutive failures of the same operation → halt and ask the user

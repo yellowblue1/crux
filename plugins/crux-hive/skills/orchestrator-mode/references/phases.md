@@ -32,6 +32,37 @@ Delegate **any task** where the theme is identifiable:
 
 **Key principle**: If the theme is identifiable, delegate it. Do not execute it directly.
 
+### Continue vs. Spawn Decision
+
+When a follow-up task relates to a running worker, decide whether to continue or spawn fresh:
+
+| Situation | Action | Reason |
+|-----------|--------|--------|
+| High context overlap | `SendMessage` to existing worker | Worker already has the codebase context and findings |
+| Low context overlap | Spawn a fresh worker | Clean slate avoids confusion from unrelated prior work |
+| Verification task | Always spawn fresh | Verifier must not share assumptions with the implementer |
+
+**Examples:**
+- Worker implemented auth → you need rate limiting on the same endpoints → **continue** (high overlap)
+- Worker implemented auth → you need a CI pipeline change → **spawn fresh** (low overlap)
+- Worker implemented a feature → you need to verify it works → **spawn fresh** (verification)
+
+### Worker Prompt Quality Rules
+
+Worker prompts must be **self-contained and precise**. A worker has no access to the orchestrator's conversation history.
+
+**Do:**
+- Include file paths, line numbers, and error messages when known
+- State what "done" looks like (e.g., "PR with passing tests", "research summary sent via SendMessage")
+- Require the worker to self-verify before reporting (e.g., "run tests before creating the PR")
+- Provide concrete context: "The function `parseConfig` at `src/config.ts:42` throws when the input is empty"
+
+**Never:**
+- "Based on your findings, fix the bug" — the worker has no findings yet
+- "Fix the bug we discussed" — the worker was not part of the discussion
+- "Implement what's needed" — too vague to act on
+- Any reference to prior conversation context the worker cannot see
+
 ### Start Worktree Session (via MCP tool)
 
 Use the `mcp__plugin_crux-hive_crux__start_worktree_session` tool:
@@ -81,6 +112,40 @@ This creates a worktree, opens a new tmux window, and starts Claude Code as a te
 
 If `start_worktree_session` fails, report the error to the user and ask how to proceed. If the user asks to work directly instead of delegating, proceed directly.
 
+## Synthesis Phase
+
+For multi-step workflows (e.g., research then implement), the orchestrator synthesizes worker findings before crafting the next delegation prompt.
+
+### When to Use
+
+Use the synthesis pattern when a worker's output informs the next task. Common scenarios:
+- **Research → Implementation**: Worker investigates a bug and reports findings; orchestrator reads findings, then delegates a precise fix to the same or a different worker.
+- **Analysis → Action**: Worker audits dependencies and reports risks; orchestrator crafts targeted upgrade tasks from the report.
+- **Prototype → Production**: Worker creates a proof-of-concept; orchestrator evaluates it and delegates the production implementation.
+
+### How It Works
+
+```
+1. Delegate research/investigation task → Worker A
+2. Worker A reports findings via SendMessage
+3. Orchestrator reads and synthesizes findings
+4. Orchestrator crafts a precise implementation prompt using the synthesized knowledge
+5. Delegate implementation task → Worker A (continue) or Worker B (spawn fresh)
+```
+
+### Synthesis Guidelines
+
+- **Read the full worker report** before crafting the next prompt — do not forward raw findings
+- **Distill to actionable specifics**: file paths, root causes, recommended approaches
+- **Add orchestrator-level decisions**: which approach to take, what to prioritize, what to skip
+- **Apply the Worker Prompt Quality Rules** — the implementation prompt must be self-contained
+
+### Example
+
+Worker A reports: "Found 3 places where auth tokens are stored insecurely: `src/auth.ts:15`, `src/session.ts:42`, `src/api/middleware.ts:8`. The root cause is using localStorage instead of httpOnly cookies."
+
+Orchestrator synthesizes and delegates: "Objective: Replace localStorage token storage with httpOnly cookies in `src/auth.ts:15`, `src/session.ts:42`, and `src/api/middleware.ts:8`. The root cause is that tokens are stored in localStorage, making them vulnerable to XSS. Replace with httpOnly cookie storage using the existing `setCookie` utility in `src/utils/cookies.ts`. Run existing auth tests after changes."
+
 ## Phase 2: Communication
 
 Send messages to workers via `SendMessage`:
@@ -93,6 +158,21 @@ SendMessage({
   summary: "Add rate limiting request"
 })
 ```
+
+### Task Completion Notification Format
+
+When workers report completion, the orchestrator should expect (and can request) a structured notification for tracking:
+
+```
+Task: <task description>
+Status: completed | failed | blocked
+PR: <URL or "N/A">
+Files changed: <count>
+Tests: passed | failed | skipped
+Summary: <1-2 sentence description of what was done>
+```
+
+This format enables the orchestrator to quickly assess status and report to the user without reading PR diffs for routine completions.
 
 ## Phase 3: PR Review and Merge
 
@@ -175,3 +255,42 @@ git push origin --delete <branch>
 Workers are automatically deregistered from the team config when their worktrees are removed (via the cleanup hook), so `TeamDelete` should succeed without manual intervention.
 
 Use `TeamDelete` only when creating a **new team** in the same conversation (since `TeamCreate` requires no existing team). At the end of a conversation, leftover team files are harmless and will not affect future sessions.
+
+## Circuit Breaker Pattern
+
+When repeated failures occur, halt and escalate rather than retrying indefinitely.
+
+**Rule**: 3 consecutive failures of the same operation → stop and report to the user.
+
+**Applicable to:**
+
+| Operation | Example failures |
+|-----------|-----------------|
+| Worker creation | `start_worktree_session` fails repeatedly (e.g., git conflicts, tmux issues) |
+| Git operations | `git fetch`, `git pull`, or `git push` fail (e.g., network, auth) |
+| PR operations | `gh pr create` or `gh pr merge` fail (e.g., CI blocks, permission issues) |
+
+**Behavior:**
+1. First failure: retry once after addressing the obvious cause
+2. Second failure: try an alternative approach if available
+3. Third failure: **halt** — report the pattern to the user and ask how to proceed
+
+Do not continue retrying in a loop. Persistent failures indicate a systemic issue that requires user intervention.
+
+## Scratchpad (Future Consideration)
+
+> **Note**: This section documents a design pattern for future implementation. No tooling exists for this yet.
+
+In complex multi-worker workflows, workers may need to share intermediate findings without going through the orchestrator. A **shared scratchpad directory** could enable this:
+
+**Concept:**
+- A designated directory (e.g., `.crux/scratch/`) where workers write intermediate findings
+- Workers read from the scratchpad to build on each other's work
+- The orchestrator can reference scratchpad contents when crafting prompts
+- Scratchpad files are ephemeral — cleaned up after the session
+
+**Use cases:**
+- Worker A discovers API response schemas → writes to scratchpad → Worker B reads them when implementing the client
+- Worker A maps out a dependency graph → writes to scratchpad → Worker B uses it to plan refactoring order
+
+**Why not implement now:** The current `SendMessage`-based flow handles most coordination needs. The scratchpad pattern is most valuable when 3+ workers collaborate on tightly coupled tasks, which is uncommon in current usage.
