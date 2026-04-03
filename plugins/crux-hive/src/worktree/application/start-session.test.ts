@@ -351,6 +351,60 @@ describe("startSession", () => {
       expect(receivedCommand).not.toContain("base64 -d");
     });
 
+    it("should include -- before prompt in command", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test", prompt: "do the task" },
+        defaultDeps({
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedCommand).toMatch(/claude .+ -- "|claude -- "/);
+    });
+
+    it("should handle hyphen-prefixed worker instructions", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test", prompt: "do the task" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async () => "- Use /pr-workflow skill for all PR operations",
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedCommand).toContain(" -- ");
+    });
+
+    it("should handle flag-like worker instructions", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test", prompt: "do the task" },
+        defaultDeps({
+          config: {
+            readWorkerInstructions: async () => "--verbose mode enabled",
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedCommand).toContain(" -- ");
+    });
+
     it("should read worker instructions from project dir, not worktree path", async () => {
       let capturedDir = "";
       await startSession(
