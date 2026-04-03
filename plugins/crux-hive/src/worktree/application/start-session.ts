@@ -159,6 +159,7 @@ export async function startSession(
   }
   if (finalPrompt) {
     const encoded = Buffer.from(finalPrompt).toString("base64");
+    commandParts.push("--");
     commandParts.push(`"$(echo '${encoded}' | base64 -d)"`);
   }
   const claudeCommand = commandParts.join(" ");
