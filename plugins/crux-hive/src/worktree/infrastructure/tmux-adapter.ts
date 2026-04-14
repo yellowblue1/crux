@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   exec as defaultExec,
   type ExecFn,
@@ -15,12 +18,18 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
     },
     async createWindow(name: string, dir: string, command?: string): Promise<string> {
       const base = `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`;
-      // When command is provided, launch via login shell to ensure full
-      // initialization (.zshrc/.bashrc/starship/oh-my-zsh) before command runs.
-      // After command exits, drop into a new login shell so the window stays open.
-      const full = command
-        ? `${base} -- "$SHELL" -lic ${shellEscape(`${command}; exec $SHELL -l`)}`
-        : base;
+      if (!command) {
+        return execOrThrowAsync(base);
+      }
+      // Write the command to a temp script file to avoid nested quoting issues.
+      // The command string contains single quotes from both agent-teams flags
+      // (via shellEscape) and base64 prompt decoding (echo '...'). Wrapping
+      // the whole thing with shellEscape produces nested single quotes that
+      // break shell parsing. Writing to a file sidesteps quoting entirely.
+      const scriptDir = mkdtempSync(join(tmpdir(), "crux-hive-"));
+      const scriptPath = join(scriptDir, "launch.sh");
+      writeFileSync(scriptPath, `${command}\nexec $SHELL -l\n`, { mode: 0o755 });
+      const full = `${base} -- "$SHELL" -lic ${shellEscape(`source ${scriptPath}`)}`;
       return execOrThrowAsync(full);
     },
   };
