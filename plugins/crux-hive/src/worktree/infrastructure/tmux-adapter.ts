@@ -28,7 +28,8 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
       // break shell parsing. Writing to a file sidesteps quoting entirely.
       const scriptDir = mkdtempSync(join(tmpdir(), "crux-hive-"));
       const scriptPath = join(scriptDir, "launch.sh");
-      writeFileSync(scriptPath, `${command}\nexec $SHELL -l\n`, { mode: 0o755 });
+      const cleanup = `rm -rf ${shellEscape(scriptDir)}`;
+      writeFileSync(scriptPath, `${command}\n${cleanup}\nexec $SHELL -l\n`, { mode: 0o700 });
       const full = `${base} -- "$SHELL" -lic ${shellEscape(`source ${scriptPath}`)}`;
       return execOrThrowAsync(full);
     },
