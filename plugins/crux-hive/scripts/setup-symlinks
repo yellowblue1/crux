@@ -7,8 +7,11 @@ set -euo pipefail
 # Hook runs in the worktree directory
 worktree_path="$PWD"
 
-# Get main worktree path (first entry in porcelain output)
-main_repo=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10); exit}')
+# Get main worktree path (first entry in porcelain output).
+# Avoid awk exit to prevent SIGPIPE under set -euo pipefail;
+# let awk print all matches, then take the first line in bash.
+main_repo=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}')
+main_repo="${main_repo%%$'\n'*}"
 
 # Symlink target
 source_file="$main_repo/.claude/settings.local.json"
