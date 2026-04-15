@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.7.2] - 2026-04-15
+
+### Fixed
+
+- fix: harden input validation and shell escaping ([#218](https://github.com/yellowblue1/crux/pull/218))
+
 ## [5.7.1] - 2026-04-15
 
 ### Fixed
