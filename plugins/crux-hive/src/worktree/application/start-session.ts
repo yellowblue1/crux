@@ -1,4 +1,5 @@
-import { shellEscape } from "../../shared/exec.js";
+import { getErrorMessage, shellEscape } from "../../shared/exec.js";
+import { isValidName } from "../../shared/validators.js";
 import type { TeamRepository } from "../../team/domain/ports.js";
 import { buildAgentTeamsFlags } from "../domain/agent-teams-flags.js";
 import type { ConfigAdapter, GitAdapter, TmuxAdapter } from "../domain/ports.js";
@@ -63,9 +64,23 @@ export async function startSession(
     }
   }
 
-  // Validate teamName requires agentName
+  // Validate teamName and agentName
   if (teamName && !agentName) {
     return { success: false, error: "agentName is required when teamName is provided" };
+  }
+  if (teamName && !isValidName(teamName)) {
+    return {
+      success: false,
+      error:
+        "Invalid teamName. Team names must contain only alphanumeric characters, hyphens, and underscores.",
+    };
+  }
+  if (agentName && !isValidName(agentName)) {
+    return {
+      success: false,
+      error:
+        "Invalid agentName. Agent names must contain only alphanumeric characters, hyphens, and underscores.",
+    };
   }
 
   // Check if running inside a tmux session
@@ -108,7 +123,7 @@ export async function startSession(
   try {
     worktreePath = await deps.git.getWorktreePath(branch);
   } catch (e) {
-    return { success: false, error: `Failed to get worktree path: ${(e as Error).message}` };
+    return { success: false, error: `Failed to get worktree path: ${getErrorMessage(e)}` };
   }
 
   if (!worktreePath) {
@@ -142,7 +157,7 @@ export async function startSession(
       });
       await deps.teamRepo.createInbox(teamName, agentName);
     } catch (e) {
-      return { success: false, error: `Failed to register teammate: ${(e as Error).message}` };
+      return { success: false, error: `Failed to register teammate: ${getErrorMessage(e)}` };
     }
   }
 
@@ -170,7 +185,7 @@ export async function startSession(
   try {
     await deps.tmux.createWindow(windowName, worktreePath, claudeCommand);
   } catch (e) {
-    return { success: false, error: `Failed to create tmux window: ${(e as Error).message}` };
+    return { success: false, error: `Failed to create tmux window: ${getErrorMessage(e)}` };
   }
 
   return { success: true, worktreePath };

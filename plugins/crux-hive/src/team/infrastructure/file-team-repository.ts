@@ -1,10 +1,14 @@
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getTeamsDir } from "../../shared/paths.js";
+import { isValidName } from "../../shared/validators.js";
 import type { TeamRepository } from "../domain/ports.js";
 import type { TeamConfig, TeamMember } from "../domain/types.js";
 
 function getTeamDir(teamName: string): string {
+  if (!isValidName(teamName)) {
+    throw new Error(`Invalid team name: '${teamName}' contains unsafe characters`);
+  }
   return join(getTeamsDir(), teamName);
 }
 
@@ -19,22 +23,30 @@ export function createFileTeamRepository(): TeamRepository {
       return null;
     }
 
+    let config: TeamConfig;
     try {
-      const config: TeamConfig = await configFile.json();
-
-      if (!config.name || !config.leadSessionId || !Array.isArray(config.members)) {
-        throw new Error(
-          `Invalid team config format: missing required fields (name, leadSessionId, members)`,
-        );
-      }
-
-      return config;
-    } catch (e) {
-      if ((e as Error).message.includes("Invalid team config format")) {
-        throw e;
-      }
+      config = await configFile.json();
+    } catch {
       return null;
     }
+
+    if (
+      typeof config.name !== "string" ||
+      !config.name ||
+      typeof config.leadSessionId !== "string" ||
+      !config.leadSessionId ||
+      !Array.isArray(config.members)
+    ) {
+      throw new Error(
+        `Invalid team config format: missing required fields (name, leadSessionId, members)`,
+      );
+    }
+
+    if (!isValidName(config.name)) {
+      throw new Error(`Invalid team config: name '${config.name}' contains unsafe characters`);
+    }
+
+    return config;
   }
 
   async function getLeadSessionId(teamName: string): Promise<string | null> {
@@ -121,6 +133,9 @@ export function createFileTeamRepository(): TeamRepository {
   }
 
   async function removeInbox(teamName: string, agentName: string): Promise<boolean> {
+    if (!isValidName(agentName)) {
+      throw new Error(`Invalid agent name: '${agentName}' contains unsafe characters`);
+    }
     const inboxPath = join(getTeamDir(teamName), "inboxes", `${agentName}.json`);
     if (!(await Bun.file(inboxPath).exists())) {
       return false;
@@ -135,6 +150,9 @@ export function createFileTeamRepository(): TeamRepository {
   }
 
   async function createInbox(teamName: string, agentName: string): Promise<void> {
+    if (!isValidName(agentName)) {
+      throw new Error(`Invalid agent name: '${agentName}' contains unsafe characters`);
+    }
     const inboxDir = join(getTeamDir(teamName), "inboxes");
     if (!existsSync(inboxDir)) {
       mkdirSync(inboxDir, { recursive: true });
