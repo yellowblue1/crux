@@ -1,9 +1,10 @@
 import { getErrorMessage, shellEscape } from "../../shared/exec.js";
+import { isValidName } from "../../shared/validators.js";
 import type { TeamRepository } from "../../team/domain/ports.js";
 import { buildAgentTeamsFlags } from "../domain/agent-teams-flags.js";
 import type { ConfigAdapter, GitAdapter, TmuxAdapter } from "../domain/ports.js";
 import type { SessionResult, StartWorktreeSessionArgs } from "../domain/types.js";
-import { isValidGitRef, isValidName } from "../domain/validators.js";
+import { isValidGitRef } from "../domain/validators.js";
 
 interface StartSessionDeps {
   git: GitAdapter;
