@@ -4,14 +4,19 @@ import { join } from "node:path";
 import {
   exec as defaultExec,
   type ExecFn,
-  execOrThrowAsync,
+  execOrThrowAsync as defaultExecOrThrowAsync,
   shellEscape,
 } from "../../shared/exec.js";
 import type { TmuxAdapter } from "../domain/ports.js";
 
 const TMUX_DETECT_TIMEOUT_MS = 5000;
 
-export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
+export type ExecOrThrowAsyncFn = (command: string) => Promise<string>;
+
+export function createTmuxAdapter(
+  execFn: ExecFn = defaultExec,
+  execAsyncFn: ExecOrThrowAsyncFn = defaultExecOrThrowAsync,
+): TmuxAdapter {
   return {
     isAvailable(): boolean {
       return execFn('tmux display-message -p "#S"', { timeout: TMUX_DETECT_TIMEOUT_MS }).success;
@@ -19,7 +24,7 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
     async createWindow(name: string, dir: string, command?: string): Promise<string> {
       const base = `tmux new-window -d -n ${shellEscape(name)} -c ${shellEscape(dir)} -P -F "#{window_id}"`;
       if (!command) {
-        return execOrThrowAsync(base);
+        return execAsyncFn(base);
       }
       // Write the command to a temp script file to avoid nested quoting issues.
       // The command string contains single quotes from both agent-teams flags
@@ -31,7 +36,7 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
       const cleanup = `rm -rf ${shellEscape(scriptDir)}`;
       writeFileSync(scriptPath, `${command}\n${cleanup}\nexec $SHELL -l\n`, { mode: 0o700 });
       const full = `${base} -- "$SHELL" -lic ${shellEscape(`source ${scriptPath}`)}`;
-      return execOrThrowAsync(full);
+      return execAsyncFn(full);
     },
   };
 }
