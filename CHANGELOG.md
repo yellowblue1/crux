@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.7.1] - 2026-04-15
+
+### Fixed
+
+- fix: insert -- end-of-options marker before prompt argument ([#210](https://github.com/yellowblue1/crux/pull/210))
+- fix: write launch command to temp file to avoid nested single-quote escaping ([#212](https://github.com/yellowblue1/crux/pull/212))
+- fix: replace pipe chain with awk to avoid SIGPIPE in setup-symlinks ([#217](https://github.com/yellowblue1/crux/pull/217))
+- fix: remove awk exit to avoid SIGPIPE in setup-symlinks ([#220](https://github.com/yellowblue1/crux/pull/220))
+
 ## [5.7.0] - 2026-03-31
 
 ### Added
