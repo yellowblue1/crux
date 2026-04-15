@@ -7,8 +7,8 @@ set -euo pipefail
 # Hook runs in the worktree directory
 worktree_path="$PWD"
 
-# Get main worktree path from git worktree list
-main_repo=$(git worktree list --porcelain | grep -A2 "^worktree " | head -3 | grep "^worktree " | head -1 | cut -d' ' -f2)
+# Get main worktree path (first entry in porcelain output)
+main_repo=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10); exit}')
 
 # Symlink target
 source_file="$main_repo/.claude/settings.local.json"
