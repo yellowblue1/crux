@@ -7,6 +7,13 @@ export function shellEscape(str: string): string {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
+/**
+ * Safely extract an error message from an unknown caught value.
+ */
+export function getErrorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export interface ExecResult {
   success: boolean;
   stdout: string;
@@ -35,8 +42,7 @@ export function exec(command: string, options?: { timeout?: number }): ExecResul
     }
     return { success: false, stdout: "", error: stderr || `Exit code: ${result.exitCode}` };
   } catch (e) {
-    const error = e as Error;
-    return { success: false, stdout: "", error: error.message };
+    return { success: false, stdout: "", error: getErrorMessage(e) };
   }
 }
 
@@ -87,8 +93,7 @@ export async function execAsync(
     }
     return { success: false, stdout: "", error: stderr.trim() || `Exit code: ${exitCode}` };
   } catch (e) {
-    const error = e as Error;
-    return { success: false, stdout: "", error: error.message };
+    return { success: false, stdout: "", error: getErrorMessage(e) };
   }
 }
 

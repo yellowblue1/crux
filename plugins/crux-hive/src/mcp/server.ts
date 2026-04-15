@@ -7,6 +7,7 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import { getErrorMessage } from "../shared/exec.js";
 import {
   type StartWorktreeSessionArgs,
   startWorktreeSession,
@@ -101,7 +102,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
         throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error) {
-    log(`tool call: ${name} (error: ${(error as Error).message})`);
+    log(`tool call: ${name} (error: ${getErrorMessage(error)})`);
     throw error;
   }
 });
@@ -137,6 +138,6 @@ try {
   await server.connect(transport);
   log("server started");
 } catch (error) {
-  log(`fatal: failed to start server: ${(error as Error).message}`);
+  log(`fatal: failed to start server: ${getErrorMessage(error)}`);
   process.exit(1);
 }

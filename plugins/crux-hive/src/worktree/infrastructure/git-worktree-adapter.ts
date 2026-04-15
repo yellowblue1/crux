@@ -1,4 +1,4 @@
-import { execAsync, execOrThrowAsync } from "../../shared/exec.js";
+import { execAsync, execOrThrowAsync, shellEscape } from "../../shared/exec.js";
 import type { GitAdapter, WorktreeCreateResult } from "../domain/ports.js";
 
 export function createGitWorktreeAdapter(): GitAdapter {
@@ -8,9 +8,9 @@ export function createGitWorktreeAdapter(): GitAdapter {
       fromRef?: string,
       noFetch?: boolean,
     ): Promise<WorktreeCreateResult> {
-      const fromFlag = fromRef ? ` --from "${fromRef}"` : "";
+      const fromFlag = fromRef ? ` --from ${shellEscape(fromRef)}` : "";
       const noFetchFlag = noFetch ? " --no-fetch" : "";
-      const command = `git gtr new "${branch}"${fromFlag}${noFetchFlag}`;
+      const command = `git gtr new ${shellEscape(branch)}${fromFlag}${noFetchFlag}`;
       const result = await execAsync(command);
       if (result.success) {
         return { success: true };
@@ -18,7 +18,7 @@ export function createGitWorktreeAdapter(): GitAdapter {
       return { success: false, error: result.error || `Failed to create worktree: ${branch}` };
     },
     async getWorktreePath(branch: string): Promise<string> {
-      return execOrThrowAsync(`git gtr go "${branch}"`);
+      return execOrThrowAsync(`git gtr go ${shellEscape(branch)}`);
     },
   };
 }

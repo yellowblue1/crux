@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getTeamsDir } from "../../shared/paths.js";
+import { isValidName } from "../../worktree/domain/validators.js";
 import type { TeamRepository } from "../domain/ports.js";
 import type { TeamConfig, TeamMember } from "../domain/types.js";
 
@@ -19,22 +20,30 @@ export function createFileTeamRepository(): TeamRepository {
       return null;
     }
 
+    let config: TeamConfig;
     try {
-      const config: TeamConfig = await configFile.json();
-
-      if (!config.name || !config.leadSessionId || !Array.isArray(config.members)) {
-        throw new Error(
-          `Invalid team config format: missing required fields (name, leadSessionId, members)`,
-        );
-      }
-
-      return config;
-    } catch (e) {
-      if ((e as Error).message.includes("Invalid team config format")) {
-        throw e;
-      }
+      config = await configFile.json();
+    } catch {
       return null;
     }
+
+    if (
+      typeof config.name !== "string" ||
+      !config.name ||
+      typeof config.leadSessionId !== "string" ||
+      !config.leadSessionId ||
+      !Array.isArray(config.members)
+    ) {
+      throw new Error(
+        `Invalid team config format: missing required fields (name, leadSessionId, members)`,
+      );
+    }
+
+    if (!isValidName(config.name)) {
+      throw new Error(`Invalid team config: name '${config.name}' contains unsafe characters`);
+    }
+
+    return config;
   }
 
   async function getLeadSessionId(teamName: string): Promise<string | null> {
