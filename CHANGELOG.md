@@ -4,12 +4,6 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [5.8.0] - 2026-04-19
-
-### Fixed
-
-- fix: auto-refresh stale `leadSessionId` on UserPromptSubmit to restore inbound message auto-delivery when reusing a team across sessions ([#223](https://github.com/yellowblue1/crux/issues/223))
-
 ## [5.7.2] - 2026-04-15
 
 ### Fixed

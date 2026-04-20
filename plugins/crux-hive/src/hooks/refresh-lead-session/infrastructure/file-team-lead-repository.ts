@@ -2,15 +2,23 @@ import { existsSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isValidTeamConfig } from "../../../shared/is-valid-team-config.js";
 import { getTeamsDir } from "../../../shared/paths.js";
+import { isValidName } from "../../../shared/validators.js";
 import type { TeamConfig } from "../../../team/domain/types.js";
 import type { TeamLeadRepository } from "../domain/ports.js";
 import type { TeamLeadSummary } from "../domain/types.js";
 
 function getConfigPath(teamName: string): string {
+  if (!isValidName(teamName)) {
+    throw new Error(`Invalid team name: '${teamName}' contains unsafe characters`);
+  }
   return join(getTeamsDir(), teamName, "config.json");
 }
 
 async function readLeadSummary(teamName: string): Promise<TeamLeadSummary | null> {
+  if (!isValidName(teamName)) {
+    return null;
+  }
+
   let raw: unknown;
   try {
     raw = await Bun.file(getConfigPath(teamName)).json();

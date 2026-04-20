@@ -108,9 +108,28 @@ describe("createFileTeamLeadRepository", () => {
       expect(summaries).toHaveLength(1);
       expect(summaries[0].teamName).toBe("valid");
     });
+
+    it("skips entries whose directory name is not a valid team name", async () => {
+      // readdirSync will return ".." if it appears — ensure isValidName filters.
+      mkdirSync(join(testTeamsDir, "fakehome", ".claude", "teams", "..bad"), {
+        recursive: true,
+      });
+      writeTestConfig("valid", buildConfig("valid", "session-1", "/project"));
+
+      const repo = createFileTeamLeadRepository();
+      const summaries = await repo.listTeamLeads();
+
+      expect(summaries.map((s) => s.teamName)).toEqual(["valid"]);
+    });
   });
 
   describe("updateLeadSessionId", () => {
+    it("throws when teamName is not a valid name", async () => {
+      const repo = createFileTeamLeadRepository();
+      await expect(repo.updateLeadSessionId("../evil", "old", "new")).rejects.toThrow(
+        /Invalid team name/,
+      );
+    });
     it("writes and returns true when on-disk value matches expected stale id", async () => {
       const config = buildConfig("team-a", "old-session", "/project");
       writeTestConfig("team-a", config);

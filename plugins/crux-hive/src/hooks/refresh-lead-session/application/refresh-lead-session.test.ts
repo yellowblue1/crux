@@ -40,7 +40,7 @@ describe("refreshLeadSession", () => {
     expect(writeCalls).toBe(0);
   });
 
-  it("refreshes with CAS args when exactly one team's lead cwd matches and is dead", async () => {
+  it("returns refreshed and issues CAS args when decision is refresh and write succeeds", async () => {
     const calls: UpdateCall[] = [];
     const repo = createRepo(
       [{ teamName: "a", leadSessionId: "old", leadCwd: "/project" }],
@@ -52,13 +52,16 @@ describe("refreshLeadSession", () => {
 
     const result = await refreshLeadSession("new", "/project", repo, createLive());
 
-    expect(result).toEqual({
-      kind: "refresh",
-      teamName: "a",
-      staleLeadSessionId: "old",
-      newLeadSessionId: "new",
-    });
+    expect(result).toEqual({ kind: "refreshed", teamName: "a" });
     expect(calls).toEqual([{ teamName: "a", expected: "old", next: "new" }]);
+  });
+
+  it("returns raced when CAS miss (write skipped)", async () => {
+    const repo = createRepo([{ teamName: "a", leadSessionId: "old", leadCwd: "/project" }], false);
+
+    const result = await refreshLeadSession("new", "/project", repo, createLive());
+
+    expect(result).toEqual({ kind: "raced", teamName: "a" });
   });
 
   it("returns noop when the candidate's leadSessionId is live", async () => {
