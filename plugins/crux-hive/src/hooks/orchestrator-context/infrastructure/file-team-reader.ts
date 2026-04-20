@@ -1,24 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { isValidTeamConfig } from "../../../shared/is-valid-team-config.js";
 import { getTeamsDir } from "../../../shared/paths.js";
 import type { TeamConfig } from "../../../team/domain/types.js";
 import type { TeamConfigReader } from "../domain/ports.js";
 import type { OrchestratorState, WorkerState } from "../domain/types.js";
-
-function isValidConfig(raw: unknown): raw is TeamConfig {
-  return (
-    raw !== null &&
-    typeof raw === "object" &&
-    "name" in raw &&
-    typeof (raw as Record<string, unknown>).name === "string" &&
-    "leadAgentId" in raw &&
-    typeof (raw as Record<string, unknown>).leadAgentId === "string" &&
-    "leadSessionId" in raw &&
-    typeof (raw as Record<string, unknown>).leadSessionId === "string" &&
-    "members" in raw &&
-    Array.isArray((raw as Record<string, unknown>).members)
-  );
-}
 
 export function createFileTeamReader(): TeamConfigReader {
   async function findOrchestratorTeam(sessionId: string): Promise<OrchestratorState | null> {
@@ -39,22 +25,24 @@ export function createFileTeamReader(): TeamConfigReader {
         continue;
       }
 
-      if (!isValidConfig(raw)) {
+      if (!isValidTeamConfig(raw)) {
         continue;
       }
 
-      if (raw.leadSessionId !== sessionId) {
+      const config = raw as TeamConfig;
+
+      if (config.leadSessionId !== sessionId) {
         continue;
       }
 
-      const workers: WorkerState[] = raw.members
-        .filter((m) => m.agentId !== raw.leadAgentId)
+      const workers: WorkerState[] = config.members
+        .filter((m) => m.agentId !== config.leadAgentId)
         .map((m) => ({
           name: m.name,
           isActive: typeof m.isActive === "boolean" ? m.isActive : false,
         }));
 
-      return { teamName: raw.name, workers };
+      return { teamName: config.name, workers };
     }
 
     return null;

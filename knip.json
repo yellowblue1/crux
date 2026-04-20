@@ -10,6 +10,7 @@
       "entry": [
         "src/ensure-gtrconfig.ts",
         "src/restore-orchestrator-context.ts",
+        "src/refresh-lead-session-id.ts",
         "scripts/deregister-worker.ts",
         "**/*.test.ts"
       ],
