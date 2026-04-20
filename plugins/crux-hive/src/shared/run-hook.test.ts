@@ -2,6 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { runHook } from "./run-hook.js";
 
 const originalDebug = process.env.CRUX_HIVE_DEBUG;
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+function captureStderr(): string[] {
+  const writes: string[] = [];
+  const spy = mock((chunk: string | Uint8Array) => {
+    writes.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+    return true;
+  });
+  process.stderr.write = spy as unknown as typeof process.stderr.write;
+  return writes;
+}
 
 beforeEach(() => {
   delete process.env.CRUX_HIVE_DEBUG;
@@ -13,6 +24,7 @@ afterEach(() => {
   } else {
     process.env.CRUX_HIVE_DEBUG = originalDebug;
   }
+  process.stderr.write = originalStderrWrite;
   mock.restore();
 });
 
@@ -31,12 +43,7 @@ describe("runHook", () => {
   });
 
   it("swallows errors silently when debug flag is unset", async () => {
-    const writes: string[] = [];
-    const spy = mock((chunk: string | Uint8Array) => {
-      writes.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
-      return true;
-    });
-    process.stderr.write = spy as unknown as typeof process.stderr.write;
+    const writes = captureStderr();
 
     runHook(async () => {
       throw new Error("boom");
@@ -48,12 +55,7 @@ describe("runHook", () => {
 
   it("writes error details to stderr when CRUX_HIVE_DEBUG=1", async () => {
     process.env.CRUX_HIVE_DEBUG = "1";
-    const writes: string[] = [];
-    const spy = mock((chunk: string | Uint8Array) => {
-      writes.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
-      return true;
-    });
-    process.stderr.write = spy as unknown as typeof process.stderr.write;
+    const writes = captureStderr();
 
     runHook(async () => {
       throw new Error("kaboom");
@@ -67,12 +69,7 @@ describe("runHook", () => {
 
   it("handles non-Error throws when debug flag is set", async () => {
     process.env.CRUX_HIVE_DEBUG = "1";
-    const writes: string[] = [];
-    const spy = mock((chunk: string | Uint8Array) => {
-      writes.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
-      return true;
-    });
-    process.stderr.write = spy as unknown as typeof process.stderr.write;
+    const writes = captureStderr();
 
     const nonError: unknown = "string-reason";
     runHook(async () => {
@@ -85,12 +82,7 @@ describe("runHook", () => {
 
   it("ignores unrelated debug flag values", async () => {
     process.env.CRUX_HIVE_DEBUG = "true"; // only "1" enables
-    const writes: string[] = [];
-    const spy = mock((chunk: string | Uint8Array) => {
-      writes.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
-      return true;
-    });
-    process.stderr.write = spy as unknown as typeof process.stderr.write;
+    const writes = captureStderr();
 
     runHook(async () => {
       throw new Error("boom");

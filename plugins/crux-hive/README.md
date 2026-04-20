@@ -64,6 +64,16 @@ You (human)
                 Uses built-in SendMessage to notify orchestrator
 ```
 
+## Debugging hooks
+
+Hooks swallow errors by default so a misbehaving hook cannot block Claude Code. To surface the underlying error on stderr during development, set:
+
+```bash
+export CRUX_HIVE_DEBUG=1
+```
+
+Only the exact string `1` enables logging; other truthy-looking values (`true`, `yes`) are ignored.
+
 ## Uninstalling
 
 ```bash
