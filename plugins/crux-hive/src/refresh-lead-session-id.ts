@@ -16,6 +16,7 @@
 import { refreshLeadSession } from "./hooks/refresh-lead-session/application/refresh-lead-session.js";
 import { createFileLiveSessionReader } from "./hooks/refresh-lead-session/infrastructure/file-live-session-reader.js";
 import { createFileTeamLeadRepository } from "./hooks/refresh-lead-session/infrastructure/file-team-lead-repository.js";
+import { runHook } from "./shared/run-hook.js";
 
 type HookInput = {
   readonly sessionId: string;
@@ -56,6 +57,4 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch(() => {
-  // Always exit cleanly — hook failures must never block the user prompt
-});
+runHook(main);

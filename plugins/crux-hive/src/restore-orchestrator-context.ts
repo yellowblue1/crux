@@ -7,6 +7,7 @@
 import { restoreOrchestratorContext } from "./hooks/orchestrator-context/application/restore-orchestrator-context.js";
 import { createFileTeamReader } from "./hooks/orchestrator-context/infrastructure/file-team-reader.js";
 import { readCruxMarkdownFile } from "./shared/read-crux-markdown.js";
+import { runHook } from "./shared/run-hook.js";
 
 async function main(): Promise<void> {
   let sessionId: string | undefined;
@@ -47,6 +48,4 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(() => {
-  // Always exit cleanly — hook failures must not block the session
-});
+runHook(main);
