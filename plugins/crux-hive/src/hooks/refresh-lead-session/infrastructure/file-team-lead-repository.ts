@@ -49,7 +49,11 @@ export function createFileTeamLeadRepository(): TeamLeadRepository {
     return summaries.filter((s): s is TeamLeadSummary => s !== null);
   }
 
-  async function updateLeadSessionId(teamName: string, newLeadSessionId: string): Promise<void> {
+  async function updateLeadSessionId(
+    teamName: string,
+    expectedStaleSessionId: string,
+    newLeadSessionId: string,
+  ): Promise<boolean> {
     const configPath = getConfigPath(teamName);
     const lockPath = `${configPath}.lock`;
 
@@ -61,11 +65,15 @@ export function createFileTeamLeadRepository(): TeamLeadRepository {
 
     try {
       const freshConfig: TeamConfig = await Bun.file(configPath).json();
-      if (freshConfig.leadSessionId === newLeadSessionId) {
-        return;
+      // CAS: bail out when another session has already refreshed it. This
+      // prevents us from clobbering a leadSessionId that became live between
+      // listTeamLeads() and lock acquisition.
+      if (freshConfig.leadSessionId !== expectedStaleSessionId) {
+        return false;
       }
       freshConfig.leadSessionId = newLeadSessionId;
       await Bun.write(configPath, JSON.stringify(freshConfig, null, 2));
+      return true;
     } finally {
       try {
         unlinkSync(lockPath);

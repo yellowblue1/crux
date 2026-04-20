@@ -9,39 +9,51 @@
  * previous session's inbox, silently breaking auto-delivery.
  *
  * This hook runs before each user prompt is processed. It locates a team
- * whose lead member cwd matches the current cwd and refreshes
- * leadSessionId to the current session, but only when no team already
- * points at this session (so single-session workflows are untouched).
+ * whose lead member cwd matches the current cwd AND whose lead session is
+ * no longer live, then refreshes leadSessionId to the current session.
  */
 
 import { refreshLeadSession } from "./hooks/refresh-lead-session/application/refresh-lead-session.js";
+import { createFileLiveSessionReader } from "./hooks/refresh-lead-session/infrastructure/file-live-session-reader.js";
 import { createFileTeamLeadRepository } from "./hooks/refresh-lead-session/infrastructure/file-team-lead-repository.js";
 
-async function main(): Promise<void> {
-  let sessionId: string | undefined;
-  let cwd: string | undefined;
+type HookInput = {
+  readonly sessionId: string;
+  readonly cwd: string;
+};
 
+function parseHookInput(raw: string): HookInput | null {
+  let parsed: unknown;
   try {
-    const input = await Bun.stdin.text();
-    const parsed: unknown = JSON.parse(input);
-    if (parsed && typeof parsed === "object") {
-      const obj = parsed as Record<string, unknown>;
-      if (typeof obj.session_id === "string") {
-        sessionId = obj.session_id;
-      }
-      if (typeof obj.cwd === "string") {
-        cwd = obj.cwd;
-      }
-    }
+    parsed = JSON.parse(raw);
   } catch {
-    // stdin may be empty or invalid — treat as no-op
+    return null;
   }
 
-  if (!sessionId || !cwd) {
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+  const obj = parsed as Record<string, unknown>;
+  const sessionId = obj.session_id;
+  const cwd = obj.cwd;
+  if (typeof sessionId !== "string" || typeof cwd !== "string") {
+    return null;
+  }
+  return { sessionId, cwd };
+}
+
+async function main(): Promise<void> {
+  const input = parseHookInput(await Bun.stdin.text());
+  if (!input) {
     return;
   }
 
-  await refreshLeadSession(sessionId, cwd, createFileTeamLeadRepository());
+  await refreshLeadSession(
+    input.sessionId,
+    input.cwd,
+    createFileTeamLeadRepository(),
+    createFileLiveSessionReader(),
+  );
 }
 
 main().catch(() => {

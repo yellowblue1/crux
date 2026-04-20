@@ -111,30 +111,31 @@ describe("createFileTeamLeadRepository", () => {
   });
 
   describe("updateLeadSessionId", () => {
-    it("rewrites leadSessionId while preserving other fields", async () => {
+    it("writes and returns true when on-disk value matches expected stale id", async () => {
       const config = buildConfig("team-a", "old-session", "/project");
       writeTestConfig("team-a", config);
 
       const repo = createFileTeamLeadRepository();
-      await repo.updateLeadSessionId("team-a", "new-session");
+      const written = await repo.updateLeadSessionId("team-a", "old-session", "new-session");
 
+      expect(written).toBe(true);
       const updated = JSON.parse(
         readFileSync(join(getTeamDir("team-a"), "config.json"), "utf8"),
       ) as TeamConfig;
       expect(updated.leadSessionId).toBe("new-session");
       expect(updated.name).toBe("team-a");
-      expect(updated.members).toHaveLength(1);
       expect(updated.members[0].cwd).toBe("/project");
     });
 
-    it("no-ops when leadSessionId already matches", async () => {
-      const config = buildConfig("team-a", "same-session", "/project");
+    it("returns false without writing when on-disk value differs (CAS miss)", async () => {
+      const config = buildConfig("team-a", "already-fresh", "/project");
       writeTestConfig("team-a", config);
       const before = readFileSync(join(getTeamDir("team-a"), "config.json"), "utf8");
 
       const repo = createFileTeamLeadRepository();
-      await repo.updateLeadSessionId("team-a", "same-session");
+      const written = await repo.updateLeadSessionId("team-a", "stale-expected", "new-session");
 
+      expect(written).toBe(false);
       const after = readFileSync(join(getTeamDir("team-a"), "config.json"), "utf8");
       expect(after).toBe(before);
     });
@@ -145,9 +146,9 @@ describe("createFileTeamLeadRepository", () => {
       writeFileSync(join(getTeamDir("team-a"), "config.json.lock"), "other-pid");
 
       const repo = createFileTeamLeadRepository();
-      await expect(repo.updateLeadSessionId("team-a", "new-session")).rejects.toThrow(
-        /Failed to acquire lock/,
-      );
+      await expect(
+        repo.updateLeadSessionId("team-a", "old-session", "new-session"),
+      ).rejects.toThrow(/Failed to acquire lock/);
     });
 
     it("releases the lock after writing", async () => {
@@ -155,7 +156,17 @@ describe("createFileTeamLeadRepository", () => {
       writeTestConfig("team-a", config);
 
       const repo = createFileTeamLeadRepository();
-      await repo.updateLeadSessionId("team-a", "new-session");
+      await repo.updateLeadSessionId("team-a", "old-session", "new-session");
+
+      expect(existsSync(join(getTeamDir("team-a"), "config.json.lock"))).toBe(false);
+    });
+
+    it("releases the lock on CAS miss", async () => {
+      const config = buildConfig("team-a", "already-fresh", "/project");
+      writeTestConfig("team-a", config);
+
+      const repo = createFileTeamLeadRepository();
+      await repo.updateLeadSessionId("team-a", "stale-expected", "new-session");
 
       expect(existsSync(join(getTeamDir("team-a"), "config.json.lock"))).toBe(false);
     });

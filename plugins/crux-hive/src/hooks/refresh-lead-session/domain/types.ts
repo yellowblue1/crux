@@ -6,4 +6,9 @@ export type TeamLeadSummary = {
 
 export type RefreshDecision =
   | { readonly kind: "noop" }
-  | { readonly kind: "refresh"; readonly teamName: string; readonly newLeadSessionId: string };
+  | {
+      readonly kind: "refresh";
+      readonly teamName: string;
+      readonly staleLeadSessionId: string;
+      readonly newLeadSessionId: string;
+    };

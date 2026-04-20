@@ -12,21 +12,27 @@ import type { RefreshDecision, TeamLeadSummary } from "./types.js";
  * Safe-refresh rules:
  *  - If any team already has leadSessionId === sessionId, the session is in
  *    sync; do nothing.
- *  - Otherwise find teams whose lead member cwd matches the current cwd. If
- *    exactly one such team exists, claim it. If zero or multiple match, do
+ *  - Otherwise collect teams whose lead member cwd matches the current cwd
+ *    AND whose leadSessionId is dead (not present in live session ids).
+ *    A live leadSessionId means another session is actively driving that
+ *    team; refreshing would steal its inbox.
+ *  - If exactly one such team remains, claim it. Zero or multiple: do
  *    nothing (ambiguous — safer to leave alone).
  */
 export function decideRefresh(
   sessionId: string,
   cwd: string,
   teams: readonly TeamLeadSummary[],
+  liveSessionIds: ReadonlySet<string>,
 ): RefreshDecision {
   if (teams.some((t) => t.leadSessionId === sessionId)) {
     return { kind: "noop" };
   }
 
   const normalizedCwd = resolve(cwd);
-  const candidates = teams.filter((t) => resolve(t.leadCwd) === normalizedCwd);
+  const candidates = teams.filter(
+    (t) => resolve(t.leadCwd) === normalizedCwd && !liveSessionIds.has(t.leadSessionId),
+  );
 
   if (candidates.length !== 1) {
     return { kind: "noop" };
@@ -35,6 +41,7 @@ export function decideRefresh(
   return {
     kind: "refresh",
     teamName: candidates[0].teamName,
+    staleLeadSessionId: candidates[0].leadSessionId,
     newLeadSessionId: sessionId,
   };
 }

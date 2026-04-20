@@ -180,6 +180,12 @@ Use `TeamDelete` only when creating a **new team** in the same conversation (sin
 
 Claude Code's built-in `TeamCreate` is not idempotent: calling it with an existing team name silently skips and leaves the previous session's `leadSessionId` in place, which breaks inbound teammate -> lead auto-delivery in the new session.
 
-crux-hive works around this with a `UserPromptSubmit` hook that detects the stale state and refreshes `leadSessionId` to the current session. The refresh only fires when no team already points at the current session AND exactly one team's lead cwd matches the current cwd — ambiguous cases are left untouched. No action is required from the orchestrator.
+crux-hive works around this with a `UserPromptSubmit` hook that refreshes `leadSessionId` to the current session when ALL of the following hold:
 
-If the workaround does not trigger (e.g. different cwd, multiple candidate teams), fall back to `TeamDelete` followed by `TeamCreate` to reset state. Upstream tracking: anthropics/claude-code#45686 and #49642.
+1. No team already points at the current session
+2. Exactly one team's lead `cwd` matches the current `cwd`
+3. That team's previous `leadSessionId` is NOT present in `~/.claude/sessions/*.json` (i.e. the originating session is dead)
+
+Condition 3 prevents stealing lead from a concurrent session that shares the same `cwd`. If multiple live sessions drive the orchestrator from the same directory, the hook is conservative and does nothing — fall back to `TeamDelete` followed by `TeamCreate` to reset state explicitly.
+
+Ambiguous cases (multiple candidate teams or live candidate) are left untouched. Upstream tracking: anthropics/claude-code#45686 and #49642.
