@@ -30,13 +30,12 @@ async function readLeadSummary(teamName: string): Promise<TeamLeadSummary | null
     return null;
   }
 
-  const config = raw as TeamConfig;
-  const leadMember = config.members.find((m) => m.agentId === config.leadAgentId);
+  const leadMember = raw.members.find((m) => m.agentId === raw.leadAgentId);
   if (!leadMember || typeof leadMember.cwd !== "string") {
     return null;
   }
 
-  return { teamName: config.name, leadSessionId: config.leadSessionId, leadCwd: leadMember.cwd };
+  return { teamName: raw.name, leadSessionId: raw.leadSessionId, leadCwd: leadMember.cwd };
 }
 
 export function createFileTeamLeadRepository(): TeamLeadRepository {
@@ -72,13 +71,26 @@ export function createFileTeamLeadRepository(): TeamLeadRepository {
     }
 
     try {
-      const freshConfig: TeamConfig = await Bun.file(configPath).json();
-      // CAS: bail out when another session has already refreshed it. This
-      // prevents us from clobbering a leadSessionId that became live between
-      // listTeamLeads() and lock acquisition.
+      const rawFresh: unknown = await Bun.file(configPath).json();
+      // Minimal check inside the lock: we only need leadSessionId to be a
+      // string so the CAS comparison is meaningful. Member-level validation
+      // already ran in listTeamLeads; redoing it here would pay per-prompt
+      // cost for no additional guarantee.
+      if (
+        !rawFresh ||
+        typeof rawFresh !== "object" ||
+        typeof (rawFresh as { leadSessionId?: unknown }).leadSessionId !== "string"
+      ) {
+        return false;
+      }
+      const freshConfig = rawFresh as TeamConfig;
+      // CAS: bail out when another session has already refreshed leadSessionId
+      // between listTeamLeads() and lock acquisition.
       if (freshConfig.leadSessionId !== expectedStaleSessionId) {
         return false;
       }
+      // Mutate in place so fields crux-hive does not track (e.g. joinedAt,
+      // subscriptions) survive the round trip.
       freshConfig.leadSessionId = newLeadSessionId;
       await Bun.write(configPath, JSON.stringify(freshConfig, null, 2));
       return true;

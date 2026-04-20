@@ -146,6 +146,53 @@ describe("createFileTeamLeadRepository", () => {
       expect(updated.members[0].cwd).toBe("/project");
     });
 
+    it("preserves unknown fields on members when writing", async () => {
+      // Claude Code may add fields crux-hive does not track (e.g. joinedAt,
+      // subscriptions). The write path must not silently drop them.
+      const path = join(getTeamDir("team-a"), "config.json");
+      mkdirSync(getTeamDir("team-a"), { recursive: true });
+      writeFileSync(
+        path,
+        JSON.stringify({
+          name: "team-a",
+          leadAgentId: "lead@team-a",
+          leadSessionId: "old-session",
+          members: [
+            {
+              agentId: "lead@team-a",
+              name: "team-lead",
+              agentType: "team-lead",
+              cwd: "/project",
+              joinedAt: 1234567890,
+              subscriptions: ["topic-x"],
+            },
+          ],
+        }),
+      );
+
+      const repo = createFileTeamLeadRepository();
+      await repo.updateLeadSessionId("team-a", "old-session", "new-session");
+
+      const updated = JSON.parse(readFileSync(path, "utf8")) as {
+        leadSessionId: string;
+        members: Array<Record<string, unknown>>;
+      };
+      expect(updated.leadSessionId).toBe("new-session");
+      expect(updated.members[0].joinedAt).toBe(1234567890);
+      expect(updated.members[0].subscriptions).toEqual(["topic-x"]);
+    });
+
+    it("returns false when on-disk config becomes invalid between listing and write", async () => {
+      const path = join(getTeamDir("team-a"), "config.json");
+      mkdirSync(getTeamDir("team-a"), { recursive: true });
+      writeFileSync(path, JSON.stringify({ name: "team-a" }));
+
+      const repo = createFileTeamLeadRepository();
+      const written = await repo.updateLeadSessionId("team-a", "old-session", "new-session");
+
+      expect(written).toBe(false);
+    });
+
     it("returns false without writing when on-disk value differs (CAS miss)", async () => {
       const config = buildConfig("team-a", "already-fresh", "/project");
       writeTestConfig("team-a", config);

@@ -2,7 +2,6 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { isValidTeamConfig } from "../../../shared/is-valid-team-config.js";
 import { getTeamsDir } from "../../../shared/paths.js";
-import type { TeamConfig } from "../../../team/domain/types.js";
 import type { TeamConfigReader } from "../domain/ports.js";
 import type { OrchestratorState, WorkerState } from "../domain/types.js";
 
@@ -29,20 +28,18 @@ export function createFileTeamReader(): TeamConfigReader {
         continue;
       }
 
-      const config = raw as TeamConfig;
-
-      if (config.leadSessionId !== sessionId) {
+      if (raw.leadSessionId !== sessionId) {
         continue;
       }
 
-      const workers: WorkerState[] = config.members
-        .filter((m) => m.agentId !== config.leadAgentId)
+      const workers: WorkerState[] = raw.members
+        .filter((m) => m.agentId !== raw.leadAgentId)
         .map((m) => ({
           name: m.name,
-          isActive: typeof m.isActive === "boolean" ? m.isActive : false,
+          isActive: m.isActive === true,
         }));
 
-      return { teamName: config.name, workers };
+      return { teamName: raw.name, workers };
     }
 
     return null;
