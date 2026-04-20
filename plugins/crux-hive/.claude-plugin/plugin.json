@@ -21,6 +21,16 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/refresh-lead-session-id.ts"
+          }
+        ]
+      }
     ]
   },
   "mcpServers": {

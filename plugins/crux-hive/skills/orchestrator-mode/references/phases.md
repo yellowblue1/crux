@@ -175,3 +175,17 @@ git push origin --delete <branch>
 Workers are automatically deregistered from the team config when their worktrees are removed (via the cleanup hook), so `TeamDelete` should succeed without manual intervention.
 
 Use `TeamDelete` only when creating a **new team** in the same conversation (since `TeamCreate` requires no existing team). At the end of a conversation, leftover team files are harmless and will not affect future sessions.
+
+### Reusing a Team Across Sessions
+
+Claude Code's built-in `TeamCreate` is not idempotent: calling it with an existing team name silently skips and leaves the previous session's `leadSessionId` in place, which breaks inbound teammate -> lead auto-delivery in the new session.
+
+crux-hive works around this with a `UserPromptSubmit` hook that refreshes `leadSessionId` to the current session when ALL of the following hold:
+
+1. No team already points at the current session
+2. Exactly one team's lead `cwd` matches the current `cwd`
+3. That team's previous `leadSessionId` is NOT present in `~/.claude/sessions/*.json` (i.e. the originating session is dead)
+
+Condition 3 prevents stealing lead from a concurrent session that shares the same `cwd`. If multiple live sessions drive the orchestrator from the same directory, the hook is conservative and does nothing — fall back to `TeamDelete` followed by `TeamCreate` to reset state explicitly.
+
+Ambiguous cases (multiple candidate teams or live candidate) are left untouched. Upstream tracking: anthropics/claude-code#45686 and #49642.
