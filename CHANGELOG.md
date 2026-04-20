@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.7.3] - 2026-04-20
+
+### Fixed
+
+- fix: auto-refresh stale leadSessionId on UserPromptSubmit ([#224](https://github.com/yellowblue1/crux/pull/224))
+
+### Changed
+
+- refactor: strengthen team config validation and add hook debug flag ([#227](https://github.com/yellowblue1/crux/pull/227))
+
 ## [5.7.2] - 2026-04-15
 
 ### Fixed
