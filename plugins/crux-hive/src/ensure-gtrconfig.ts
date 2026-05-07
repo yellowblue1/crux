@@ -4,8 +4,7 @@
  * Called by SessionStart hook to set up git-gtr integration
  */
 
-import { configureGtrHooks } from "./hooks/application/configure-gtr-hooks.js";
-import { createGitConfigAdapter } from "./hooks/infrastructure/git-config-adapter.js";
+import { configureGtrHooks } from "./hooks/configure-gtr-hooks.js";
 
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
 
@@ -14,4 +13,4 @@ if (!pluginRoot) {
   process.exit(1);
 }
 
-configureGtrHooks(pluginRoot, { gitConfig: createGitConfigAdapter() });
+configureGtrHooks(pluginRoot);
