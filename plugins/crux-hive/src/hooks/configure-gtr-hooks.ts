@@ -7,7 +7,7 @@ export function configureGtrHooks(pluginRoot: string): void {
 
 function ensureLocalConfig(key: string, expected: string): void {
   const result = exec(`git config --local ${shellEscape(key)}`, { timeout: 1000 });
-  const current = result.success ? result.stdout || null : null;
+  const current = result.success ? result.stdout : null;
   if (current === expected) return;
   execOrThrow(`git config --local ${shellEscape(key)} ${shellEscape(expected)}`, {
     timeout: 1000,
