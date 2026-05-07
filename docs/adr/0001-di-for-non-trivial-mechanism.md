@@ -24,7 +24,7 @@ The other ports in the codebase do not have this problem:
 
 | Port | Mechanism | Test |
 | --- | --- | --- |
-| `worktree/GitAdapter` | multi-step `git gtr` flow + error mapping | — |
+| `worktree/GitAdapter` | multi-step `git gtr` flow + error mapping | substituted in `start-session.test.ts` |
 | `worktree/TmuxAdapter` | long-arg temp file dance | yes |
 | `worktree/ConfigAdapter` | JSON read/merge/write | yes |
 | `team/TeamRepository` | on-disk team layout invariants | yes |
@@ -59,12 +59,17 @@ If neither is true, the port is shallow and should be inlined.
 
 ## Consequences
 
-- `hooks/GitConfigAdapter` and the surrounding `hooks/{domain,infrastructure}/`
-  layering are removed. The remaining `configureGtrHooks` function lives at
-  `hooks/configure-gtr-hooks.ts` and calls `shared/exec.ts` directly.
+- `hooks/GitConfigAdapter` and the surrounding `hooks/{domain,application,infrastructure}/`
+  layering are removed for the gtr-hooks-config concern. The remaining
+  `configureGtrHooks` function lives at `hooks/configure-gtr-hooks.ts` and
+  calls `shared/exec.ts` directly. Note that `hooks/orchestrator-context/`
+  retains its own `domain/`/`application/`/`infrastructure/` layering: that
+  sub-slice has tested mechanism (file readers + a context builder with
+  invariants) that earns the layering. The contrast is the point — layering
+  follows mechanism, not slice membership.
 - The DDD layering (`domain/`, `application/`, `infrastructure/`) is applied
-  per slice when the slice has non-trivial mechanism worth isolating. A slice
-  with only policy can be a flat file.
+  per concern when the concern has non-trivial mechanism worth isolating. A
+  concern with only policy can be a flat file.
 - Future architectural reviews should not re-suggest re-introducing a port
   for the `git config` calls. If a real test arrives that needs to substitute
   git-config behaviour specifically (not just subprocess execution), revisit

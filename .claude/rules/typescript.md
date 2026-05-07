@@ -18,4 +18,4 @@ paths: plugins/**/*.ts
 
 ## Code Organization
 - Import directly from source files (no barrel exports)
-- Dependency injection for testability
+- Dependency injection for testability — applies to non-trivial mechanism only; see [docs/adr/0001-di-for-non-trivial-mechanism.md](../../docs/adr/0001-di-for-non-trivial-mechanism.md) for the applicability bar
