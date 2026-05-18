@@ -2,3 +2,10 @@
 # Enable test coverage reporting
 coverage = true
 coverageDir = "coverage"
+
+[install]
+# Supply-chain protection: refuse to install dep versions newer than this.
+# 259200 seconds = 3 days. Buys time for a malicious release to be detected
+# and unpublished before it lands in our lockfile.
+# See: https://bun.com/docs/pm/cli/install
+minimumReleaseAge = 259200
