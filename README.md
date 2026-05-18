@@ -53,3 +53,7 @@ Example: "Add a login page and also fix the header layout bug" → The orchestra
 claude plugin uninstall crux-hive
 claude plugin marketplace remove crux
 ```
+
+## License
+
+[MIT](./LICENSE) © Yellow Blue Inc.

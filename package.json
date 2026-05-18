@@ -1,6 +1,7 @@
 {
   "name": "crux",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "workspaces": [
     "plugins/crux-hive"
