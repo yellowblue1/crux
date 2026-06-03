@@ -33,5 +33,21 @@ export function createTmuxAdapter(execFn: ExecFn = defaultExec): TmuxAdapter {
       const full = `${base} -- "$SHELL" -lic ${shellEscape(`source ${scriptPath}`)}`;
       return execOrThrowAsync(full);
     },
+    async listPanePaths(): Promise<ReadonlySet<string>> {
+      // Same reverse lookup as scripts/cleanup: a worker's window is the one
+      // whose pane current path matches the worktree directory.
+      const result = execFn('tmux list-panes -a -F "#{pane_current_path}"', {
+        timeout: TMUX_DETECT_TIMEOUT_MS,
+      });
+      if (!result.success) {
+        return new Set();
+      }
+      return new Set(
+        result.stdout
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0),
+      );
+    },
   };
 }

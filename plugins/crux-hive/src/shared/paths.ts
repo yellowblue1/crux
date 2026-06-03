@@ -13,3 +13,7 @@ export function getTeamsDir(): string {
 export function getSessionsDir(): string {
   return join(getClaudeDir(), "sessions");
 }
+
+export function getProjectsDir(): string {
+  return join(getClaudeDir(), "projects");
+}

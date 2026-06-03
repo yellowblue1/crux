@@ -4,7 +4,7 @@ description: >
   Orchestrate tasks by delegating to parallel Claude Code sessions via git worktrees.
   Activate with "start orchestrator mode", "delegate tasks to workers", "parallel claude code sessions",
   "git worktrees with teams", "orchestrate work", or "/orchestrator-mode".
-allowed-tools: Bash, SendMessage, TeamCreate, TeamDelete, mcp__plugin_crux-hive_crux__start_worktree_session
+allowed-tools: Bash, SendMessage, TeamCreate, TeamDelete, mcp__plugin_crux-hive_crux__start_worktree_session, mcp__plugin_crux-hive_crux__resume_team
 version: 0.1.0
 ---
 
@@ -152,6 +152,43 @@ When notified that a PR is ready:
 6. Cleanup: `git gtr rm <branch> --yes` then `git push origin --delete <branch>`
 
 See `references/phases.md` for full Phase 3–4 procedures and `references/quick-reference.md` for the command table.
+
+## Recovery: Resume a Team After a Restart
+
+When the machine/instance restarts, every Claude Code session dies. To bring a
+team back without resuming each worker by hand:
+
+1. Start a single team-lead session on the default branch, inside tmux, by
+   **resuming the previous lead session**: `claude --resume <leadSessionId>`
+   (find it in `~/.claude/teams/<repo-name>/config.json`). Resuming keeps the
+   lead's session id, so the workers' `--parent-session-id` stays valid and
+   messages route to this session. Do NOT start a fresh lead session before
+   calling `resume_team` — workers would re-attach to the dead lead and routing
+   would silently break until the next prompt triggers the refresh hook.
+2. Call `resume_team` with the same team name:
+
+   ```
+   resume_team({ teamName: "<repo-name>" })
+   ```
+
+   Each worker is relaunched in its tmux window with its conversation history
+   intact (`claude --resume <sessionId>`) and re-attached to the team.
+
+The tool reports a breakdown of `resumed` / `skipped` / `failed` workers:
+
+- **skipped — `already-running`**: the worker's window is already alive. Safe;
+  `resume_team` is idempotent and can be re-run.
+- **skipped — `no-session-id`**: the worker predates session-id recording.
+  Cannot restore history; relaunch it fresh with `start_worktree_session` if
+  still needed.
+- **skipped — `worktree-missing` / `no-transcript`**: the worktree directory or
+  the transcript is gone. The worker cannot be resumed; decide whether to
+  recreate the work.
+- **failed**: the relaunch errored (e.g. tmux issue). Inspect the error and
+  retry.
+
+The lead's own session id is reconciled automatically on the next prompt by the
+`refresh-lead-session-id` hook, so workers route messages to this session.
 
 ## Important Notes
 

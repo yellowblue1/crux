@@ -8,6 +8,7 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { getErrorMessage } from "../shared/exec.js";
+import { type ResumeTeamArgs, resumeTeamSession } from "./tools/resume-team.js";
 import {
   type StartWorktreeSessionArgs,
   startWorktreeSession,
@@ -71,6 +72,25 @@ const TOOL_DEFINITIONS = [
       required: ["branch"],
     },
   },
+  {
+    name: "resume_team",
+    description:
+      "Resumes all workers of a team after an instance restart, restoring each worker's conversation history and team association. Start the team lead first, then call this from the lead. Requires running inside a tmux session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        teamName: {
+          type: "string",
+          description: "Name of the team to resume (the team config under ~/.claude/teams).",
+        },
+        pluginDir: {
+          type: "string",
+          description: "Optional plugin directory path for --plugin-dir flag (development/testing)",
+        },
+      },
+      required: ["teamName"],
+    },
+  },
 ] as const satisfies readonly Tool[];
 
 const server = new Server({ name: "crux", version: "5.0.0" }, { capabilities: { tools: {} } });
@@ -95,6 +115,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
     switch (name) {
       case "start_worktree_session": {
         const result = await startWorktreeSession(args as unknown as StartWorktreeSessionArgs);
+        log(`tool call: ${name} (done)`);
+        return result;
+      }
+      case "resume_team": {
+        const result = await resumeTeamSession(args as unknown as ResumeTeamArgs);
         log(`tool call: ${name} (done)`);
         return result;
       }

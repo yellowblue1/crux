@@ -12,6 +12,12 @@ export interface GitAdapter {
 export interface TmuxAdapter {
   isAvailable(): boolean;
   createWindow(name: string, dir: string, command?: string): Promise<string>;
+  /**
+   * Returns the current path of every tmux pane across all sessions. Used to
+   * detect workers that are already running (resume idempotency) by matching
+   * worktree directories — snapshotted once rather than queried per worker.
+   */
+  listPanePaths(): Promise<ReadonlySet<string>>;
 }
 
 export interface ConfigAdapter {
