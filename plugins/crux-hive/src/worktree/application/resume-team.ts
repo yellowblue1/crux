@@ -22,8 +22,8 @@ export interface ResumeTeamDeps {
   teamRepo: TeamRepository;
   /** True if the worktree directory still exists on disk. */
   worktreeExists(path: string): Promise<boolean>;
-  /** True if the session transcript JSONL exists (resume precondition). */
-  transcriptExists(cwd: string, sessionId: string): Promise<boolean>;
+  /** True if a transcript exists for the session id (resume precondition). */
+  transcriptExists(sessionId: string): Promise<boolean>;
   pluginDir?: string;
 }
 
@@ -90,7 +90,7 @@ async function resumeWorker(
     result.skipped.push({ name, reason: "worktree-missing" });
     return;
   }
-  if (!(await deps.transcriptExists(cwd, sessionId))) {
+  if (!(await deps.transcriptExists(sessionId))) {
     result.skipped.push({ name, reason: "no-transcript" });
     return;
   }
