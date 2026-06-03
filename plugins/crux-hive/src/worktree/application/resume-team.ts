@@ -94,6 +94,9 @@ async function resumeWorker(
     result.skipped.push({ name, reason: "no-transcript" });
     return;
   }
+  // Exact match against the pane's cwd, which equals the worktree root while a
+  // worker runs (tmux opens the window with `-c <worktree>` and Claude's cwd
+  // stays there). Same convention as scripts/cleanup.
   if (livePanePaths.has(cwd)) {
     result.skipped.push({ name, reason: "already-running" });
     return;

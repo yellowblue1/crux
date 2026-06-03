@@ -158,8 +158,13 @@ See `references/phases.md` for full Phase 3–4 procedures and `references/quick
 When the machine/instance restarts, every Claude Code session dies. To bring a
 team back without resuming each worker by hand:
 
-1. Start a single team-lead session (this orchestrator session) on the default
-   branch, inside tmux.
+1. Start a single team-lead session on the default branch, inside tmux, by
+   **resuming the previous lead session**: `claude --resume <leadSessionId>`
+   (find it in `~/.claude/teams/<repo-name>/config.json`). Resuming keeps the
+   lead's session id, so the workers' `--parent-session-id` stays valid and
+   messages route to this session. Do NOT start a fresh lead session before
+   calling `resume_team` — workers would re-attach to the dead lead and routing
+   would silently break until the next prompt triggers the refresh hook.
 2. Call `resume_team` with the same team name:
 
    ```
