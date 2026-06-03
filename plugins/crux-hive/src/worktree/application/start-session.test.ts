@@ -15,6 +15,7 @@ function createMockTmux(overrides?: Partial<TmuxAdapter>): TmuxAdapter {
   return {
     isAvailable: () => true,
     createWindow: async () => "@1",
+    listPanePaths: async () => new Set(),
     ...overrides,
   };
 }
@@ -235,6 +236,56 @@ describe("startSession", () => {
       expect(receivedCommand).toContain("--team-name");
       expect(receivedCommand).toContain("my-team");
       expect(receivedCommand).toContain("--parent-session-id");
+    });
+
+    it("should mint a sessionId, pass it via --session-id, and record it with the window name", async () => {
+      let receivedCommand = "";
+      let recordedSessionId: string | undefined;
+      let recordedWindowName: string | undefined;
+      await startSession(
+        { branch: "feat/test", teamName: "my-team", agentName: "worker" },
+        defaultDeps({
+          teamRepo: {
+            getLeadSessionId: async () => "session-abc",
+            registerMember: async (_team, member) => {
+              recordedSessionId = member.sessionId;
+              recordedWindowName = member.windowName;
+            },
+            createInbox: async () => {},
+          },
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      // A valid UUID was minted and recorded.
+      expect(recordedSessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+      // The same id is passed to the launch command.
+      expect(receivedCommand).toContain("--session-id");
+      expect(receivedCommand).toContain(recordedSessionId ?? "MISSING");
+      // The window name used at launch is recorded for resume.
+      expect(recordedWindowName).toBe("test");
+    });
+
+    it("should not pass --session-id when not a team worker", async () => {
+      let receivedCommand = "";
+      await startSession(
+        { branch: "feat/test" },
+        defaultDeps({
+          tmux: {
+            createWindow: async (_name: string, _dir: string, command?: string) => {
+              receivedCommand = command ?? "";
+              return "@1";
+            },
+          },
+        }),
+      );
+      expect(receivedCommand).not.toContain("--session-id");
     });
 
     it("should not include --permission-mode plan in command", async () => {

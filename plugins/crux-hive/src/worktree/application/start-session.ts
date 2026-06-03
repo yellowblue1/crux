@@ -90,6 +90,10 @@ export async function startSession(
 
   // Resolve Agent Teams config before creating the worktree
   let agentTeamsFlags = "";
+  // Session id is minted up front (only for team workers) so it can be both
+  // passed to `--session-id` at launch and recorded on the team member for
+  // later resume.
+  let sessionId: string | undefined;
   if (teamName && agentName) {
     const leadSessionId = await deps.teamRepo.getLeadSessionId(teamName);
     if (!leadSessionId) {
@@ -99,6 +103,7 @@ export async function startSession(
       };
     }
 
+    sessionId = crypto.randomUUID();
     agentTeamsFlags = buildAgentTeamsFlags({
       teamName,
       agentName,
@@ -143,6 +148,9 @@ export async function startSession(
     finalPrompt = finalPrompt ? `${workerInstructions}\n\n${finalPrompt}` : workerInstructions;
   }
 
+  // Window name (remove branch prefix like feat/, fix/, etc.)
+  const windowName = branch.includes("/") ? branch.split("/").pop() || branch : branch;
+
   // Register teammate and create inbox if Agent Teams is enabled
   if (teamName && agentName) {
     try {
@@ -154,6 +162,10 @@ export async function startSession(
         color: agentColor,
         isActive: true,
         cwd: worktreePath,
+        sessionId,
+        // Recorded so resume can restore the same window name instead of
+        // re-deriving it from a different source than this launch used.
+        windowName,
       });
       await deps.teamRepo.createInbox(teamName, agentName);
     } catch (e) {
@@ -161,13 +173,13 @@ export async function startSession(
     }
   }
 
-  // Window name (remove branch prefix like feat/, fix/, etc.)
-  const windowName = branch.includes("/") ? branch.split("/").pop() || branch : branch;
-
   // Build claude command
   const commandParts = ["claude"];
   if (agentTeamsFlags) {
     commandParts.push(agentTeamsFlags);
+  }
+  if (sessionId) {
+    commandParts.push(`--session-id ${shellEscape(sessionId)}`);
   }
   if (pluginDir) {
     commandParts.push(`--plugin-dir ${shellEscape(pluginDir)}`);
