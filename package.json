@@ -19,7 +19,7 @@
     "type-coverage:detail": "type-coverage --detail"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
+    "@biomejs/biome": "^2.5.0",
     "bun-types": "latest",
     "dependency-cruiser": "^17.3.8",
     "husky": "^9.1.7",
