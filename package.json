@@ -21,7 +21,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "bun-types": "latest",
-    "dependency-cruiser": "^17.3.8",
+    "dependency-cruiser": "^18.0.0",
     "husky": "^9.1.7",
     "knip": "^5.82.1",
     "lint-staged": "^16.3.2",
